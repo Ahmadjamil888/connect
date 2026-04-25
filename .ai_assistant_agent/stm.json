@@ -1,0 +1,19 @@
+{
+  "session": {},
+  "context": [
+    {
+      "type": "plan_created",
+      "goal": "test autonomous operator loop",
+      "task_count": 1,
+      "revision": 0,
+      "ts": "2026-04-25T01:23:16.767600"
+    },
+    {
+      "type": "plan_created",
+      "goal": "echo hello operator",
+      "task_count": 1,
+      "revision": 0,
+      "ts": "2026-04-25T01:28:58.089341"
+    }
+  ]
+}

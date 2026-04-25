@@ -1,0 +1,13 @@
+{
+  "facts": [],
+  "patterns": [
+    {
+      "id": "05399550c0b8",
+      "content": "run_shell_command succeeded for Run command",
+      "success_rate": 1.0,
+      "ts": "2026-04-25T12:44:14.060722"
+    }
+  ],
+  "skills": [],
+  "project_memories": []
+}

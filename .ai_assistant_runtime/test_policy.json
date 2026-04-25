@@ -1,0 +1,12 @@
+{
+  "filesystem": true,
+  "terminal": true,
+  "browser": true,
+  "network": true,
+  "workflow": true,
+  "helpers": true,
+  "auth": false,
+  "github_pr": false,
+  "os_control": false,
+  "secrets": false
+}

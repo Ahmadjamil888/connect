@@ -1,0 +1,16 @@
+[
+  {
+    "run_id": "ddeabca02325",
+    "goal": "test autonomous operator loop",
+    "status": "completed",
+    "created_at": "2026-04-25T01:23:16.771225",
+    "updated_at": "2026-04-25T01:23:16.828389"
+  },
+  {
+    "run_id": "875cef3420d4",
+    "goal": "echo hello operator",
+    "status": "completed",
+    "created_at": "2026-04-25T01:28:58.091850",
+    "updated_at": "2026-04-25T01:28:58.154269"
+  }
+]

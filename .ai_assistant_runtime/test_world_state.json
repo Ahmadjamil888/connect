@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "last_action": {
+    "ts": "2026-04-25T12:44:14.059701",
+    "goal": "test schema repair",
+    "goal_key": "23633652bd2c",
+    "run_id": "repair_test",
+    "tool_name": "run_shell_command",
+    "args": {
+      "command": "echo repaired"
+    },
+    "result": "ran echo repaired",
+    "status": "completed",
+    "metadata": {
+      "task_name": "Run command"
+    }
+  },
+  "recent_actions": [
+    {
+      "ts": "2026-04-25T12:44:14.059701",
+      "goal": "test schema repair",
+      "goal_key": "23633652bd2c",
+      "run_id": "repair_test",
+      "tool_name": "run_shell_command",
+      "args": {
+        "command": "echo repaired"
+      },
+      "result": "ran echo repaired",
+      "status": "completed",
+      "metadata": {
+        "task_name": "Run command"
+      }
+    }
+  ],
+  "goal_progress": {},
+  "projects": {},
+  "services": {},
+  "browser": {
+    "current_url": "",
+    "title": "",
+    "tabs": [],
+    "errors": {}
+  },
+  "workflows": {},
+  "helpers": {},
+  "updated_at": "2026-04-25T12:44:14.059814"
+}

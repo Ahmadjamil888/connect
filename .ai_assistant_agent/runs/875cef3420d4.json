@@ -1,0 +1,55 @@
+{
+  "run_id": "875cef3420d4",
+  "goal": "echo hello operator",
+  "status": "completed",
+  "plan": {
+    "id": "875cef3420d4_r0",
+    "goal": "echo hello operator",
+    "revision": 0,
+    "created_at": "2026-04-25T01:28:58.091828",
+    "tasks": [
+      {
+        "id": "875cef3420d4_r0_t0",
+        "name": "Execute goal with shell",
+        "description": "Fallback execution pathway for unsupported goals.",
+        "tool_name": "run_shell_command",
+        "tool_args": {
+          "command": "echo echo hello operator"
+        },
+        "dependencies": [],
+        "verification": "output_contains:",
+        "rationale": "Guarantees progress.",
+        "status": "completed",
+        "retry_count": 1,
+        "result": "echo hello operator\n",
+        "error": "",
+        "started_at": "2026-04-25T01:28:58.100954",
+        "completed_at": "2026-04-25T01:28:58.139174"
+      }
+    ]
+  },
+  "created_at": "2026-04-25T01:28:58.091850",
+  "updated_at": "2026-04-25T01:28:58.154269",
+  "completed_at": "2026-04-25T01:28:58.142268",
+  "summary": "Run ID: 875cef3420d4\nGoal: echo hello operator\nStatus: completed\nPlan Revision: 0\nTasks Completed: 1\nTasks Failed: 0\nTasks Skipped: 0",
+  "events": [
+    {
+      "ts": "2026-04-25T01:28:58.100969",
+      "type": "task_start",
+      "payload": {
+        "task_id": "875cef3420d4_r0_t0",
+        "name": "Execute goal with shell",
+        "tool": "run_shell_command"
+      }
+    },
+    {
+      "ts": "2026-04-25T01:28:58.139186",
+      "type": "task_done",
+      "payload": {
+        "task_id": "875cef3420d4_r0_t0",
+        "name": "Execute goal with shell"
+      }
+    }
+  ],
+  "replan_count": 0
+}

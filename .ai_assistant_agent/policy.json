@@ -1,0 +1,9 @@
+{
+  "filesystem": true,
+  "terminal": true,
+  "browser": true,
+  "network": true,
+  "github_pr": true,
+  "os_control": false,
+  "secrets": false
+}

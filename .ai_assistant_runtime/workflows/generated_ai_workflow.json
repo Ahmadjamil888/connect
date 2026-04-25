@@ -1,0 +1,22 @@
+{
+  "name": "generated_ai_workflow",
+  "description": "Rewritten workflow",
+  "steps": [
+    {
+      "tool_name": "observe_environment",
+      "tool_args": {
+        "path": ".",
+        "depth": 1
+      }
+    },
+    {
+      "tool_name": "write_file",
+      "tool_args": {
+        "path": "rewritten_from_ai.txt",
+        "content": "fixed"
+      }
+    }
+  ],
+  "saved_at": "2026-04-25T12:09:04.394428",
+  "updated_at": "2026-04-25T12:09:04.405455"
+}
