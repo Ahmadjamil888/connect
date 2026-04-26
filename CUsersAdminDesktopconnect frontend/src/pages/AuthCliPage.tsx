@@ -1,4 +1,4 @@
-import { SignInButton, SignUpButton, useAuth, useUser } from '@clerk/react'
+import { RedirectToSignIn, SignInButton, SignUpButton, useAuth, useUser } from '@clerk/react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
@@ -11,6 +11,7 @@ export function AuthCliPage() {
   const callbackUrl = searchParams.get('callback') || ''
   const [bridgeState, setBridgeState] = useState<BridgeState>('idle')
   const [message, setMessage] = useState('Sign in with Clerk to finish the CONNECT CLI handoff.')
+  const returnUrl = typeof window !== 'undefined' ? window.location.href : '/auth/cli'
 
   const callbackOriginOk = useMemo(() => {
     if (!callbackUrl) return false
@@ -57,6 +58,37 @@ export function AuthCliPage() {
     bridge()
   }, [bridgeState, callbackOriginOk, callbackUrl, getToken, isSignedIn, user])
 
+  if (!isSignedIn && callbackOriginOk) {
+    return (
+      <>
+        <RedirectToSignIn signInForceRedirectUrl={returnUrl} signInFallbackRedirectUrl={returnUrl} />
+        <main className="min-h-screen bg-black px-5 py-16">
+          <div className="mx-auto max-w-3xl rounded-[2rem] border border-white/8 bg-[#0a0d0c] p-8 text-center">
+            <div className="text-xs uppercase tracking-[0.22em] text-[#27F3A9]">CLI Sign-In</div>
+            <h1 className="mt-4 text-4xl font-light tracking-[-0.04em] text-white md:text-5xl">
+              Redirecting to Clerk sign-in.
+            </h1>
+            <p className="mt-5 text-base leading-7 text-neutral-400">
+              If the redirect does not start automatically, use the sign-in button below.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <SignInButton mode="redirect" forceRedirectUrl={returnUrl} fallbackRedirectUrl={returnUrl}>
+                <button className="rounded-full border border-white/10 px-5 py-3 text-sm text-white transition hover:border-[#27F3A9]/50">
+                  Continue to sign in
+                </button>
+              </SignInButton>
+              <SignUpButton mode="redirect" forceRedirectUrl={returnUrl} fallbackRedirectUrl={returnUrl}>
+                <button className="rounded-full bg-[#27F3A9] px-5 py-3 text-sm font-medium text-black transition hover:brightness-110">
+                  Create account
+                </button>
+              </SignUpButton>
+            </div>
+          </div>
+        </main>
+      </>
+    )
+  }
+
   return (
     <main className="min-h-[calc(100vh-81px)] bg-black px-5 py-16">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
@@ -95,12 +127,12 @@ export function AuthCliPage() {
 
           {!isSignedIn ? (
             <div className="mt-6 flex flex-wrap gap-3">
-              <SignInButton mode="modal">
+              <SignInButton mode="redirect" forceRedirectUrl={returnUrl} fallbackRedirectUrl={returnUrl}>
                 <button className="rounded-full border border-white/10 px-5 py-3 text-sm text-white transition hover:border-[#27F3A9]/50">
                   Sign in
                 </button>
               </SignInButton>
-              <SignUpButton mode="modal">
+              <SignUpButton mode="redirect" forceRedirectUrl={returnUrl} fallbackRedirectUrl={returnUrl}>
                 <button className="rounded-full bg-[#27F3A9] px-5 py-3 text-sm font-medium text-black transition hover:brightness-110">
                   Create account
                 </button>
