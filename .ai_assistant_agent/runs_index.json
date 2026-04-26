@@ -1,16 +1,65 @@
 [
   {
-    "run_id": "ddeabca02325",
-    "goal": "test autonomous operator loop",
-    "status": "completed",
-    "created_at": "2026-04-25T01:23:16.771225",
-    "updated_at": "2026-04-25T01:23:16.828389"
+    "run_id": "c2e809ff86a6",
+    "goal": "build me a website",
+    "status": "failed",
+    "created_at": "2026-04-25T12:30:26.397727",
+    "updated_at": "2026-04-25T12:30:45.320331"
   },
   {
-    "run_id": "875cef3420d4",
-    "goal": "echo hello operator",
+    "run_id": "cbfbfd1a09bd",
+    "goal": "build me a landing page named ai labs and 6 pages and each",
     "status": "completed",
-    "created_at": "2026-04-25T01:28:58.091850",
-    "updated_at": "2026-04-25T01:28:58.154269"
+    "created_at": "2026-04-25T12:46:11.761053",
+    "updated_at": "2026-04-25T12:46:38.896143"
+  },
+  {
+    "run_id": "113e5a774bb9",
+    "goal": "mujhe ek website landing page chaiye full modern or very appealing to eyes and 7 pages and each page 8 sections and hero and many content.",
+    "status": "failed",
+    "created_at": "2026-04-25T13:14:36.556586",
+    "updated_at": "2026-04-25T13:16:12.101775"
+  },
+  {
+    "run_id": "5f4e992bbf55",
+    "goal": "i want to build a next js website.",
+    "status": "failed",
+    "created_at": "2026-04-25T13:33:50.646529",
+    "updated_at": "2026-04-25T13:35:46.518075"
+  },
+  {
+    "run_id": "3dcb63a9f1f9",
+    "goal": "open edge on my pc",
+    "status": "completed",
+    "created_at": "2026-04-25T13:43:28.318843",
+    "updated_at": "2026-04-25T13:43:44.419684"
+  },
+  {
+    "run_id": "5a109851d9eb",
+    "goal": "i want a react website and serch on goole for best designs to make this.",
+    "status": "failed",
+    "created_at": "2026-04-25T14:06:11.699069",
+    "updated_at": "2026-04-25T14:07:17.488409"
+  },
+  {
+    "run_id": "9964451ce081",
+    "goal": "build me a website",
+    "status": "failed",
+    "created_at": "2026-04-25T14:58:58.695027",
+    "updated_at": "2026-04-25T14:59:49.720245"
+  },
+  {
+    "run_id": "73cc4f995f1e",
+    "goal": "build me a dope looking website like 3d animations using next js",
+    "status": "running",
+    "created_at": "2026-04-26T00:31:38.759547",
+    "updated_at": "2026-04-26T00:32:49.543131"
+  },
+  {
+    "run_id": "9a593546f5b7",
+    "goal": "i want a next js website",
+    "status": "running",
+    "created_at": "2026-04-26T11:28:07.030653",
+    "updated_at": "2026-04-26T11:28:07.030663"
   }
 ]

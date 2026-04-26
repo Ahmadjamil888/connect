@@ -1,3 +1,2 @@
 @echo off
-cd /d "%~dp0"
-python nexus.py %*
+python "%~dp0ai_assistant.py" %*

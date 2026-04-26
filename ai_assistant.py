@@ -15,6 +15,8 @@ import sys
 import json
 import time
 import re
+import argparse
+import difflib
 import hashlib
 import subprocess
 import platform
@@ -36,10 +38,12 @@ try:
     from rich.console import Console
     from rich.panel import Panel
     from rich.text import Text
+    from rich import box
 except ImportError:
     Console = None
     Panel = None
     Text = None
+    box = None
 
 # Load environment variables from .env file
 try:
@@ -65,12 +69,24 @@ class Config:
 
     APP_NAME = "CONNECT"
     APP_TAGLINE = "Autonomous AI Operator"
-    PROMPT_LABEL = "CONNECT"
+    PROMPT_LABEL = ">"
 
     # AI Model
+    AI_PROVIDER = os.getenv("AI_PROVIDER", "").strip().lower()
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+    GOOGLE_GEMINI_API_KEY = os.getenv("GOOGLE_GEMINI_API_KEY", "")
+    HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY", "")
+    GROQ_MODEL = os.getenv("GROQ_MODEL", "compound-beta")
+    GROQ_CHAT_MODEL = os.getenv("GROQ_CHAT_MODEL", "llama-3.3-70b-versatile")
+    ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-3-7-sonnet-latest")
+    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+    OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3-70b-instruct")
+    GOOGLE_GEMINI_MODEL = os.getenv("GOOGLE_GEMINI_MODEL", "gemini-2.5-flash")
+    HUGGINGFACE_MODEL = os.getenv("HUGGINGFACE_MODEL", "mistralai/Mistral-7B-Instruct-v0.2")
     OLLAMA_MODEL = "llama3.2"
-    USE_GROQ = bool(GROQ_API_KEY)
     TOOL_TIMEOUT = int(os.getenv("TOOL_TIMEOUT", "120"))
 
     # Data Directory
@@ -113,6 +129,25 @@ class Config:
 
     # Debug
     DEBUG = os.getenv("AI_PLATFORM_DEBUG", "false").lower() == "true"
+
+    @classmethod
+    def refresh_from_env(cls):
+        """Refresh provider configuration from the current process environment."""
+        cls.AI_PROVIDER = os.getenv("AI_PROVIDER", "").strip().lower()
+        cls.GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+        cls.ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+        cls.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+        cls.OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+        cls.GOOGLE_GEMINI_API_KEY = os.getenv("GOOGLE_GEMINI_API_KEY", "")
+        cls.HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY", "")
+        cls.GROQ_MODEL = os.getenv("GROQ_MODEL", "compound-beta")
+        cls.GROQ_CHAT_MODEL = os.getenv("GROQ_CHAT_MODEL", "llama-3.3-70b-versatile")
+        cls.ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-3-7-sonnet-latest")
+        cls.OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+        cls.OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3-70b-instruct")
+        cls.GOOGLE_GEMINI_MODEL = os.getenv("GOOGLE_GEMINI_MODEL", "gemini-2.5-flash")
+        cls.HUGGINGFACE_MODEL = os.getenv("HUGGINGFACE_MODEL", "mistralai/Mistral-7B-Instruct-v0.2")
+        cls.DEBUG = os.getenv("AI_PLATFORM_DEBUG", "false").lower() == "true"
 
 
 def debug_log(message: str):
@@ -497,6 +532,51 @@ class UserDataStore:
 class AIModel:
     """AI model with enhanced capabilities."""
 
+    PROVIDER_SETTINGS = {
+        "anthropic": {
+            "label": "Anthropic",
+            "env_key": "ANTHROPIC_API_KEY",
+            "model_attr": "ANTHROPIC_MODEL",
+            "credential_service": "anthropic_api",
+        },
+        "groq": {
+            "label": "Groq",
+            "env_key": "GROQ_API_KEY",
+            "model_attr": "GROQ_MODEL",
+            "credential_service": "groq_api",
+        },
+        "openai": {
+            "label": "OpenAI",
+            "env_key": "OPENAI_API_KEY",
+            "model_attr": "OPENAI_MODEL",
+            "credential_service": "openai_api",
+        },
+        "openrouter": {
+            "label": "OpenRouter",
+            "env_key": "OPENROUTER_API_KEY",
+            "model_attr": "OPENROUTER_MODEL",
+            "credential_service": "openrouter_api",
+        },
+        "gemini": {
+            "label": "Google Gemini",
+            "env_key": "GOOGLE_GEMINI_API_KEY",
+            "model_attr": "GOOGLE_GEMINI_MODEL",
+            "credential_service": "gemini_api",
+        },
+        "huggingface": {
+            "label": "Hugging Face",
+            "env_key": "HUGGINGFACE_API_KEY",
+            "model_attr": "HUGGINGFACE_MODEL",
+            "credential_service": "huggingface_api",
+        },
+        "ollama": {
+            "label": "Ollama",
+            "env_key": "",
+            "model_attr": "OLLAMA_MODEL",
+            "credential_service": "",
+        },
+    }
+
     SYSTEM_PROMPT = """You are CONNECT - an autonomous AI operator and coding assistant.
 
 CAPABILITIES:
@@ -533,28 +613,318 @@ STARTUP CREATION FLOW:
 Always be proactive, helpful, and clear about what you're doing."""
 
     def __init__(self):
-        self.use_groq = Config.USE_GROQ
+        self.provider = ""
+        self.model_name = ""
         self._groq_client = None
-        if self.use_groq:
-            try:
-                from groq import Groq
-
-                self._groq_client = Groq(api_key=Config.GROQ_API_KEY)
-            except Exception:
-                self._groq_client = None
-        if self.use_groq:
-            print(f"[*] Using Groq API")
+        self._anthropic_client = None
+        self._openai_client = None
+        self._openrouter_client = None
+        self._gemini_client = None
+        self._hf_client = None
+        self._provider_error = ""
+        self._select_provider()
+        if self.provider:
+            print(f"[*] Using provider: {self.provider}:{self.model_name}")
         else:
-            print(f"[*] Using Ollama: {Config.OLLAMA_MODEL}")
+            print("[!] No model provider is ready.")
+            print("    Set one of: GROQ_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY,")
+            print("    GOOGLE_GEMINI_API_KEY, HUGGINGFACE_API_KEY, or start Ollama locally.\n")
+
+    def _reset_provider_state(self):
+        self.provider = ""
+        self.model_name = ""
+        self._groq_client = None
+        self._anthropic_client = None
+        self._openai_client = None
+        self._openrouter_client = None
+        self._gemini_client = None
+        self._hf_client = None
+        self._provider_error = ""
+
+    def _probe_provider(self, name: str, configured: bool, model: str) -> Dict[str, str]:
+        return {
+            "name": name,
+            "configured": "yes" if configured else "no",
+            "ready": "yes" if configured else "no",
+            "model": model,
+            "note": "configured" if configured else "missing API key",
+        }
+
+    def _project_env_path(self) -> Path:
+        return Path(__file__).resolve().parent / ".env"
+
+    def _read_env_file(self) -> List[str]:
+        env_path = self._project_env_path()
+        if not env_path.exists():
+            return []
+        return env_path.read_text(encoding="utf-8").splitlines()
+
+    def _write_env_values(self, updates: Dict[str, str]):
+        env_path = self._project_env_path()
+        lines = self._read_env_file()
+        remaining = dict(updates)
+        output: List[str] = []
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in line:
+                output.append(line)
+                continue
+            key, _ = line.split("=", 1)
+            key = key.strip()
+            if key in remaining:
+                output.append(f"{key}={remaining.pop(key)}")
+            else:
+                output.append(line)
+        for key, value in remaining.items():
+            output.append(f"{key}={value}")
+        env_path.write_text("\n".join(output).rstrip() + "\n", encoding="utf-8")
+
+    def _provider_configured(self, provider_name: str) -> bool:
+        settings = self.PROVIDER_SETTINGS.get(provider_name, {})
+        env_key = settings.get("env_key", "")
+        if not env_key:
+            return provider_name == "ollama"
+        return bool(getattr(Config, env_key, ""))
+
+    def _mask_secret(self, value: str) -> str:
+        if not value:
+            return "(empty)"
+        if len(value) <= 8:
+            return "*" * len(value)
+        return f"{value[:4]}...{value[-4:]}"
+
+    def _save_provider_secret(self, provider_name: str, secret: str):
+        settings = self.PROVIDER_SETTINGS[provider_name]
+        env_key = settings["env_key"]
+        os.environ[env_key] = secret
+        self._write_env_values({env_key: secret})
+        try:
+            from tools.auth_manager import save_credential
+
+            save_credential(settings["credential_service"], "api_key", secret)
+        except Exception as exc:
+            debug_log(f"credential vault save failed for {provider_name}: {exc}")
+
+    def _persist_provider_preference(self, provider_name: str):
+        os.environ["AI_PROVIDER"] = provider_name
+        self._write_env_values({"AI_PROVIDER": provider_name})
+        Config.refresh_from_env()
+
+    def configure_provider(self, provider_name: str, interactive: bool = True) -> tuple[bool, str]:
+        requested = (provider_name or "").strip().lower()
+        valid = set(self.PROVIDER_SETTINGS.keys())
+        if requested not in valid:
+            return False, f"Unknown provider: {provider_name}. Available: {', '.join(sorted(valid))}"
+
+        settings = self.PROVIDER_SETTINGS[requested]
+        label = settings["label"]
+        env_key = settings["env_key"]
+
+        if requested == "ollama":
+            self._persist_provider_preference(requested)
+            self._select_provider(preferred=requested, allow_fallback=False)
+            if self.provider == requested:
+                return True, f"Switched provider to {self.provider}:{self.model_name} and saved AI_PROVIDER in project .env"
+            return False, f"Could not switch to {requested}: {self._provider_error or 'provider is not ready'}"
+
+        current_secret = getattr(Config, env_key, "")
+        secret_to_save = ""
+
+        if current_secret:
+            if not interactive:
+                self._persist_provider_preference(requested)
+                self._select_provider(preferred=requested, allow_fallback=False)
+                if self.provider == requested:
+                    return True, f"Switched provider to {self.provider}:{self.model_name} using saved credentials"
+                return False, f"Could not switch to {requested}: {self._provider_error or 'provider is not ready'}"
+
+            print(f"{label} is already configured with {env_key}={self._mask_secret(current_secret)}")
+            choice = input("Keep current key or add new key? [keep/new]: ").strip().lower()
+            if choice in {"", "keep", "k"}:
+                self._persist_provider_preference(requested)
+                self._select_provider(preferred=requested, allow_fallback=False)
+                if self.provider == requested:
+                    return True, f"Switched provider to {self.provider}:{self.model_name} using saved credentials"
+                return False, f"Could not switch to {requested}: {self._provider_error or 'provider is not ready'}"
+            if choice not in {"new", "n", "add"}:
+                return False, "Provider update cancelled"
+
+        if not interactive and not current_secret:
+            return False, f"{label} is not configured. Add {env_key} in .env or run /provider {requested} in interactive mode."
+
+        while not secret_to_save:
+            print(f"Paste {label} API key for {env_key} (input is visible so paste works normally):")
+            secret_to_save = input("> ").strip()
+            if not secret_to_save:
+                print("API key cannot be empty.")
+
+        self._save_provider_secret(requested, secret_to_save)
+        self._persist_provider_preference(requested)
+        self._select_provider(preferred=requested, allow_fallback=False)
+        if self.provider == requested:
+            return True, f"Configured and switched provider to {self.provider}:{self.model_name}. Saved {env_key} and AI_PROVIDER in project .env"
+        return False, f"Saved credentials for {requested}, but the provider is still not ready: {self._provider_error or 'unknown error'}"
+
+    def _ollama_available(self) -> tuple[bool, str]:
+        try:
+            response = requests.get("http://localhost:11434/api/tags", timeout=2)
+            if response.ok:
+                return True, "local server reachable"
+            return False, f"http {response.status_code}"
+        except Exception as exc:
+            return False, str(exc)
+
+    def _provider_order(self, preferred: Optional[str] = None) -> List[str]:
+        ordered = ["anthropic", "groq", "openai", "openrouter", "gemini", "huggingface", "ollama"]
+        selected = (preferred or Config.AI_PROVIDER or "").strip().lower()
+        if selected and selected in ordered:
+            ordered.remove(selected)
+            ordered.insert(0, selected)
+        return ordered
+
+    def _select_provider(self, preferred: Optional[str] = None, allow_fallback: bool = True):
+        self._reset_provider_state()
+        ordered = self._provider_order(preferred)
+        if preferred and not allow_fallback:
+            ordered = [name for name in ordered if name == preferred]
+        for provider_name in ordered:
+            try:
+                if provider_name == "anthropic" and Config.ANTHROPIC_API_KEY:
+                    from anthropic import Anthropic
+
+                    self._anthropic_client = Anthropic(api_key=Config.ANTHROPIC_API_KEY)
+                    self.provider = "anthropic"
+                    self.model_name = Config.ANTHROPIC_MODEL
+                    return
+                if provider_name == "groq" and Config.GROQ_API_KEY:
+                    from groq import Groq
+
+                    self._groq_client = Groq(api_key=Config.GROQ_API_KEY)
+                    self.provider = "groq"
+                    self.model_name = Config.GROQ_MODEL
+                    return
+                if provider_name == "openai" and Config.OPENAI_API_KEY:
+                    from openai import OpenAI
+
+                    self._openai_client = OpenAI(api_key=Config.OPENAI_API_KEY)
+                    self.provider = "openai"
+                    self.model_name = Config.OPENAI_MODEL
+                    return
+                if provider_name == "openrouter" and Config.OPENROUTER_API_KEY:
+                    from openai import OpenAI
+
+                    self._openrouter_client = OpenAI(
+                        api_key=Config.OPENROUTER_API_KEY,
+                        base_url="https://openrouter.ai/api/v1",
+                    )
+                    self.provider = "openrouter"
+                    self.model_name = Config.OPENROUTER_MODEL
+                    return
+                if provider_name == "gemini" and Config.GOOGLE_GEMINI_API_KEY:
+                    from google import genai
+
+                    self._gemini_client = genai.Client(api_key=Config.GOOGLE_GEMINI_API_KEY)
+                    self.provider = "gemini"
+                    self.model_name = Config.GOOGLE_GEMINI_MODEL
+                    return
+                if provider_name == "huggingface" and Config.HUGGINGFACE_API_KEY:
+                    from huggingface_hub import InferenceClient
+
+                    self._hf_client = InferenceClient(api_key=Config.HUGGINGFACE_API_KEY)
+                    self.provider = "huggingface"
+                    self.model_name = Config.HUGGINGFACE_MODEL
+                    return
+                if provider_name == "ollama":
+                    ready, note = self._ollama_available()
+                    if ready:
+                        self.provider = "ollama"
+                        self.model_name = Config.OLLAMA_MODEL
+                        return
+                    self._provider_error = note
+            except Exception as exc:
+                self._provider_error = f"{provider_name}: {exc}"
+
+    def switch_provider(self, provider_name: str) -> tuple[bool, str]:
+        return self.configure_provider(provider_name, interactive=False)
+
+    def get_provider_status(self) -> List[Dict[str, str]]:
+        statuses = [
+            self._probe_provider("anthropic", bool(Config.ANTHROPIC_API_KEY), Config.ANTHROPIC_MODEL),
+            self._probe_provider("groq", bool(Config.GROQ_API_KEY), Config.GROQ_MODEL),
+            self._probe_provider("openai", bool(Config.OPENAI_API_KEY), Config.OPENAI_MODEL),
+            self._probe_provider("openrouter", bool(Config.OPENROUTER_API_KEY), Config.OPENROUTER_MODEL),
+            self._probe_provider("gemini", bool(Config.GOOGLE_GEMINI_API_KEY), Config.GOOGLE_GEMINI_MODEL),
+            self._probe_provider("huggingface", bool(Config.HUGGINGFACE_API_KEY), Config.HUGGINGFACE_MODEL),
+        ]
+        ollama_ready, ollama_note = self._ollama_available()
+        statuses.append(
+            {
+                "name": "ollama",
+                "configured": "yes",
+                "ready": "yes" if ollama_ready else "no",
+                "model": Config.OLLAMA_MODEL,
+                "note": ollama_note,
+            }
+        )
+        for item in statuses:
+            item["selected"] = "yes" if item["name"] == self.provider else "no"
+        return statuses
+
+    def _normalize_openai_like(self, response: Any) -> Dict[str, Any]:
+        if hasattr(response, "model_dump"):
+            return response.model_dump()
+        if isinstance(response, dict):
+            return response
+        return {"choices": [{"message": {"content": str(response)}}]}
+
+    def _normalize_anthropic(self, response: Any) -> Dict[str, Any]:
+        content_blocks = getattr(response, "content", []) or []
+        text_parts: List[str] = []
+        tool_calls: List[Dict[str, Any]] = []
+        for block in content_blocks:
+            block_type = getattr(block, "type", "")
+            if block_type == "text":
+                text_parts.append(getattr(block, "text", ""))
+            elif block_type == "tool_use":
+                tool_calls.append(
+                    {
+                        "id": getattr(block, "id", ""),
+                        "type": "function",
+                        "function": {
+                            "name": getattr(block, "name", ""),
+                            "arguments": json.dumps(getattr(block, "input", {}), ensure_ascii=True),
+                        },
+                    }
+                )
+        message = {"content": "\n".join(part for part in text_parts if part).strip()}
+        if tool_calls:
+            message["tool_calls"] = tool_calls
+        return {"choices": [{"message": message}]}
+
+    def _anthropic_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        converted = []
+        for tool in tools or []:
+            fn = tool.get("function", {})
+            converted.append(
+                {
+                    "name": fn.get("name", ""),
+                    "description": fn.get("description", ""),
+                    "input_schema": fn.get("parameters", {"type": "object", "properties": {}}),
+                }
+            )
+        return converted
+
+    def _coerce_plain_messages(self, messages: List[Dict[str, Any]]) -> str:
+        return "\n\n".join(f"{m.get('role', 'user').upper()}: {m.get('content', '')}" for m in messages)
 
     def chat(self, messages: List[Dict], tools: List[Dict] = None) -> Dict:
         """Send messages to AI model."""
-        if self.use_groq:
-            try:
-                if self._groq_client is None:
-                    raise RuntimeError("Groq client unavailable")
+        if not self.provider:
+            return {"error": f"No model provider available. Last error: {self._provider_error or 'none'}"}
+        try:
+            if self.provider == "groq":
                 payload = {
-                    "model": "compound-beta" if tools else "llama-3.3-70b-versatile",
+                    "model": Config.GROQ_MODEL if tools else Config.GROQ_CHAT_MODEL,
                     "messages": messages,
                     "temperature": 0.2 if tools else 0.7,
                     "max_tokens": 4096,
@@ -562,13 +932,60 @@ Always be proactive, helpful, and clear about what you're doing."""
                 if tools:
                     payload["tools"] = tools
                     payload["tool_choice"] = "auto"
-                response = self._groq_client.chat.completions.create(**payload)
-                return response.model_dump()
-            except Exception as e:
-                return {"error": str(e)}
-        else:
-            # Ollama fallback
-            try:
+                return self._normalize_openai_like(self._groq_client.chat.completions.create(**payload))
+            if self.provider == "openai":
+                payload = {
+                    "model": Config.OPENAI_MODEL,
+                    "messages": messages,
+                    "temperature": 0.2 if tools else 0.7,
+                    "max_tokens": 4096,
+                }
+                if tools:
+                    payload["tools"] = tools
+                    payload["tool_choice"] = "auto"
+                return self._normalize_openai_like(self._openai_client.chat.completions.create(**payload))
+            if self.provider == "openrouter":
+                payload = {
+                    "model": Config.OPENROUTER_MODEL,
+                    "messages": messages,
+                    "temperature": 0.2 if tools else 0.7,
+                    "max_tokens": 4096,
+                }
+                if tools:
+                    payload["tools"] = tools
+                    payload["tool_choice"] = "auto"
+                return self._normalize_openai_like(self._openrouter_client.chat.completions.create(**payload))
+            if self.provider == "anthropic":
+                system_text = "\n\n".join(m["content"] for m in messages if m.get("role") == "system")
+                anthropic_messages = [
+                    {"role": m.get("role", "user"), "content": m.get("content", "")}
+                    for m in messages
+                    if m.get("role") != "system"
+                ]
+                payload = {
+                    "model": Config.ANTHROPIC_MODEL,
+                    "system": system_text,
+                    "messages": anthropic_messages,
+                    "max_tokens": 4096,
+                }
+                if tools:
+                    payload["tools"] = self._anthropic_tools(tools)
+                return self._normalize_anthropic(self._anthropic_client.messages.create(**payload))
+            if self.provider == "gemini":
+                response = self._gemini_client.models.generate_content(
+                    model=Config.GOOGLE_GEMINI_MODEL,
+                    contents=self._coerce_plain_messages(messages),
+                )
+                return {"choices": [{"message": {"content": getattr(response, "text", "") or ""}}]}
+            if self.provider == "huggingface":
+                response = self._hf_client.chat_completion(
+                    model=Config.HUGGINGFACE_MODEL,
+                    messages=messages,
+                    max_tokens=2048,
+                    temperature=0.2 if tools else 0.7,
+                )
+                return self._normalize_openai_like(response)
+            if self.provider == "ollama":
                 ollama_msgs = [{"role": m["role"], "content": m["content"]} for m in messages]
                 response = requests.post(
                     "http://localhost:11434/api/chat",
@@ -577,8 +994,9 @@ Always be proactive, helpful, and clear about what you're doing."""
                 )
                 response.raise_for_status()
                 return {"choices": [{"message": {"content": response.json()["message"]["content"]}}]}
-            except Exception as e:
-                return {"error": str(e)}
+        except Exception as e:
+            return {"error": str(e)}
+        return {"error": f"Unsupported provider: {self.provider}"}
 
     def stream_chat(self, messages: List[Dict], on_chunk: Optional[Callable[[str], None]] = None) -> str:
         """Stream plain-text model output and return the full text."""
@@ -591,13 +1009,22 @@ Always be proactive, helpful, and clear about what you're doing."""
             if on_chunk:
                 on_chunk(text)
 
-        if self.use_groq:
+        if self.provider in {"groq", "openai", "openrouter"}:
             try:
-                if self._groq_client is None:
-                    raise RuntimeError("Groq client unavailable")
-                debug_log(f"stream_chat: sending {len(messages)} messages to Groq")
-                stream = self._groq_client.chat.completions.create(
-                    model="compound-beta",
+                if self.provider == "groq":
+                    client = self._groq_client
+                    model_name = Config.GROQ_MODEL
+                elif self.provider == "openai":
+                    client = self._openai_client
+                    model_name = Config.OPENAI_MODEL
+                else:
+                    client = self._openrouter_client
+                    model_name = Config.OPENROUTER_MODEL
+                if client is None:
+                    raise RuntimeError(f"{self.provider} client unavailable")
+                debug_log(f"stream_chat: sending {len(messages)} messages to {self.provider}")
+                stream = client.chat.completions.create(
+                    model=model_name,
                     messages=messages,
                     temperature=0.7,
                     max_tokens=4096,
@@ -607,9 +1034,9 @@ Always be proactive, helpful, and clear about what you're doing."""
                     delta = chunk.choices[0].delta.content or ""
                     emit(delta)
             except Exception as e:
-                debug_log(f"stream_chat error (Groq): {e}")
+                debug_log(f"stream_chat error ({self.provider}): {e}")
                 return f"[stream error] {e}"
-        else:
+        elif self.provider == "ollama":
             try:
                 ollama_msgs = [{"role": m["role"], "content": m["content"]} for m in messages]
                 debug_log(f"stream_chat: sending {len(messages)} messages to Ollama")
@@ -633,6 +1060,10 @@ Always be proactive, helpful, and clear about what you're doing."""
             except Exception as e:
                 debug_log(f"stream_chat error (Ollama): {e}")
                 return f"[stream error] {e}"
+        else:
+            response = self.chat(messages)
+            parsed = self.parse_response(response)
+            emit(parsed.get("content", "") if parsed else "")
 
         final_text = "".join(chunks)
         debug_log(f"stream_chat: received {len(final_text)} characters")
@@ -2280,9 +2711,34 @@ class AdvancedTools:
     @staticmethod
     def _write_file(path: str, content: str) -> str:
         try:
-            Path(path).parent.mkdir(parents=True, exist_ok=True)
-            Path(path).write_text(content)
-            return f"Written: {path}"
+            target = Path(path)
+            before = ""
+            created = not target.exists()
+            if target.exists() and target.is_file():
+                try:
+                    before = target.read_text(encoding="utf-8", errors="ignore")
+                except Exception:
+                    before = ""
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+            diff_lines = list(
+                difflib.unified_diff(
+                    before.splitlines(),
+                    content.splitlines(),
+                    fromfile=f"{path} (before)",
+                    tofile=f"{path} (after)",
+                    lineterm="",
+                    n=2,
+                )
+            )
+            preview = "\n".join(diff_lines[:40]) if diff_lines else "(no textual diff)"
+            return (
+                "[WRITE_RESULT]\n"
+                f"path={path}\n"
+                f"created={'true' if created else 'false'}\n"
+                "diff:\n"
+                f"{preview}"
+            )
         except Exception as e:
             return f"Error: {e}"
 
@@ -3957,6 +4413,7 @@ class AdvancedAIPlatform:
             memory=self.memory,
             emit_callback=self._emit_agent_event
         )
+        self._prompt_provider_setup()
         self._prompt_optional_github_token()
         self._print_welcome()
 
@@ -3990,14 +4447,62 @@ class AdvancedAIPlatform:
     def _section_header(self, label: str) -> str:
         return self._accent(f"[{label}]")
 
-    def _print_welcome_rich(self, title: str, subtitle: str, feature_lines: List[str]):
-        body_lines = [
-            "Mode: repo-aware local agent",
-            "Use /agent <goal> for autonomous execution or chat normally.",
+    def _reference_title_lines(self) -> List[str]:
+        return [
+            "  #####   ###   #   #  #   #  #####   #####  #####",
+            " #       #   #  ##  #  ##  #  #      #         #  ",
+            " #       #   #  # # #  # # #  ###    #         #  ",
+            " #       #   #  #  ##  #  ##  #      #         #  ",
+            "  #####   ###   #   #  #   #  #####   #####    #  ",
             "",
+            "    AI",
         ]
-        body_lines.extend(f"- {line}" for line in feature_lines)
-        self.console.print(Panel("\n".join(body_lines), title=title, subtitle=subtitle, border_style="cyan"))
+        return [
+            " ██████╗ ██████╗ ███╗   ██╗███╗   ██╗███████╗ ██████╗████████╗",
+            "██╔════╝██╔═══██╗████╗  ██║████╗  ██║██╔════╝██╔════╝╚══██╔══╝",
+            "██║     ██║   ██║██╔██╗ ██║██╔██╗ ██║█████╗  ██║        ██║   ",
+            "██║     ██║   ██║██║╚██╗██║██║╚██╗██║██╔══╝  ██║        ██║   ",
+            "╚██████╗╚██████╔╝██║ ╚████║██║ ╚████║███████╗╚██████╗   ██║   ",
+            " ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═══╝╚══════╝ ╚═════╝   ╚═╝   ",
+            "     █████╗ ██╗",
+            "    ██╔══██╗██║",
+            "    ███████║██║",
+            "    ██╔══██║██║",
+            "    ██║  ██║██║",
+            "    ╚═╝  ╚═╝╚═╝",
+        ]
+
+    def _welcome_lines(self) -> List[str]:
+        provider = self.ai.provider or "none"
+        model = self.ai.model_name or "unavailable"
+        return [
+            "CONNECT AI is ready with your configured model provider.",
+            "",
+            "Select login method:",
+            f"  1. Active provider: {provider} ({model})",
+            "  2. Use /provider [name] or /llm [name] to switch",
+            "",
+            "Use /help for help.",
+        ]
+
+    def _print_welcome_rich(self, title: str, subtitle: str, feature_lines: List[str]):
+        title_text = Text("\n".join(self._reference_title_lines()), style="bold #6cb6ff")
+        body_text = Text("\n".join(self._welcome_lines()), style="#d7e9ff")
+        content = Text()
+        content.append_text(title_text)
+        content.append("\n\n")
+        content.append_text(body_text)
+        self.console.print(
+            Panel(
+                content,
+                border_style="#365f8c",
+                box=box.SQUARE if box else None,
+                padding=(1, 2),
+                style="on #141414",
+                title="Welcome to CONNECT AI",
+                title_align="left",
+            )
+        )
 
     def _emit_agent_event_rich(self, event_type: str, payload: Dict[str, Any]):
         title_map = {
@@ -4014,7 +4519,16 @@ class AdvancedAIPlatform:
         title = title_map.get(event_type, event_type.upper())
 
         def render(lines: List[str], border: str = "cyan"):
-            self.console.print(Panel("\n".join(lines) or "(empty)", title=title, border_style=border))
+            self.console.print(
+                Panel(
+                    "\n".join(lines) or "(empty)",
+                    title=title,
+                    border_style=border,
+                    box=box.SQUARE if box else None,
+                    padding=(0, 1),
+                    style="on #141414",
+                )
+            )
 
         if event_type == "plan_created":
             render([f"{idx}. {step}" for idx, step in enumerate(payload.get("plan", []), start=1)])
@@ -4028,7 +4542,7 @@ class AdvancedAIPlatform:
                 lines.extend(f"{idx}. {step}" for idx, step in enumerate(plan, start=1))
             lines.append("")
             lines.append(f"Next: {payload.get('next_action', '')}")
-            render(lines, "magenta")
+            render(lines, "#7fb3ff")
             return
         if event_type == "action":
             lines = []
@@ -4036,7 +4550,7 @@ class AdvancedAIPlatform:
             if intent:
                 lines.append(f"Intent: {intent}")
             lines.append(payload.get("action", ""))
-            render(lines, "yellow")
+            render(lines, "#4ea1ff")
             return
         if event_type == "result":
             lines = []
@@ -4044,7 +4558,7 @@ class AdvancedAIPlatform:
             if intent:
                 lines.append(f"Intent: {intent}")
             lines.append(payload.get("summary", ""))
-            render(lines, "green")
+            render(lines, "#d7e9ff")
             return
         if event_type == "patch":
             lines = []
@@ -4055,7 +4569,7 @@ class AdvancedAIPlatform:
             if target:
                 lines.append(f"Target: {target}")
             lines.extend(payload.get("changes", []))
-            render(lines, "blue")
+            render(lines, "#4ea1ff")
             return
         if event_type == "observation":
             snapshot = str(payload.get("snapshot", "")).strip()
@@ -4077,19 +4591,19 @@ class AdvancedAIPlatform:
                         lines.append(f"Network Failures: {len(data.get('network_failures', []))}")
                     if data.get("screenshot_path"):
                         lines.append(f"Screenshot: {data.get('screenshot_path')}")
-                    render(lines, "cyan")
+                    render(lines, "#6f8fb2")
                     return
                 except Exception:
                     pass
             body = snapshot or "(none)"
             if len(body) > 420:
                 body = body[:420] + "\n..."
-            render([body], "cyan")
+            render([body], "#6f8fb2")
             return
         if event_type == "replan":
             lines = [f"Reason: {payload.get('error', '')}"]
             lines.extend(f"{idx}. {step}" for idx, step in enumerate(payload.get("plan", []), start=1))
-            render(lines, "red")
+            render(lines, "#4ea1ff")
             return
         if event_type == "evaluation":
             lines = []
@@ -4113,16 +4627,163 @@ class AdvancedAIPlatform:
                 lines.append("")
                 lines.append("Next Steps:")
                 lines.extend(f"{idx}. {step}" for idx, step in enumerate(next_steps, start=1))
-            render(lines, "green")
+            render(lines, "#d7e9ff")
 
     def _print_tool_result_rich(self, tool_name: str, tool_args: Dict[str, Any], result: str):
         lines = [f"Tool: {tool_name}"]
         if tool_args:
             lines.append(f"Args: {json.dumps(tool_args, ensure_ascii=True)}")
-        self.console.print(Panel("\n".join(lines), title="TOOL", border_style="cyan"))
-        self.console.print(Panel(result or "(empty result)", title="RESULT", border_style="green"))
+        self.console.print(
+            Panel(
+                "\n".join(lines),
+                title="TOOL",
+                border_style="#365f8c",
+                box=box.SQUARE if box else None,
+                padding=(0, 1),
+                style="on #141414",
+            )
+        )
+        if tool_name == "run_shell_command":
+            parsed = AdvancedTools._parse_shell_result(result)
+            summary = [
+                f"Session: {parsed.get('session_id', 'default')}",
+                f"Cwd: {parsed.get('cwd', '')}",
+                f"Exit: {parsed.get('exit_code', '')}",
+                f"OK: {parsed.get('ok', False)}",
+            ]
+            self.console.print(
+                Panel(
+                    "\n".join(summary),
+                    title="RESULT",
+                    border_style="#d7e9ff",
+                    box=box.SQUARE if box else None,
+                    padding=(0, 1),
+                    style="on #141414",
+                )
+            )
+            stdout = parsed.get("stdout", "") or "(empty)"
+            stderr = parsed.get("stderr", "") or "(empty)"
+            self.console.print(
+                Panel(
+                    stdout[:1200],
+                    title="STDOUT",
+                    border_style="#6f8fb2",
+                    box=box.SQUARE if box else None,
+                    padding=(0, 1),
+                    style="on #141414",
+                )
+            )
+            if stderr != "(empty)":
+                self.console.print(
+                    Panel(
+                        stderr[:1200],
+                        title="STDERR",
+                        border_style="#4ea1ff",
+                        box=box.SQUARE if box else None,
+                        padding=(0, 1),
+                        style="on #141414",
+                    )
+                )
+            return
+        self.console.print(
+            Panel(
+                result or "(empty result)",
+                title="RESULT",
+                border_style="#d7e9ff",
+                box=box.SQUARE if box else None,
+                padding=(0, 1),
+                style="on #141414",
+            )
+        )
+
+    def doctor_report(self) -> str:
+        lines = ["CONNECT Doctor", ""]
+        lines.append("Providers:")
+        for item in self.ai.get_provider_status():
+            selected = " *" if item.get("selected") == "yes" else ""
+            lines.append(
+                f"  - {item['name']}: configured={item['configured']} ready={item['ready']} model={item['model']} note={item['note']}{selected}"
+            )
+        lines.append("")
+        lines.append("Launchers:")
+        repo_launcher = Path(__file__).resolve().parent / "connect.bat"
+        lines.append(f"  - repo launcher: {repo_launcher} exists={repo_launcher.exists()}")
+        user_launcher = Path.home() / "connect-bin" / "connect.cmd"
+        lines.append(f"  - user launcher: {user_launcher} exists={user_launcher.exists()}")
+        lines.append("")
+        lines.append(f"Workspace cwd: {Path.cwd()}")
+        return "\n".join(lines)
+
+    def provider_report(self) -> str:
+        lines = ["Providers:"]
+        for item in self.ai.get_provider_status():
+            selected = " *" if item.get("selected") == "yes" else ""
+            lines.append(
+                f"  - {item['name']}: ready={item['ready']} configured={item['configured']} model={item['model']}{selected}"
+            )
+        lines.append("")
+        lines.append("Usage:")
+        lines.append("  /provider")
+        lines.append("  /provider [name]")
+        lines.append("  /llm [name]")
+        lines.append("Switching providers will prompt for credentials when needed and save them in project .env.")
+        return "\n".join(lines)
+
+    def handle_provider_command(self, cmd: str) -> str:
+        parts = cmd.split(maxsplit=1)
+        if len(parts) == 1:
+            return self.provider_report()
+        target = parts[1].strip().lower()
+        if target in {"list", "status"}:
+            return self.provider_report()
+        if sys.stdin.isatty() and hasattr(self.ai, "configure_provider"):
+            ok, message = self.ai.configure_provider(target, interactive=True)
+        else:
+            ok, message = self.ai.switch_provider(target)
+        if ok:
+            return f"{message}\nNote: provider preference is saved in this project's .env."
+        return message
+
+    def run_goal_once(self, goal: str) -> str:
+        route = self.router.route(goal, self.ai, self.conversation_history[-6:])
+        if route.mode == "tool":
+            result = AdvancedTools.execute_tracked(route.tool_name, route.tool_args, self.data_store, self.ai)
+            self._print_tool_result(route.tool_name, route.tool_args, result)
+            return result
+        if route.mode == "agent":
+            summary = self.agent.execute_goal(goal)
+            print(f"\n{summary}")
+            return summary
+        messages = [{"role": "system", "content": AIModel.SYSTEM_PROMPT}]
+        messages.extend(self.conversation_history[-10:])
+        messages.append({"role": "user", "content": goal})
+        streamed = self.ai.stream_chat(messages, on_chunk=lambda chunk: print(chunk, end="", flush=True))
+        print("")
+        return streamed
 
     def _print_welcome(self):
+        if self.console and Panel and Text:
+            self._print_welcome_rich(
+                f"{Config.APP_NAME} | {Config.APP_TAGLINE}",
+                "Plan, patch, execute, verify",
+                [
+                    "Live autonomous trace console",
+                    "Browser, file, shell, and workflow control",
+                    "Structured thought, action, patch, and evaluation streams",
+                    "Professional local operator experience",
+                ],
+            )
+            return
+        print("")
+        print(self._muted("Welcome to CONNECT AI"))
+        print("")
+        for line in self._reference_title_lines():
+            print(self._style(line, "38;5;111"))
+        print("")
+        for line in self._welcome_lines():
+            print(self._muted(line))
+        print("")
+        return
         if self.console and Panel and Text:
             self._print_welcome_rich(
                 f"{Config.APP_NAME} | {Config.APP_TAGLINE}",
@@ -4168,11 +4829,13 @@ class AdvancedAIPlatform:
 
         try:
             print(f"\n{self._section_header('SETUP')} GitHub token is optional but required for PR read/review/merge tools.")
-            add_token = input(f"{self._section_header('SETUP')} Add GITHUB_TOKEN now? (optional) [y/N]: ").strip().lower()
+            print(self._muted("Add GITHUB_TOKEN now? (optional) [y/N]"))
+            add_token = input("> ").strip().lower()
             if add_token not in {"y", "yes"}:
                 return
 
-            token = input(f"{self._section_header('SETUP')} Paste GITHUB_TOKEN: ").strip()
+            print(self._muted("Paste GITHUB_TOKEN:"))
+            token = input("> ").strip()
             if not token:
                 print(f"{self._section_header('SETUP')} Skipped (empty token).")
                 return
@@ -4182,6 +4845,56 @@ class AdvancedAIPlatform:
         except Exception:
             # Keep startup resilient even if stdin is unavailable/interrupted
             pass
+
+    def _reference_title_lines(self) -> List[str]:
+        return ["CONNECT"]
+
+    def _welcome_lines(self) -> List[str]:
+        provider = self.ai.provider or "none"
+        model = self.ai.model_name or "unavailable"
+        return [
+            f"Provider: {provider} ({model})",
+            "Commands: /provider, /llm, /doctor, /help, /agent <goal>",
+            "Mode: repo-aware local coding assistant",
+        ]
+
+    def _print_welcome_rich(self, title: str, subtitle: str, feature_lines: List[str]):
+        title_text = Text("CONNECT", style="bold #f5eadc")
+        body_text = Text("\n".join(self._welcome_lines()), style="#e7d7c7")
+        content = Text()
+        content.append_text(title_text)
+        content.append("\n")
+        content.append_text(Text("Local AI workspace", style="#c58c67"))
+        content.append("\n\n")
+        content.append_text(body_text)
+        self.console.print(
+            Panel(
+                content,
+                border_style="#c58c67",
+                box=box.SQUARE if box else None,
+                padding=(1, 2),
+                style="on #1d1a17",
+                title="Session",
+                title_align="left",
+            )
+        )
+
+    def _prompt_provider_setup(self):
+        """Offer provider setup at startup when no provider is ready."""
+        if self.ai.provider or not sys.stdin.isatty():
+            return
+
+        print(f"\n{self._section_header('SETUP')} No model provider is configured yet.")
+        print(self._muted("Choose a provider now or press Enter to skip."))
+        print(self._muted("Available: anthropic, groq, openai, openrouter, gemini, huggingface, ollama"))
+        try:
+            provider_name = input("> ").strip().lower()
+        except Exception:
+            return
+        if not provider_name:
+            return
+        ok, message = self.ai.configure_provider(provider_name, interactive=True)
+        print(message)
 
     def _emit_agent_event(self, event_type: str, payload: Dict[str, Any]):
         """Print structured cognition for the autonomous operator."""
@@ -4307,15 +5020,17 @@ class AdvancedAIPlatform:
         if cmd == "/help":
             return """
 Commands:
-  /help - Show this help
+  /help - Show all commands and help
   /chat - Start conversation mode
-  agent - Start autonomous mode (no slash)
-  /agent [goal] - Execute goal autonomously (NEW)
+  /provider - Show provider status or switch provider
+  /llm - Alias for /provider
+  agent - Start autonomous mode without slash
+  /agent [goal] - Execute a goal autonomously
   /agent-runs - List recent autonomous runs
-  /agent-resume [run_id] - Resume a paused/failed run
+  /agent-resume [run_id] - Resume a paused or failed run
   /policy - Show autonomous policy scopes
-  /policy-set [scope] [on|off] - Toggle policy scope
-  /audit [N] - Show last N audit entries (default 10)
+  /policy-set [scope] [on|off] - Toggle a policy scope
+  /audit [N] - Show last N audit entries
   /startup [idea] - Create startup from idea
   /report - Generate weekly report
   /projects - List all projects
@@ -4324,25 +5039,25 @@ Commands:
   /agent-status - Show autonomous agent status
   /world - Show persistent world state
   /memory - Show agent memories
+  /doctor - Show provider and launcher diagnostics
   /clear - Clear conversation
   /exit - Exit platform
 
 Examples:
-  "Create a website for my restaurant"
-  "Help me setup a Gmail account"
-  "Mujhe startup banana hai - online coaching"
-  "Generate weekly report"
-  "Check my project health"
-
-Autonomous Agent Examples:
+  /provider openai
+  /llm groq
   /agent "Build a SaaS landing page with pricing and deploy it"
-  /agent "Create a Python script that monitors system resources and logs to CSV"
-  /agent "Setup a blog with Next.js and deploy to Vercel"
+  Create a website for my restaurant
 
-Operator Mode:
-  Execution-style requests now default to the autonomous loop.
-  Example: "Build me a landing page" will inspect, write files, preview, and adapt.
+Tip:
+  Use /help for help.
 """
+        elif cmd == "/provider" or cmd == "/llm":
+            return self.handle_provider_command(cmd)
+        elif cmd.startswith("/provider ") or cmd.startswith("/llm "):
+            return self.handle_provider_command(cmd)
+        elif cmd == "/doctor":
+            return self.doctor_report()
         elif cmd == "/agent-status":
             status = self.agent.get_status()
             return f"""
@@ -4443,13 +5158,13 @@ Skills ({len(skills)}):
             return "Conversation cleared"
         elif cmd == "/exit" or cmd == "/quit":
             return "EXIT_NOW"
-        return f"Unknown command: {cmd}"
+        return f"Unknown command: {cmd}\nUse /help for help."
 
     def run(self):
         """Main platform loop."""
         while True:
             try:
-                user_input = input(f"\n[{Config.PROMPT_LABEL}]> ").strip()
+                user_input = input("\n> ").strip()
 
                 if not user_input:
                     continue
@@ -4475,7 +5190,7 @@ Skills ({len(skills)}):
 
                 # Plain "agent" command (without slash)
                 if user_input.lower() == "agent":
-                    goal = input(f"[{Config.APP_NAME} Goal]> ").strip()
+                    goal = input("> ").strip()
                     if not goal:
                         print("Usage: agent -> then enter a goal, e.g. Build a SaaS landing page")
                         continue
@@ -4565,6 +5280,9 @@ Skills ({len(skills)}):
                 self.conversation_history.append({"role": "assistant", "content": streamed})
                 self.data_store.add_conversation(user_input, streamed, [], [])
 
+            except EOFError:
+                print("\nInput stream closed. Exiting.")
+                break
             except KeyboardInterrupt:
                 print("\n\nInterrupted. Type /exit to quit.")
             except Exception as e:
@@ -4577,12 +5295,20 @@ Skills ({len(skills)}):
 
 def main():
     """Main entry point."""
-    # Check config
-    if not Config.USE_GROQ:
-        print(f"{Config.APP_NAME}: no GROQ_API_KEY detected. Using Ollama (local mode).")
-        print("    Get free key: https://console.groq.com/keys\n")
-
+    parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument("goal", nargs="*", help="Optional goal to run once instead of opening the interactive CLI.")
+    parser.add_argument("--doctor", action="store_true", help="Print provider and launcher diagnostics, then exit.")
+    args = parser.parse_args()
     platform = AdvancedAIPlatform()
+    if args.doctor:
+        print(platform.doctor_report())
+        return
+    if args.goal:
+        platform.run_goal_once(" ".join(args.goal).strip())
+        return
+    if not sys.stdin.isatty():
+        print("No interactive stdin detected. Pass a goal or use --doctor.")
+        return
     platform.run()
 
 

@@ -15,32 +15,53 @@ This repo is strongest when treated as:
 pip install -r requirements.txt
 ```
 
-### Step 2: Get FREE API Key
-- Visit: https://console.groq.com/keys
-- Sign up (free, no credit card)
-- Copy your API key
+### Step 2: Choose a Provider
+- `Anthropic`: `ANTHROPIC_API_KEY`
+- `Groq`: `GROQ_API_KEY`
+- `OpenAI`: `OPENAI_API_KEY`
+- `OpenRouter`: `OPENROUTER_API_KEY`
+- `Gemini`: `GOOGLE_GEMINI_API_KEY`
+- `Hugging Face`: `HUGGINGFACE_API_KEY`
+- `Ollama`: no key, but `ollama serve` must be running locally
 
-### Step 3: Set API Key (Choose ONE method)
+### Step 3: Set Provider Config
 
 **Method A: Edit .env file (Recommended - persists)**
 ```bash
-# Open .env file and add:
+# Open .env file and add either:
+AI_PROVIDER=groq
 GROQ_API_KEY=gsk_your_key_here
+
+# or:
+AI_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 **Method B: Environment variable (temporary)**
 ```bash
 # Windows
+set AI_PROVIDER=groq
 set GROQ_API_KEY=gsk_your_key_here
 
 # Linux/Mac
+export AI_PROVIDER=groq
 export GROQ_API_KEY=gsk_your_key_here
 ```
 
 ### Step 4: Run
 ```bash
 python ai_assistant.py
+# or run one goal directly
+python ai_assistant.py "build a next js website"
+# or inspect provider/launcher state
+python ai_assistant.py --doctor
 ```
+
+### Global `connect` Command
+```bash
+install_connect_command.bat
+```
+This installs `connect` into `%USERPROFILE%\connect-bin` and lets you launch the CLI from any directory while keeping your current working directory intact.
 
 ---
 
@@ -69,6 +90,7 @@ python ai_assistant.py
 - Write, run, debug, patch, rerun loop
 - Workflow generation and reusable helper synthesis
 - Explicit path toward stronger git/testing/deployment automation
+- Richer terminal presentation for plans, patches, shell output, and observations
 
 See [ARCHITECTURE.md](/C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/ARCHITECTURE.md) for the target system design.
 
@@ -200,6 +222,7 @@ Ahmad
 | `/projects` | List all projects |
 | `/stats` | Task statistics |
 | `/profile` | User profile |
+| `/doctor` | Provider and launcher diagnostics |
 | `/clear` | Clear conversation |
 | `/exit` | Exit |
 

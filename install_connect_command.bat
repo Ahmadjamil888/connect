@@ -9,8 +9,7 @@ if not exist "%BIN_DIR%" mkdir "%BIN_DIR%"
 
 (
 echo @echo off
-echo cd /d "%REPO_DIR%"
-echo python nexus.py %%*
+echo python "%REPO_DIR%\ai_assistant.py" %%*
 ) > "%BIN_DIR%\connect.cmd"
 
 echo [*] Installed launcher: "%BIN_DIR%\connect.cmd"

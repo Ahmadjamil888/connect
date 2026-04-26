@@ -3,39 +3,303 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Contact | AI Labs</title>
+  <title>Providers | AI Labs</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="claude-page">
   <div class="site-shell">
-      <header class="site-header">
-        <a class="brand" href="index.html">AI Labs</a>
-        <nav class="site-nav">
-          <a href="index.html#platform">Platform</a>
-          <a href="index.html#workflow">Workflow</a>
-          <a href="about.html">About</a>
-          <a href="contact.html">Contact</a>
-        </nav>
-      </header>
-    <main class="inner-page">
-      <section class="page-intro">
-        <p class="eyebrow">Contact</p>
-        <h1>Talk to the AI Labs team</h1>
-        <p class="lede">Use this page as the primary conversion path from the landing experience.</p>
-      </section>
-      <section class="contact-card card">
-        <h2>Start a walkthrough</h2>
-        <p>Email hello@example.com or adapt this page with your real inbox and booking flow.</p>
-        <a class="button primary" href="index.html">Back to overview</a>
+    <header class="site-header claude-header">
+      <a class="brand" href="index.html">AI Labs</a>
+      <nav class="site-nav">
+        <a href="index.html">Overview</a>
+        <a href="about.html">About</a>
+        <a href="contact.html" aria-current="page">Providers</a>
+      </nav>
+    </header>
+
+    <main class="claude-layout">
+      <aside class="claude-sidebar">
+        <div class="sidebar-block">
+          <p class="eyebrow">Workspace</p>
+          <h2>Model settings</h2>
+          <p class="lede small">Pick a provider, update the model, and decide whether to keep the current key or replace it.</p>
+        </div>
+
+        <div class="sidebar-block">
+          <p class="eyebrow">Providers</p>
+          <div class="provider-list">
+            <button class="provider-item is-active" type="button" data-provider="anthropic">Anthropic</button>
+            <button class="provider-item" type="button" data-provider="openai">OpenAI</button>
+            <button class="provider-item" type="button" data-provider="groq">Groq</button>
+            <button class="provider-item" type="button" data-provider="openrouter">OpenRouter</button>
+            <button class="provider-item" type="button" data-provider="gemini">Gemini</button>
+            <button class="provider-item" type="button" data-provider="huggingface">Hugging Face</button>
+            <button class="provider-item" type="button" data-provider="ollama">Ollama</button>
+          </div>
+        </div>
+
+        <div class="sidebar-block sidebar-tip">
+          <strong>Update flow</strong>
+          <p>If a key already exists, choose keep or replace. Replacing reveals a fresh editable API key field immediately.</p>
+        </div>
+      </aside>
+
+      <section class="claude-main">
+        <section class="claude-panel">
+          <div class="provider-head">
+            <div>
+              <p class="eyebrow">Provider configuration</p>
+              <h1 id="provider-title">Anthropic</h1>
+              <p class="lede" id="provider-description">Claude-style default workspace for Anthropic credentials and model routing.</p>
+            </div>
+            <span class="provider-env" id="provider-env">ANTHROPIC_API_KEY</span>
+          </div>
+
+          <form id="provider-form" class="provider-form" autocomplete="off">
+            <div class="field">
+              <label for="provider-name">Selected provider</label>
+              <input id="provider-name" name="provider" type="text" readonly aria-readonly="true">
+            </div>
+
+            <div class="field">
+              <label for="model-name">Model name</label>
+              <input id="model-name" name="model" type="text" spellcheck="false" autocomplete="off" autocapitalize="off">
+            </div>
+
+            <div class="field" id="update-choice-field">
+              <span class="field-label">Existing key handling</span>
+              <div class="choice-row">
+                <label class="choice-card" for="key-mode-keep">
+                  <input id="key-mode-keep" type="radio" name="keyMode" value="keep" checked>
+                  <span>Keep current key</span>
+                </label>
+                <label class="choice-card" for="key-mode-replace">
+                  <input id="key-mode-replace" type="radio" name="keyMode" value="replace">
+                  <span>Add new key</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="field" id="api-key-field">
+              <label for="api-key">API key</label>
+              <input id="api-key" name="apiKey" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" inputmode="text" placeholder="Paste your provider key here">
+            </div>
+
+            <div class="field">
+              <label for="provider-notes">Notes</label>
+              <textarea id="provider-notes" name="notes" rows="4" placeholder="Rotation schedule, quota reminders, or project-specific notes."></textarea>
+            </div>
+
+            <div class="form-actions">
+              <button class="button primary" type="submit">Save provider setup</button>
+              <button class="button secondary" type="button" id="reset-provider">Reset provider</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="provider-summary-grid">
+          <article class="summary-card">
+            <span class="state-label">Stored model</span>
+            <strong id="stored-model">claude-3-7-sonnet-latest</strong>
+          </article>
+          <article class="summary-card">
+            <span class="state-label">Stored key</span>
+            <strong id="stored-key">Not saved yet</strong>
+          </article>
+          <article class="summary-card">
+            <span class="state-label">Last action</span>
+            <strong id="last-action">Waiting for input</strong>
+          </article>
+        </section>
       </section>
     </main>
+
     <footer class="site-footer">
       <p>AI Labs builds autonomous systems that stay legible to operators.</p>
       <div class="footer-links">
         <a href="about.html">About</a>
-        <a href="contact.html">Contact</a>
+        <a href="contact.html">Providers</a>
       </div>
     </footer>
   </div>
+
+  <script>
+    const providerConfig = {
+      anthropic: {
+        title: "Anthropic",
+        description: "Claude-style default workspace for Anthropic credentials and model routing.",
+        env: "ANTHROPIC_API_KEY",
+        model: "claude-3-7-sonnet-latest",
+        needsKey: true
+      },
+      openai: {
+        title: "OpenAI",
+        description: "Configure OpenAI models and switch keys without leaving the workspace.",
+        env: "OPENAI_API_KEY",
+        model: "gpt-4.1-mini",
+        needsKey: true
+      },
+      groq: {
+        title: "Groq",
+        description: "Fast routing for Groq models with replace-or-keep key handling.",
+        env: "GROQ_API_KEY",
+        model: "compound-beta",
+        needsKey: true
+      },
+      openrouter: {
+        title: "OpenRouter",
+        description: "Save a router key and keep the selected model pinned for the project.",
+        env: "OPENROUTER_API_KEY",
+        model: "meta-llama/llama-3-70b-instruct",
+        needsKey: true
+      },
+      gemini: {
+        title: "Gemini",
+        description: "Project-specific Gemini key and model configuration for Google workloads.",
+        env: "GOOGLE_GEMINI_API_KEY",
+        model: "gemini-2.5-flash",
+        needsKey: true
+      },
+      huggingface: {
+        title: "Hugging Face",
+        description: "Store inference credentials and keep the default model editable.",
+        env: "HUGGINGFACE_API_KEY",
+        model: "mistralai/Mistral-7B-Instruct-v0.2",
+        needsKey: true
+      },
+      ollama: {
+        title: "Ollama",
+        description: "Local provider mode. No remote API key required.",
+        env: "OLLAMA_MODEL",
+        model: "llama3.2",
+        needsKey: false
+      }
+    };
+
+    const storageKey = "ai-labs-provider-settings";
+    const form = document.getElementById("provider-form");
+    const providerTitle = document.getElementById("provider-title");
+    const providerDescription = document.getElementById("provider-description");
+    const providerEnv = document.getElementById("provider-env");
+    const providerName = document.getElementById("provider-name");
+    const modelName = document.getElementById("model-name");
+    const apiKey = document.getElementById("api-key");
+    const notes = document.getElementById("provider-notes");
+    const updateChoiceField = document.getElementById("update-choice-field");
+    const apiKeyField = document.getElementById("api-key-field");
+    const storedModel = document.getElementById("stored-model");
+    const storedKey = document.getElementById("stored-key");
+    const lastAction = document.getElementById("last-action");
+    const resetButton = document.getElementById("reset-provider");
+    const keepRadio = document.getElementById("key-mode-keep");
+    const replaceRadio = document.getElementById("key-mode-replace");
+
+    function readStore() {
+      try {
+        return JSON.parse(localStorage.getItem(storageKey) || "{}");
+      } catch (error) {
+        return {};
+      }
+    }
+
+    function writeStore(data) {
+      localStorage.setItem(storageKey, JSON.stringify(data));
+    }
+
+    function maskKey(value) {
+      if (!value) return "Not saved yet";
+      if (value.length <= 8) return "*".repeat(value.length);
+      return value.slice(0, 4) + "..." + value.slice(-4);
+    }
+
+    function syncKeyFieldVisibility() {
+      const provider = providerName.value;
+      const config = providerConfig[provider];
+      const needsReplacement = replaceRadio.checked || !readStore()[provider]?.apiKey;
+      apiKeyField.hidden = !config.needsKey;
+      updateChoiceField.hidden = !config.needsKey;
+      apiKey.disabled = !config.needsKey || !needsReplacement;
+      apiKey.placeholder = needsReplacement ? "Paste your provider key here" : "Keeping current saved key";
+      if (!needsReplacement) {
+        apiKey.value = "";
+      }
+    }
+
+    function setActiveProvider(provider) {
+      const config = providerConfig[provider];
+      const store = readStore();
+      const saved = store[provider] || {};
+
+      document.querySelectorAll(".provider-item").forEach((button) => {
+        button.classList.toggle("is-active", button.dataset.provider === provider);
+      });
+
+      providerTitle.textContent = config.title;
+      providerDescription.textContent = config.description;
+      providerEnv.textContent = config.env;
+      providerName.value = provider;
+      modelName.value = saved.model || config.model;
+      notes.value = saved.notes || "";
+      storedModel.textContent = saved.model || config.model;
+      storedKey.textContent = maskKey(saved.apiKey);
+      lastAction.textContent = saved.lastAction || "Waiting for input";
+
+      if (config.needsKey && saved.apiKey) {
+        keepRadio.checked = true;
+      } else {
+        replaceRadio.checked = !!config.needsKey;
+        keepRadio.checked = !config.needsKey;
+      }
+
+      syncKeyFieldVisibility();
+      modelName.focus();
+    }
+
+    document.querySelectorAll(".provider-item").forEach((button) => {
+      button.addEventListener("click", () => setActiveProvider(button.dataset.provider));
+    });
+
+    keepRadio.addEventListener("change", syncKeyFieldVisibility);
+    replaceRadio.addEventListener("change", syncKeyFieldVisibility);
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const provider = providerName.value;
+      const config = providerConfig[provider];
+      const store = readStore();
+      const existing = store[provider] || {};
+      const replaceKey = config.needsKey && replaceRadio.checked;
+      const nextKey = replaceKey ? apiKey.value.trim() : (existing.apiKey || "");
+
+      if (replaceKey && !nextKey) {
+        lastAction.textContent = "Enter a new API key before saving.";
+        apiKey.disabled = false;
+        apiKey.focus();
+        return;
+      }
+
+      store[provider] = {
+        model: modelName.value.trim() || config.model,
+        apiKey: nextKey,
+        notes: notes.value.trim(),
+        lastAction: replaceKey ? "Saved new key and model locally" : "Kept current key and updated model locally"
+      };
+      writeStore(store);
+      setActiveProvider(provider);
+    });
+
+    resetButton.addEventListener("click", () => {
+      const provider = providerName.value;
+      const store = readStore();
+      delete store[provider];
+      writeStore(store);
+      setActiveProvider(provider);
+      lastAction.textContent = "Cleared saved state for current provider";
+      apiKey.disabled = false;
+      apiKey.focus();
+    });
+
+    setActiveProvider("anthropic");
+  </script>
 </body>
 </html>

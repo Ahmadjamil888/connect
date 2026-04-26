@@ -11,9 +11,12 @@ _pw = None
 def _get_page() -> Page:
     global _browser, _page, _pw
     if _page is None or _browser is None:
-        _pw = sync_playwright().start()
-        _browser = _pw.chromium.launch(headless=False)
-        _page = _browser.new_page()
+        try:
+            _pw = sync_playwright().start()
+            _browser = _pw.chromium.launch(headless=False)
+            _page = _browser.new_page()
+        except Exception as exc:
+            raise RuntimeError(f"browser unavailable: {exc}") from exc
     return _page
 
 

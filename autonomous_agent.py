@@ -41,11 +41,8 @@ class AgentConfig:
     AUDIT_SECRET = os.getenv("AI_ASSISTANT_AUDIT_SECRET", "local-dev-audit-secret")
 
 
-try:
-    AgentConfig.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    AgentConfig.RUNS_DIR.mkdir(parents=True, exist_ok=True)
-except PermissionError:
-    AgentConfig.DATA_DIR = Path.cwd() / ".ai_assistant_agent"
+def _rebase_agent_storage(base_dir: Path):
+    AgentConfig.DATA_DIR = base_dir
     AgentConfig.RUNS_DIR = AgentConfig.DATA_DIR / "runs"
     AgentConfig.STM_FILE = AgentConfig.DATA_DIR / "stm.json"
     AgentConfig.LTM_FILE = AgentConfig.DATA_DIR / "ltm.json"
@@ -54,6 +51,13 @@ except PermissionError:
     AgentConfig.POLICY_FILE = AgentConfig.DATA_DIR / "policy.json"
     AgentConfig.AUDIT_LOG_FILE = AgentConfig.DATA_DIR / "audit.log.jsonl"
     AgentConfig.WORLD_STATE_FILE = Path.cwd() / ".ai_assistant_runtime" / "world_state.json"
+
+
+try:
+    AgentConfig.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    AgentConfig.RUNS_DIR.mkdir(parents=True, exist_ok=True)
+except PermissionError:
+    _rebase_agent_storage(Path.cwd() / ".ai_assistant_agent")
     AgentConfig.DATA_DIR.mkdir(parents=True, exist_ok=True)
     AgentConfig.RUNS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -148,7 +152,22 @@ class MemorySystem:
         return default
 
     def _save_json(self, path: Path, data: Any):
-        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        except PermissionError:
+            _rebase_agent_storage(Path.cwd() / ".ai_assistant_agent")
+            AgentConfig.DATA_DIR.mkdir(parents=True, exist_ok=True)
+            AgentConfig.RUNS_DIR.mkdir(parents=True, exist_ok=True)
+            fallback_map = {
+                "stm.json": AgentConfig.STM_FILE,
+                "ltm.json": AgentConfig.LTM_FILE,
+                "failures.json": AgentConfig.FAILURES_FILE,
+                "runs_index.json": AgentConfig.RUNS_INDEX_FILE,
+            }
+            target = fallback_map.get(path.name, AgentConfig.DATA_DIR / path.name)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     def save(self):
         self.stm["context"] = self.stm.get("context", [])[-AgentConfig.MAX_CONTEXT_EVENTS :]
@@ -670,7 +689,14 @@ class PolicyEngine:
         return dict(self.DEFAULT_POLICY)
 
     def _save_policy(self, policy: Dict[str, bool]):
-        AgentConfig.POLICY_FILE.write_text(json.dumps(policy, indent=2), encoding="utf-8")
+        try:
+            AgentConfig.POLICY_FILE.parent.mkdir(parents=True, exist_ok=True)
+            AgentConfig.POLICY_FILE.write_text(json.dumps(policy, indent=2), encoding="utf-8")
+        except PermissionError:
+            _rebase_agent_storage(Path.cwd() / ".ai_assistant_agent")
+            AgentConfig.DATA_DIR.mkdir(parents=True, exist_ok=True)
+            AgentConfig.RUNS_DIR.mkdir(parents=True, exist_ok=True)
+            AgentConfig.POLICY_FILE.write_text(json.dumps(policy, indent=2), encoding="utf-8")
 
     def get_policy(self) -> Dict[str, bool]:
         return dict(self.policy)
@@ -734,8 +760,16 @@ class AuditLogger:
         raw = json.dumps(record, sort_keys=True, ensure_ascii=True).encode("utf-8")
         sig = hmac.new(self.secret, raw, hashlib.sha256).hexdigest()
         record["sig"] = sig
-        with AgentConfig.AUDIT_LOG_FILE.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(record, ensure_ascii=True) + "\n")
+        try:
+            AgentConfig.AUDIT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with AgentConfig.AUDIT_LOG_FILE.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=True) + "\n")
+        except PermissionError:
+            _rebase_agent_storage(Path.cwd() / ".ai_assistant_agent")
+            AgentConfig.DATA_DIR.mkdir(parents=True, exist_ok=True)
+            AgentConfig.RUNS_DIR.mkdir(parents=True, exist_ok=True)
+            with AgentConfig.AUDIT_LOG_FILE.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=True) + "\n")
         self.last_sig = sig
 
     def tail(self, limit: int = 30) -> List[Dict[str, Any]]:
@@ -961,7 +995,7 @@ Rules:
             ]
             return tasks[: AgentConfig.MAX_PLAN_STEPS]
 
-        if ("next.js" in g or "nextjs" in g or "create-next-app" in g) and "run_shell_command" in tool_names:
+        if ("next.js" in g or "nextjs" in g or "next js" in g or "create-next-app" in g) and "run_shell_command" in tool_names:
             tasks = [
                 {
                     "name": "Observe environment",
@@ -2109,9 +2143,23 @@ Keep the thought concrete and operational, not abstract.
         content = str(task.tool_args.get("content", ""))
         suffix = Path(path).suffix.lower()
         lines: List[str] = []
-        if path:
+        if isinstance(task.result, str) and task.result.startswith("[WRITE_RESULT]"):
+            diff_started = False
+            for raw_line in task.result.splitlines():
+                if raw_line == "diff:":
+                    diff_started = True
+                    continue
+                if not diff_started:
+                    continue
+                if raw_line.startswith(("---", "+++", "@@")):
+                    continue
+                if raw_line.startswith("+") or raw_line.startswith("-"):
+                    lines.append(raw_line)
+                if len(lines) >= 8:
+                    break
+        if path and not any(line.startswith(("+", "-")) for line in lines):
             lines.append(f"+ Updated `{path}`")
-        if content:
+        if content and len(lines) < 8:
             lines.append(f"+ Wrote {len(content.splitlines())} lines")
 
         if suffix == ".html":
@@ -2685,7 +2733,15 @@ class AutonomousAgent:
     def _persist_run(self, run: RunState):
         payload = self._serialize_run(run)
         path = AgentConfig.RUNS_DIR / f"{run.run_id}.json"
-        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        except PermissionError:
+            _rebase_agent_storage(Path.cwd() / ".ai_assistant_agent")
+            AgentConfig.DATA_DIR.mkdir(parents=True, exist_ok=True)
+            AgentConfig.RUNS_DIR.mkdir(parents=True, exist_ok=True)
+            path = AgentConfig.RUNS_DIR / f"{run.run_id}.json"
+            path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         self.memory.update_run_index(run)
 
     def _load_run(self, run_id: str) -> Optional[RunState]:

@@ -7,8 +7,7 @@ mkdir -p "$BIN_DIR"
 
 cat > "$BIN_DIR/connect" <<EOF
 #!/bin/bash
-cd "$REPO_DIR"
-python3 nexus.py "\$@"
+python3 "$REPO_DIR/ai_assistant.py" "\$@"
 EOF
 
 chmod +x "$BIN_DIR/connect"

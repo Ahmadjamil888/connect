@@ -3,17 +3,138 @@
   "context": [
     {
       "type": "plan_created",
-      "goal": "test autonomous operator loop",
-      "task_count": 1,
+      "goal": "build me a website",
+      "task_count": 6,
       "revision": 0,
-      "ts": "2026-04-25T01:23:16.767600"
+      "ts": "2026-04-25T12:30:26.394465"
+    },
+    {
+      "type": "replan",
+      "run_id": "c2e809ff86a6",
+      "failed_task": "Preview website",
+      "error": "tool returned error",
+      "replan_count": 1,
+      "ts": "2026-04-25T12:30:38.878304"
+    },
+    {
+      "type": "replan",
+      "run_id": "c2e809ff86a6",
+      "failed_task": "Task 1",
+      "error": "Missing required args for run_shell_command: command",
+      "replan_count": 2,
+      "ts": "2026-04-25T12:30:42.236529"
     },
     {
       "type": "plan_created",
-      "goal": "echo hello operator",
-      "task_count": 1,
+      "goal": "build me a landing page named ai labs and 6 pages and each",
+      "task_count": 8,
       "revision": 0,
-      "ts": "2026-04-25T01:28:58.089341"
+      "ts": "2026-04-25T12:46:11.758277"
+    },
+    {
+      "type": "plan_created",
+      "goal": "mujhe ek website landing page chaiye full modern or very appealing to eyes and 7 pages and each page 8 sections and hero and many content.",
+      "task_count": 9,
+      "revision": 0,
+      "ts": "2026-04-25T13:14:36.554071"
+    },
+    {
+      "type": "plan_created",
+      "goal": "i want to build a next js website.",
+      "task_count": 8,
+      "revision": 0,
+      "ts": "2026-04-25T13:33:50.643752"
+    },
+    {
+      "type": "replan",
+      "run_id": "5f4e992bbf55",
+      "failed_task": "Preview website",
+      "error": "tool returned error",
+      "replan_count": 1,
+      "ts": "2026-04-25T13:34:27.044082"
+    },
+    {
+      "type": "plan_created",
+      "goal": "open edge on my pc",
+      "task_count": 3,
+      "revision": 0,
+      "ts": "2026-04-25T13:43:28.315228"
+    },
+    {
+      "type": "plan_created",
+      "goal": "i want a react website and serch on goole for best designs to make this.",
+      "task_count": 8,
+      "revision": 0,
+      "ts": "2026-04-25T14:06:11.695663"
+    },
+    {
+      "type": "replan",
+      "run_id": "5a109851d9eb",
+      "failed_task": "Preview website",
+      "error": "tool returned error",
+      "replan_count": 1,
+      "ts": "2026-04-25T14:06:33.286246"
+    },
+    {
+      "type": "replan",
+      "run_id": "5a109851d9eb",
+      "failed_task": "Preview website",
+      "error": "tool returned error",
+      "replan_count": 2,
+      "ts": "2026-04-25T14:06:55.230995"
+    },
+    {
+      "type": "plan_created",
+      "goal": "build me a website",
+      "task_count": 8,
+      "revision": 0,
+      "ts": "2026-04-25T14:58:58.692378"
+    },
+    {
+      "type": "replan",
+      "run_id": "9964451ce081",
+      "failed_task": "Preview website",
+      "error": "tool returned error",
+      "replan_count": 1,
+      "ts": "2026-04-25T14:59:19.949150"
+    },
+    {
+      "type": "replan",
+      "run_id": "9964451ce081",
+      "failed_task": "Preview website",
+      "error": "tool returned error",
+      "replan_count": 2,
+      "ts": "2026-04-25T14:59:34.656245"
+    },
+    {
+      "type": "plan_created",
+      "goal": "build me a dope looking website like 3d animations using next js",
+      "task_count": 10,
+      "revision": 0,
+      "ts": "2026-04-26T00:31:38.756597"
+    },
+    {
+      "type": "replan",
+      "run_id": "73cc4f995f1e",
+      "failed_task": "Install required packages",
+      "error": "output contains=False",
+      "replan_count": 1,
+      "ts": "2026-04-26T00:31:53.370303"
+    },
+    {
+      "type": "replan",
+      "run_id": "73cc4f995f1e",
+      "failed_task": "Install required packages",
+      "error": "output contains=False",
+      "replan_count": 2,
+      "ts": "2026-04-26T00:31:57.382342"
+    },
+    {
+      "type": "plan_created",
+      "goal": "i want a next js website",
+      "task_count": 5,
+      "revision": 0,
+      "ts": "2026-04-26T11:28:07.023730"
     }
   ]
 }

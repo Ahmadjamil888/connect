@@ -1,1 +1,279 @@
-[]
+[
+  {
+    "id": "67566e306082",
+    "run_id": "c2e809ff86a6",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T12:30:34.144763"
+  },
+  {
+    "id": "bcbdaad63fb0",
+    "run_id": "c2e809ff86a6",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T12:30:35.656443"
+  },
+  {
+    "id": "11ce1804605a",
+    "run_id": "c2e809ff86a6",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T12:30:37.318696"
+  },
+  {
+    "id": "948c6c650d6c",
+    "run_id": "5f4e992bbf55",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T13:34:03.005258"
+  },
+  {
+    "id": "bca095b9efde",
+    "run_id": "5f4e992bbf55",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html",
+      "headless": false
+    },
+    "ts": "2026-04-25T13:34:06.117905"
+  },
+  {
+    "id": "daadcfff72ca",
+    "run_id": "5f4e992bbf55",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html",
+      "headless": false
+    },
+    "ts": "2026-04-25T13:34:24.135004"
+  },
+  {
+    "id": "3df152f0d1c3",
+    "run_id": "5a109851d9eb",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:06:23.402234"
+  },
+  {
+    "id": "31387845fd73",
+    "run_id": "5a109851d9eb",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:06:26.370479"
+  },
+  {
+    "id": "aa25334984ed",
+    "run_id": "5a109851d9eb",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:06:29.615102"
+  },
+  {
+    "id": "716fe89424d2",
+    "run_id": "5a109851d9eb",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:06:46.746058"
+  },
+  {
+    "id": "90c4f8cc9865",
+    "run_id": "5a109851d9eb",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:06:49.784206"
+  },
+  {
+    "id": "b958f8756312",
+    "run_id": "5a109851d9eb",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:06:52.565725"
+  },
+  {
+    "id": "1301858796db",
+    "run_id": "5a109851d9eb",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:07:07.416722"
+  },
+  {
+    "id": "59aa204975c0",
+    "run_id": "5a109851d9eb",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:07:10.634250"
+  },
+  {
+    "id": "307466f0da20",
+    "run_id": "5a109851d9eb",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:07:14.169136"
+  },
+  {
+    "id": "da6bd825f03e",
+    "run_id": "9964451ce081",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:59:13.796521"
+  },
+  {
+    "id": "208b95fd45c9",
+    "run_id": "9964451ce081",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:59:15.852679"
+  },
+  {
+    "id": "98b078b6a47d",
+    "run_id": "9964451ce081",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:59:17.921865"
+  },
+  {
+    "id": "47a054848f61",
+    "run_id": "9964451ce081",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:59:28.538484"
+  },
+  {
+    "id": "da7a866f5776",
+    "run_id": "9964451ce081",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:59:30.532208"
+  },
+  {
+    "id": "9a24fb8b96a5",
+    "run_id": "9964451ce081",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:59:32.581560"
+  },
+  {
+    "id": "8d59a5cde598",
+    "run_id": "9964451ce081",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:59:43.520730"
+  },
+  {
+    "id": "a0b19ecfb1f9",
+    "run_id": "9964451ce081",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:59:45.540301"
+  },
+  {
+    "id": "745f2e3aff32",
+    "run_id": "9964451ce081",
+    "task_name": "Preview website",
+    "tool_name": "browser_open",
+    "error": "tool returned error",
+    "args": {
+      "url": "file:///C:/Users/Admin/Desktop/ai%20assistant%20for%20pc/project_site/index.html"
+    },
+    "ts": "2026-04-25T14:59:47.578629"
+  },
+  {
+    "id": "6a84da93f438",
+    "run_id": "73cc4f995f1e",
+    "task_name": "Install required packages",
+    "tool_name": "run_shell_command",
+    "error": "output contains=False",
+    "args": {
+      "command": "npm install next"
+    },
+    "ts": "2026-04-26T00:31:50.253419"
+  }
+]

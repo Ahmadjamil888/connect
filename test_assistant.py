@@ -7,6 +7,8 @@ Verifies that the assistant is working correctly
 
 import sys
 import io
+import os
+import builtins
 from contextlib import redirect_stdout
 from pathlib import Path
 
@@ -139,8 +141,101 @@ def test_streaming_api_exists():
     print("\n=== Testing Streaming API ===")
     from ai_assistant import AIModel
     assert callable(getattr(AIModel, "stream_chat", None))
+    assert callable(getattr(AIModel, "switch_provider", None))
     print("   Streaming API: OK")
     return True
+
+def test_provider_command_aliases():
+    """Test provider command aliases and dispatch."""
+    print("\n=== Testing Provider Command Aliases ===")
+    from ai_assistant import AdvancedAIPlatform
+
+    class StubAI:
+        def __init__(self):
+            self.calls = []
+
+        def get_provider_status(self):
+            return [{"name": "groq", "ready": "yes", "configured": "yes", "model": "compound-beta", "selected": "yes"}]
+
+        def switch_provider(self, name):
+            self.calls.append(name)
+            return True, f"Switched provider to {name}:demo-model"
+
+    obj = AdvancedAIPlatform.__new__(AdvancedAIPlatform)
+    obj.ai = StubAI()
+
+    report = obj.process_command("/provider")
+    switched = obj.process_command("/llm openai")
+    print(report)
+    print(switched)
+    assert "Providers:" in report
+    assert "openai" in switched
+    assert obj.ai.calls == ["openai"]
+    print("   Provider command aliases: OK")
+    return True
+
+def test_provider_configuration_persists_env():
+    """Test provider setup writes the project .env and refreshes config."""
+    print("\n=== Testing Provider Configuration Persistence ===")
+    import ai_assistant
+    from ai_assistant import AIModel, Config
+    from tools import auth_manager
+
+    temp_env = Path(__file__).parent / ".tmp_provider_test.env"
+    temp_env.write_text("", encoding="utf-8")
+
+    original_input = builtins.input
+    original_getpass = ai_assistant.getpass
+    original_save_credential = auth_manager.save_credential
+    original_ai_provider = os.environ.get("AI_PROVIDER")
+    original_groq_key = os.environ.get("GROQ_API_KEY")
+
+    builtins.input = lambda prompt="": ""
+    ai_assistant.getpass = lambda prompt="": "gsk_test_provider_key"
+    auth_manager.save_credential = lambda service, username, password: "ok"
+    os.environ.pop("AI_PROVIDER", None)
+    os.environ.pop("GROQ_API_KEY", None)
+    Config.refresh_from_env()
+
+    model = AIModel.__new__(AIModel)
+    model.provider = ""
+    model.model_name = ""
+    model._provider_error = ""
+    model._project_env_path = lambda: temp_env
+
+    def fake_select(preferred=None, allow_fallback=True):
+        model.provider = preferred or "groq"
+        model.model_name = Config.GROQ_MODEL
+        model._provider_error = ""
+
+    model._select_provider = fake_select
+
+    try:
+        ok, message = model.configure_provider("groq", interactive=True)
+        content = temp_env.read_text(encoding="utf-8")
+        print(message)
+        assert ok
+        assert "AI_PROVIDER=groq" in content
+        assert "GROQ_API_KEY=gsk_test_provider_key" in content
+        assert Config.AI_PROVIDER == "groq"
+        assert Config.GROQ_API_KEY == "gsk_test_provider_key"
+        print("   Provider configuration persistence: OK")
+        return True
+    finally:
+        builtins.input = original_input
+        ai_assistant.getpass = original_getpass
+        auth_manager.save_credential = original_save_credential
+        if original_ai_provider is None:
+            os.environ.pop("AI_PROVIDER", None)
+        else:
+            os.environ["AI_PROVIDER"] = original_ai_provider
+        if original_groq_key is None:
+            os.environ.pop("GROQ_API_KEY", None)
+        else:
+            os.environ["GROQ_API_KEY"] = original_groq_key
+        Config.refresh_from_env()
+        if temp_env.exists():
+            temp_env.unlink()
 
 def test_browser_snapshot_formatter():
     """Test browser observation formatting path."""
@@ -620,6 +715,8 @@ def main():
         "Agent Event Formatter": test_agent_event_formatter(),
         "Agent Trace Formatting": test_agent_trace_formatting(),
         "Streaming API": test_streaming_api_exists(),
+        "Provider Command Aliases": test_provider_command_aliases(),
+        "Provider Configuration Persistence": test_provider_configuration_persists_env(),
         "Browser Snapshot Formatter": test_browser_snapshot_formatter(),
         "Persistent Shell Session": test_persistent_shell_session(),
         "Grounded Shell Result": test_shell_result_is_grounded(),
