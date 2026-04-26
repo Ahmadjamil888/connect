@@ -24,7 +24,7 @@ function Footer() {
   const { user } = useUser()
 
   return (
-    <footer className="border-t border-white/8 bg-[#070707] px-5 py-16">
+    <footer className="border-t border-white/8 bg-[#070707] px-4 py-16 sm:px-5">
       <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.2fr_0.8fr]">
         <div>
           <div className="font-['YDYoonche_M','IBM_Plex_Sans',sans-serif] text-2xl tracking-[0.18em] text-white">CONNECT</div>
@@ -86,23 +86,25 @@ export default function App() {
     <BrowserRouter>
       <div className="min-h-screen bg-black text-white">
         <SiteHeader dashboardUrl={dashboardUrl} />
-        <Routes>
-          <Route path="/" element={<HomePage dashboardUrl={dashboardUrl} />} />
-          <Route path="/auth/cli" element={<AuthCliPage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/platform" element={<PlatformPage />} />
-          <Route path="/integrations" element={<IntegrationsPage />} />
-          <Route path="/docs" element={<DocsPage />} />
-          <Route path="/docs/overview" element={<DocsOverviewPage />} />
-          <Route path="/docs/installation" element={<DocsInstallationPage />} />
-          <Route path="/docs/authentication" element={<DocsAuthenticationPage />} />
-          <Route path="/docs/runtime" element={<DocsRuntimePage />} />
-          <Route path="/docs/dashboard" element={<DocsDashboardPage />} />
-          <Route path="/docs/connectors" element={<DocsConnectorsPage />} />
-          <Route path="/docs/operations" element={<DocsOperationsPage />} />
-          <Route path="/changelog" element={<ChangelogPage />} />
-          <Route path="/launch" element={<LaunchPage />} />
-        </Routes>
+        <main>
+          <Routes>
+            <Route path="/" element={<HomePage dashboardUrl={dashboardUrl} />} />
+            <Route path="/auth/cli" element={<AuthCliPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/platform" element={<PlatformPage />} />
+            <Route path="/integrations" element={<IntegrationsPage />} />
+            <Route path="/docs" element={<DocsPage />} />
+            <Route path="/docs/overview" element={<DocsOverviewPage />} />
+            <Route path="/docs/installation" element={<DocsInstallationPage />} />
+            <Route path="/docs/authentication" element={<DocsAuthenticationPage />} />
+            <Route path="/docs/runtime" element={<DocsRuntimePage />} />
+            <Route path="/docs/dashboard" element={<DocsDashboardPage />} />
+            <Route path="/docs/connectors" element={<DocsConnectorsPage />} />
+            <Route path="/docs/operations" element={<DocsOperationsPage />} />
+            <Route path="/changelog" element={<ChangelogPage />} />
+            <Route path="/launch" element={<LaunchPage />} />
+          </Routes>
+        </main>
         <Footer />
       </div>
     </BrowserRouter>

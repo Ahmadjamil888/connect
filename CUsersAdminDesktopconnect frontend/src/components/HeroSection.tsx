@@ -59,10 +59,11 @@ function GradientLine({ children }: { children: ReactNode }) {
 export default function HeroSection() {
   return (
     <section
-      className="relative overflow-hidden flex flex-col items-center justify-center"
-      style={{ height: '100vh', background: '#000' }}
+      className="relative flex min-h-[calc(100vh-76px)] flex-col items-center justify-center overflow-hidden px-4 py-20 sm:px-6"
+      style={{ background: '#000' }}
     >
-      <div className="relative z-10 flex flex-col items-center text-center px-4 max-w-5xl mx-auto">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_14%,rgba(255,255,255,0.045),transparent_24%),radial-gradient(circle_at_18%_0%,rgba(39,243,169,0.06),transparent_22%)]" />
+      <div className="relative z-10 mx-auto flex max-w-5xl flex-col items-center px-2 text-center sm:px-4">
         <h1
           style={{
             fontFamily: "'YDYoonche L', 'YDYoonche M', sans-serif",
@@ -75,7 +76,7 @@ export default function HeroSection() {
         >
           <GradientLine>The vision</GradientLine>
           <GradientLine>of engineering</GradientLine>
-          <span className="flex items-center justify-center gap-3 flex-wrap" style={{ color: '#fff' }}>
+          <span className="flex flex-wrap items-center justify-center gap-2 sm:gap-3" style={{ color: '#fff' }}>
             <span style={{ color: '#555' }}>is</span>
             <VideoIcon src={VIDEO_HUMAN} size={110} />
             <span>human</span>
@@ -86,9 +87,9 @@ export default function HeroSection() {
         </h1>
 
         <p
-          className="mt-4 max-w-xl text-center px-2"
+          className="mt-5 max-w-[34rem] px-2 text-center"
           style={{
-            fontSize: 'clamp(0.95rem, 2.2vw, 1.2rem)',
+            fontSize: 'clamp(0.95rem, 2vw, 1.08rem)',
             color: '#888',
             lineHeight: 1.4,
             fontWeight: 400,
@@ -100,7 +101,7 @@ export default function HeroSection() {
 
         <button
           type="button"
-          className="mt-6 transition-all duration-300 hover:scale-[1.03] hover:shadow-[0px_6px_32px_8px_rgba(39,243,169,0.22)] active:scale-[0.98]"
+          className="mt-7 transition-all duration-300 hover:scale-[1.03] hover:shadow-[0px_6px_32px_8px_rgba(39,243,169,0.22)] active:scale-[0.98]"
           style={{
             padding: '12px 28px',
             background: '#000',

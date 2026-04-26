@@ -20,7 +20,7 @@ type DocsShellProps = {
 export function DocsShell({ title, description, children }: DocsShellProps) {
   return (
     <div className="bg-black pt-8">
-      <section className="border-b border-white/8 px-5 py-20">
+      <section className="border-b border-white/8 px-4 py-20 sm:px-5">
         <div className="mx-auto max-w-7xl">
           <div className="text-xs uppercase tracking-[0.22em] text-[#27F3A9]">Documentation</div>
           <h1 className="mt-4 max-w-4xl text-4xl font-light tracking-[-0.05em] text-white md:text-6xl">{title}</h1>
@@ -28,7 +28,7 @@ export function DocsShell({ title, description, children }: DocsShellProps) {
         </div>
       </section>
 
-      <section className="px-5 py-16">
+      <section className="px-4 py-16 sm:px-5">
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[260px_minmax(0,1fr)]">
           <DocSidebar items={DOC_ITEMS} />
           <div className="rounded-[2rem] border border-white/8 bg-[#070707] p-8 md:p-10">{children}</div>

@@ -20,7 +20,8 @@ export function SiteHeader({ dashboardUrl }: SiteHeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/8 bg-black/82 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-5 py-4">
+      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-5">
+        <div className="flex items-center justify-between gap-4">
         <Link to="/" className="flex items-center gap-3">
           <div className="font-['YDYoonche_M','IBM_Plex_Sans',sans-serif] text-lg tracking-[0.28em] text-white">
             CONNECT
@@ -41,7 +42,7 @@ export function SiteHeader({ dashboardUrl }: SiteHeaderProps) {
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <a
             href={dashboardUrl}
             target="_blank"
@@ -73,6 +74,25 @@ export function SiteHeader({ dashboardUrl }: SiteHeaderProps) {
             />
           )}
         </div>
+        </div>
+
+        <nav className="mt-4 flex gap-2 overflow-x-auto pb-1 md:hidden">
+          {NAV_ITEMS.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `shrink-0 rounded-full border px-3 py-2 text-xs transition ${
+                  isActive
+                    ? 'border-[#27F3A9]/35 bg-[#09120f] text-white'
+                    : 'border-white/8 text-neutral-400 hover:border-white/14 hover:text-white'
+                }`
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
       </div>
     </header>
   )
