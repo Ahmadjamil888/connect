@@ -21,6 +21,7 @@ import hashlib
 import subprocess
 import platform
 import threading
+import socket
 import requests
 from getpass import getpass
 from pathlib import Path
@@ -4898,11 +4899,31 @@ class AdvancedAIPlatform:
         messaging = gateway_config.get("messaging", {}) if isinstance(gateway_config, dict) else {}
         gateway = gateway_config.get("gateway", {}) if isinstance(gateway_config, dict) else {}
         auth = gateway_config.get("auth", {}) if isinstance(gateway_config, dict) else {}
+        gateway_host = str(gateway.get('host', '127.0.0.1'))
+        dashboard_host = str(gateway.get('dashboard_host', gateway_host))
+        gateway_port = int(gateway.get('port', 18789))
+        dashboard_port = int(gateway.get('dashboard_port', 18890))
+        gateway_probe_host = "127.0.0.1" if gateway_host == "0.0.0.0" else gateway_host
+        dashboard_probe_host = "127.0.0.1" if dashboard_host == "0.0.0.0" else dashboard_host
+
+        def _port_open(host: str, port: int) -> bool:
+            try:
+                with socket.create_connection((host, port), timeout=0.6):
+                    return True
+            except Exception:
+                return False
+
         lines.append(
             f"Gateway config: deployment_mode={gateway.get('deployment_mode', 'local')} "
-            f"host={gateway.get('host', '127.0.0.1')} "
-            f"dashboard_host={gateway.get('dashboard_host', gateway.get('host', '127.0.0.1'))} "
-            f"port={gateway.get('port', 18789)} dashboard_port={gateway.get('dashboard_port', 18890)}"
+            f"host={gateway_host} "
+            f"dashboard_host={dashboard_host} "
+            f"port={gateway_port} dashboard_port={dashboard_port}"
+        )
+        lines.append(
+            f"Gateway live probe: ws://{gateway_probe_host}:{gateway_port} running={'yes' if _port_open(gateway_probe_host, gateway_port) else 'no'}"
+        )
+        lines.append(
+            f"Dashboard live probe: http://{dashboard_probe_host}:{dashboard_port} running={'yes' if _port_open(dashboard_probe_host, dashboard_port) else 'no'}"
         )
         lines.append(
             f"Auth config: enabled={bool(auth.get('enabled', False))} "
@@ -4936,6 +4957,23 @@ class AdvancedAIPlatform:
             return message if ok else f"Login failed: {message}"
         except Exception as exc:
             return f"Login failed: {exc}"
+
+    def is_clerk_session_ready(self) -> bool:
+        try:
+            from gateway_runtime.auth import ClerkAuthManager
+            from gateway_runtime.config import load_gateway_config
+
+            data = self._ensure_gateway_sections(self._load_gateway_json())
+            auth = data.setdefault("auth", {})
+            config = load_gateway_config(self._gateway_config_path())
+            manager = ClerkAuthManager(
+                config.workspace_root,
+                enabled=bool(auth.get("enabled", False)),
+                webhook_bearer_token=str(auth.get("webhook_bearer_token", "")).strip(),
+            )
+            return manager.is_signed_in()
+        except Exception:
+            return False
 
     def run_clerk_logout(self) -> str:
         try:
@@ -5778,15 +5816,6 @@ def main():
     elif len(args.goal) >= 2 and args.goal[0].strip().lower() == "service":
         pass
     platform = AdvancedAIPlatform()
-    if args.doctor:
-        print(platform.doctor_report())
-        return
-    if getattr(args, "login", False):
-        print(platform.run_clerk_login())
-        return
-    if getattr(args, "logout", False):
-        print(platform.run_clerk_logout())
-        return
     from gateway_runtime import AgentRuntime, DashboardServer, GatewayServer, load_gateway_config
     import asyncio
     import webbrowser
@@ -5806,11 +5835,12 @@ def main():
     def ensure_authenticated(config) -> bool:
         from gateway_runtime.auth import ClerkAuthManager
 
-        manager = ClerkAuthManager(config.workspace_root, config.clerk_publishable_key, config.auth_enabled, config.webhook_bearer_token)
-        if not manager.requires_auth(config.deployment_mode):
-            return True
+        manager = ClerkAuthManager(config.workspace_root, config.clerk_publishable_key, True, config.webhook_bearer_token)
         if manager.is_signed_in():
             return True
+        if not manager.is_configured():
+            print("Authentication required, but Clerk publishable key is missing. Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.")
+            return False
         print("Authentication required. Opening browser sign-in...")
         ok, message = manager.start_cli_login()
         print(message)
@@ -5827,20 +5857,48 @@ def main():
         if require_cli_login and not ensure_authenticated(config):
             return
         runtime = AgentRuntime(config)
+        gateway_errors: list[str] = []
 
         def gateway_thread():
-            asyncio.run(GatewayServer(runtime).serve())
+            try:
+                asyncio.run(GatewayServer(runtime).serve())
+            except Exception as exc:
+                gateway_errors.append(str(exc))
 
         thread = threading.Thread(target=gateway_thread, name="connect-gateway", daemon=True)
         thread.start()
         dashboard_url = f"http://{('127.0.0.1' if config.dashboard_host == '0.0.0.0' else config.dashboard_host)}:{config.dashboard_port}"
+        time.sleep(0.35)
+        if gateway_errors:
+            print(f"Gateway failed to start: {gateway_errors[0]}")
+            return
         print(f"Starting dashboard on {dashboard_url}")
         if open_browser:
             try:
                 webbrowser.open(dashboard_url)
             except Exception:
                 pass
-        DashboardServer(runtime, host=config.dashboard_host, port=config.dashboard_port).serve()
+        try:
+            DashboardServer(runtime, host=config.dashboard_host, port=config.dashboard_port).serve()
+        except Exception as exc:
+            print(f"Dashboard failed to start: {exc}")
+
+    config_for_auth = prepare_config()
+
+    if args.doctor:
+        if not ensure_authenticated(config_for_auth):
+            return
+        print(platform.doctor_report())
+        return
+    if getattr(args, "login", False):
+        message = platform.run_clerk_login()
+        print(message)
+        if message.startswith("Signed in successfully") and sys.stdin.isatty():
+            platform.run()
+        return
+    if getattr(args, "logout", False):
+        print(platform.run_clerk_logout())
+        return
 
     if len(args.goal) >= 2 and args.goal[0].strip().lower() == "service":
         from gateway_runtime.service_manager import (
@@ -5875,26 +5933,30 @@ def main():
         return
 
     if args.gateway:
-        run_gateway_only(prepare_config())
+        run_gateway_only(config_for_auth)
         return
     if args.dashboard:
-        run_dashboard_stack(prepare_config(), open_browser=args.open_browser or True)
+        run_dashboard_stack(config_for_auth, open_browser=args.open_browser or True)
         return
     if args.service_stack:
-        run_dashboard_stack(prepare_config(), open_browser=False, require_cli_login=False)
+        run_dashboard_stack(config_for_auth, open_browser=False, require_cli_login=False)
         return
     if args.goal:
+        if not ensure_authenticated(config_for_auth):
+            return
         platform.run_goal_once(" ".join(args.goal).strip())
         return
     if not sys.stdin.isatty():
         print("No interactive stdin detected. Pass a goal or use --doctor.")
         return
+    if not ensure_authenticated(config_for_auth):
+        return
     start_mode = platform.choose_start_mode()
     if start_mode == "gateway":
-        run_gateway_only(prepare_config())
+        run_gateway_only(config_for_auth, require_cli_login=False)
         return
     if start_mode == "dashboard":
-        run_dashboard_stack(prepare_config(), open_browser=True)
+        run_dashboard_stack(config_for_auth, open_browser=True, require_cli_login=False)
         return
     platform.run()
 

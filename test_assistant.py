@@ -224,6 +224,72 @@ def test_clerk_prompt_is_silent():
     print("   Silent Clerk prompt: OK")
     return True
 
+def test_doctor_report_includes_live_probe_lines():
+    """Test doctor report distinguishes configured endpoints from live probes."""
+    print("\n=== Testing Doctor Live Probes ===")
+    from ai_assistant import AdvancedAIPlatform
+
+    obj = AdvancedAIPlatform.__new__(AdvancedAIPlatform)
+    obj.launch_profile = {}
+    class StubAI:
+        def get_provider_status(self):
+            return [{"name": "groq", "ready": "yes", "configured": "yes", "model": "compound-beta", "selected": "yes", "note": "configured"}]
+    obj.ai = StubAI()
+    obj._load_gateway_json = lambda: {
+        "gateway": {"deployment_mode": "local", "host": "127.0.0.1", "dashboard_host": "127.0.0.1", "port": 18789, "dashboard_port": 18890},
+        "messaging": {},
+        "auth": {},
+    }
+    report = AdvancedAIPlatform.doctor_report(obj)
+    assert "Gateway live probe:" in report
+    assert "Dashboard live probe:" in report
+    print("   Doctor live probes: OK")
+    return True
+
+def test_main_login_alias_starts_shell_after_success():
+    """Test `connect login` enters shell after successful sign-in."""
+    print("\n=== Testing Login Starts Shell ===")
+    import io
+    from contextlib import redirect_stdout
+    import ai_assistant
+
+    original_argv = sys.argv
+    original_platform = ai_assistant.AdvancedAIPlatform
+    original_stdin = sys.stdin
+
+    class FakeStdin:
+        def isatty(self):
+            return True
+
+    class StubPlatform:
+        def __init__(self):
+            self.called = []
+
+        def run_clerk_login(self):
+            self.called.append("login")
+            return "Signed in successfully as user@example.com"
+
+        def run(self):
+            self.called.append("shell")
+
+    stub = StubPlatform()
+    ai_assistant.AdvancedAIPlatform = lambda: stub
+    sys.argv = ["ai_assistant.py", "login"]
+    sys.stdin = FakeStdin()
+    try:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            ai_assistant.main()
+        out = buf.getvalue()
+        assert "Signed in successfully" in out
+        assert stub.called == ["login", "shell"]
+        print("   Login starts shell: OK")
+        return True
+    finally:
+        sys.argv = original_argv
+        sys.stdin = original_stdin
+        ai_assistant.AdvancedAIPlatform = original_platform
+
 def test_launch_profile_defaults():
     """Test startup launch profile defaults."""
     print("\n=== Testing Launch Profile Defaults ===")
