@@ -1,0 +1,1 @@
+{"workspace": {"root": ".ai_assistant_runtime\\manual_cron_2\\workspace"}, "tools": {"allow": ["group:automation", "group:sessions"]}}

@@ -1,0 +1,17 @@
+{
+  "id": "86519ef86c18",
+  "name": "whatsapp_whatsapp:+123456789",
+  "created_at": "2026-04-26T17:54:52.450036",
+  "updated_at": "2026-04-26T17:54:52.472737",
+  "status": "idle",
+  "profile": "messaging",
+  "parent_id": "",
+  "target": "whatsapp:whatsapp:+123456789",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hello wa",
+      "ts": "2026-04-26T17:54:52.472727"
+    }
+  ]
+}

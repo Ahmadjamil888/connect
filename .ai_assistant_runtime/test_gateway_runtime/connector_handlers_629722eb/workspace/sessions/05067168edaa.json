@@ -1,0 +1,22 @@
+{
+  "id": "05067168edaa",
+  "name": "slack_C123",
+  "created_at": "2026-04-26T17:55:05.366046",
+  "updated_at": "2026-04-26T17:55:05.442817",
+  "status": "blocked",
+  "profile": "messaging",
+  "parent_id": "",
+  "target": "slack:C123",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hello slack",
+      "ts": "2026-04-26T17:55:05.391013"
+    },
+    {
+      "role": "assistant",
+      "content": "Tool not allowed for session profile: write_file",
+      "ts": "2026-04-26T17:55:05.429410"
+    }
+  ]
+}

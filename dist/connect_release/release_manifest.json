@@ -1,0 +1,6 @@
+{
+  "name": "connect",
+  "entrypoint": "ai_assistant.py",
+  "launcher": "connect.bat",
+  "created_from": "C:\\Users\\Admin\\Desktop\\connect"
+}

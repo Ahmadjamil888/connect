@@ -1,6 +1,6 @@
 {
   "name": "test_loop_workflow",
-  "description": "test",
+  "description": "Writes a file with the loop index",
   "steps": [
     {
       "tool_name": "write_file",
@@ -10,5 +10,5 @@
       }
     }
   ],
-  "saved_at": "2026-04-25T11:56:08.462316"
+  "saved_at": "2026-04-26T19:57:58.014386"
 }

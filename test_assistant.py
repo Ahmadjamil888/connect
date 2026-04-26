@@ -5,6 +5,7 @@ Test script for AI Assistant
 Verifies that the assistant is working correctly
 """
 
+import json
 import sys
 import io
 import os
@@ -172,6 +173,280 @@ def test_provider_command_aliases():
     assert "openai" in switched
     assert obj.ai.calls == ["openai"]
     print("   Provider command aliases: OK")
+    return True
+
+def test_main_login_alias_dispatches_directly():
+    """Test top-level `connect login` dispatches Clerk login directly."""
+    print("\n=== Testing Login Alias Dispatch ===")
+    import io
+    from contextlib import redirect_stdout
+    import ai_assistant
+
+    original_argv = sys.argv
+    original_platform = ai_assistant.AdvancedAIPlatform
+
+    class StubPlatform:
+        def __init__(self):
+            self.called = []
+
+        def run_clerk_login(self):
+            self.called.append("login")
+            return "Signed in successfully"
+
+    stub = StubPlatform()
+    ai_assistant.AdvancedAIPlatform = lambda: stub
+    sys.argv = ["ai_assistant.py", "login"]
+    try:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            ai_assistant.main()
+        out = buf.getvalue()
+        assert "Signed in successfully" in out
+        assert stub.called == ["login"]
+        print("   Login alias dispatch: OK")
+        return True
+    finally:
+        sys.argv = original_argv
+        ai_assistant.AdvancedAIPlatform = original_platform
+
+def test_launch_profile_defaults():
+    """Test startup launch profile defaults."""
+    print("\n=== Testing Launch Profile Defaults ===")
+    from ai_assistant import AdvancedAIPlatform, UserProfile
+
+    obj = AdvancedAIPlatform.__new__(AdvancedAIPlatform)
+
+    class Store:
+        def __init__(self):
+            self.user_profile = UserProfile()
+
+    obj.data_store = Store()
+    profile = AdvancedAIPlatform._load_launch_profile(obj)
+    assert profile["initialized"] is False
+    assert profile["default_mode"] == "shell"
+    assert profile["prompt_gateway_each_launch"] is True
+    print("   Launch profile defaults: OK")
+    return True
+
+def test_choose_start_mode_updates_profile():
+    """Test launch mode chooser persists selected mode."""
+    print("\n=== Testing Launch Mode Selection ===")
+    from ai_assistant import AdvancedAIPlatform
+
+    obj = AdvancedAIPlatform.__new__(AdvancedAIPlatform)
+    obj.launch_profile = {"default_mode": "shell", "prompt_gateway_each_launch": True}
+    obj._save_launch_profile = lambda: None
+    obj._ask_choice = lambda prompt, options, default="": "gateway"
+    original_stdin = sys.stdin
+
+    class FakeStdin:
+        def isatty(self):
+            return True
+
+    sys.stdin = FakeStdin()
+    try:
+        mode = AdvancedAIPlatform.choose_start_mode(obj)
+        assert mode == "gateway"
+        assert obj.launch_profile["default_mode"] == "gateway"
+        print("   Launch mode selection: OK")
+        return True
+    finally:
+        sys.stdin = original_stdin
+
+def test_choose_start_mode_respects_saved_default():
+    """Test launch mode chooser uses saved default when prompting is disabled."""
+    print("\n=== Testing Launch Mode Default ===")
+    from ai_assistant import AdvancedAIPlatform
+
+    obj = AdvancedAIPlatform.__new__(AdvancedAIPlatform)
+    obj.launch_profile = {"default_mode": "dashboard", "prompt_gateway_each_launch": False}
+    mode = AdvancedAIPlatform.choose_start_mode(obj)
+    assert mode == "dashboard"
+    print("   Launch mode default: OK")
+    return True
+
+def test_messaging_setup_writes_gateway_config():
+    """Test CLI messaging setup writes Telegram settings to gateway config."""
+    print("\n=== Testing Messaging Setup ===")
+    import builtins
+    from ai_assistant import AdvancedAIPlatform
+
+    obj = AdvancedAIPlatform.__new__(AdvancedAIPlatform)
+    temp_config = Path(__file__).parent / ".tmp_openclaw_test.json"
+    if temp_config.exists():
+        temp_config.unlink()
+    answers = iter(["bot-token-123", "chat-456"])
+    original_input = builtins.input
+    original_stdin = sys.stdin
+
+    class FakeStdin:
+        def isatty(self):
+            return True
+
+    builtins.input = lambda prompt="": next(answers)
+    sys.stdin = FakeStdin()
+    obj._gateway_config_path = lambda: temp_config
+    obj._muted = lambda text: text
+    obj._section_header = lambda label: f"[{label}]"
+    obj._ask_choice = lambda prompt, options, default="": "telegram"
+    try:
+        message = AdvancedAIPlatform.run_messaging_setup(obj)
+        payload = json.loads(temp_config.read_text(encoding="utf-8"))
+        assert payload["messaging"]["telegram_bot_token"] == "bot-token-123"
+        assert payload["messaging"]["telegram_default_chat_id"] == "chat-456"
+        assert "Saved Telegram" in message
+        print("   Messaging setup: OK")
+        return True
+    finally:
+        builtins.input = original_input
+        sys.stdin = original_stdin
+        if temp_config.exists():
+            temp_config.unlink()
+
+def test_has_messaging_config_detects_telegram():
+    """Test messaging config detection sees a configured Telegram connector."""
+    print("\n=== Testing Messaging Config Detection ===")
+    from ai_assistant import AdvancedAIPlatform
+
+    obj = AdvancedAIPlatform.__new__(AdvancedAIPlatform)
+    obj._load_gateway_json = lambda: {
+        "messaging": {
+            "telegram_bot_token": "bot-token-123",
+            "telegram_default_chat_id": "chat-456",
+        }
+    }
+    obj._ensure_gateway_sections = AdvancedAIPlatform._ensure_gateway_sections.__get__(obj, AdvancedAIPlatform)
+    assert AdvancedAIPlatform._has_messaging_config(obj) is True
+    print("   Messaging config detection: OK")
+    return True
+
+
+def test_gateway_sections_include_deployment_defaults():
+    """Test gateway config sections include deployment defaults."""
+    print("\n=== Testing Gateway Deployment Defaults ===")
+    from ai_assistant import AdvancedAIPlatform
+
+    obj = AdvancedAIPlatform.__new__(AdvancedAIPlatform)
+    data = AdvancedAIPlatform._ensure_gateway_sections(obj, {})
+    assert data["gateway"]["deployment_mode"] == "local"
+    assert data["gateway"]["dashboard_host"] == "127.0.0.1"
+    print("   Gateway deployment defaults: OK")
+    return True
+
+
+def test_messaging_setup_writes_slack_config():
+    """Test CLI messaging setup writes Slack webhook settings to gateway config."""
+    print("\n=== Testing Slack Messaging Setup ===")
+    from ai_assistant import AdvancedAIPlatform
+
+    obj = AdvancedAIPlatform.__new__(AdvancedAIPlatform)
+    temp_config = Path(__file__).parent / ".tmp_openclaw_slack_test.json"
+    if temp_config.exists():
+        temp_config.unlink()
+    answers = iter(["alerts", "https://hooks.slack.com/services/example"])
+    original_input = builtins.input
+    original_stdin = sys.stdin
+
+    class FakeStdin:
+        def isatty(self):
+            return True
+
+    builtins.input = lambda prompt="": next(answers)
+    sys.stdin = FakeStdin()
+    obj._gateway_config_path = lambda: temp_config
+    obj._muted = lambda text: text
+    obj._section_header = lambda label: f"[{label}]"
+    obj._ask_choice = lambda prompt, options, default="": "slack"
+    try:
+        message = AdvancedAIPlatform.run_messaging_setup(obj)
+        payload = json.loads(temp_config.read_text(encoding="utf-8"))
+        assert payload["messaging"]["slack_webhooks"]["alerts"] == "https://hooks.slack.com/services/example"
+        assert "Saved Slack" in message
+        print("   Slack messaging setup: OK")
+        return True
+    finally:
+        builtins.input = original_input
+        sys.stdin = original_stdin
+        if temp_config.exists():
+            temp_config.unlink()
+
+
+def test_messaging_setup_writes_whatsapp_config():
+    """Test CLI messaging setup writes WhatsApp settings to gateway config."""
+    print("\n=== Testing WhatsApp Messaging Setup ===")
+    from ai_assistant import AdvancedAIPlatform
+
+    obj = AdvancedAIPlatform.__new__(AdvancedAIPlatform)
+    temp_config = Path(__file__).parent / ".tmp_openclaw_whatsapp_test.json"
+    if temp_config.exists():
+        temp_config.unlink()
+    answers = iter(["AC123", "token-456", "whatsapp:+14155238886"])
+    original_input = builtins.input
+    original_stdin = sys.stdin
+
+    class FakeStdin:
+        def isatty(self):
+            return True
+
+    builtins.input = lambda prompt="": next(answers)
+    sys.stdin = FakeStdin()
+    obj._gateway_config_path = lambda: temp_config
+    obj._muted = lambda text: text
+    obj._section_header = lambda label: f"[{label}]"
+    obj._ask_choice = lambda prompt, options, default="": "whatsapp"
+    try:
+        message = AdvancedAIPlatform.run_messaging_setup(obj)
+        payload = json.loads(temp_config.read_text(encoding="utf-8"))
+        assert payload["messaging"]["whatsapp_account_sid"] == "AC123"
+        assert payload["messaging"]["whatsapp_auth_token"] == "token-456"
+        assert payload["messaging"]["whatsapp_from_number"] == "whatsapp:+14155238886"
+        assert "Saved WhatsApp" in message
+        print("   WhatsApp messaging setup: OK")
+        return True
+    finally:
+        builtins.input = original_input
+        sys.stdin = original_stdin
+        if temp_config.exists():
+            temp_config.unlink()
+
+def test_startup_setup_prompts_for_messaging_when_missing():
+    """Test startup flow prompts for messaging setup when no connector exists."""
+    print("\n=== Testing Startup Messaging Prompt ===")
+    from ai_assistant import AdvancedAIPlatform
+
+    obj = AdvancedAIPlatform.__new__(AdvancedAIPlatform)
+    obj.launch_profile = {"initialized": True}
+    obj.ai = type("StubAI", (), {"provider": "openai"})()
+    obj._has_messaging_config = lambda: False
+    obj._prompt_optional_github_token = lambda: None
+    calls = []
+    obj._prompt_messaging_setup_if_missing = lambda: calls.append("prompted")
+    original_stdin = sys.stdin
+
+    class FakeStdin:
+        def isatty(self):
+            return True
+
+    sys.stdin = FakeStdin()
+    try:
+        AdvancedAIPlatform._run_startup_setup(obj)
+        assert calls == ["prompted"]
+        print("   Startup messaging prompt: OK")
+        return True
+    finally:
+        sys.stdin = original_stdin
+
+def test_telegram_validation_reports_missing_config():
+    """Test Telegram validation command reports missing setup."""
+    print("\n=== Testing Telegram Validation ===")
+    from ai_assistant import AdvancedAIPlatform
+
+    obj = AdvancedAIPlatform.__new__(AdvancedAIPlatform)
+    obj._load_gateway_json = lambda: {}
+    obj._ensure_gateway_sections = AdvancedAIPlatform._ensure_gateway_sections.__get__(obj, AdvancedAIPlatform)
+    message = AdvancedAIPlatform.run_telegram_validation(obj)
+    assert "Run /messaging-setup first" in message
+    print("   Telegram validation missing-config path: OK")
     return True
 
 def test_provider_configuration_persists_env():

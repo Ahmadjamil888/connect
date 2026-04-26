@@ -9,7 +9,15 @@ if not exist "%BIN_DIR%" mkdir "%BIN_DIR%"
 
 (
 echo @echo off
-echo python "%REPO_DIR%\ai_assistant.py" %%*
+echo setlocal
+echo set "SCRIPT=%REPO_DIR%\ai_assistant.py"
+echo where python ^>nul 2^>nul
+echo if %%errorlevel%%==0 ^(
+echo     python "%%SCRIPT%%" %%*
+echo ^) else ^(
+echo     py -3 "%%SCRIPT%%" %%*
+echo ^)
+echo endlocal
 ) > "%BIN_DIR%\connect.cmd"
 
 echo [*] Installed launcher: "%BIN_DIR%\connect.cmd"

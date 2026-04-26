@@ -22,6 +22,7 @@ import subprocess
 import platform
 import threading
 import requests
+from getpass import getpass
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Callable
@@ -64,6 +65,24 @@ except ImportError:
 # CONFIGURATION
 # ============================================================================
 
+def _resolve_runtime_data_dir() -> Path:
+    """Pick a writable runtime directory, preferring the user's home directory."""
+    candidates = [
+        Path.home() / ".ai_assistant",
+        Path(__file__).resolve().parent / ".ai_assistant_runtime",
+        Path.cwd() / ".ai_assistant_runtime",
+    ]
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            probe = candidate / ".write_probe"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            return candidate
+        except Exception:
+            continue
+    raise RuntimeError("No writable runtime directory available for CONNECT")
+
 class Config:
     """Platform configuration."""
 
@@ -90,8 +109,7 @@ class Config:
     TOOL_TIMEOUT = int(os.getenv("TOOL_TIMEOUT", "120"))
 
     # Data Directory
-    DATA_DIR = Path.home() / ".ai_assistant"
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    DATA_DIR = _resolve_runtime_data_dir()
 
     # Storage Files
     USER_DATA_FILE = DATA_DIR / "user_data.json"
@@ -102,22 +120,8 @@ class Config:
     WORKFLOWS_DIR = DATA_DIR / "workflows"
     HELPERS_DIR = DATA_DIR / "helpers"
     WORLD_STATE_FILE = DATA_DIR / "world_state.json"
-    try:
-        WORKFLOWS_DIR.mkdir(parents=True, exist_ok=True)
-        HELPERS_DIR.mkdir(parents=True, exist_ok=True)
-    except PermissionError:
-        DATA_DIR = Path.cwd() / ".ai_assistant_runtime"
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        USER_DATA_FILE = DATA_DIR / "user_data.json"
-        HISTORY_FILE = DATA_DIR / "history.json"
-        ANALYTICS_FILE = DATA_DIR / "analytics.json"
-        PROJECTS_FILE = DATA_DIR / "projects.json"
-        CREDENTIALS_FILE = DATA_DIR / "credentials.enc.json"
-        WORKFLOWS_DIR = DATA_DIR / "workflows"
-        HELPERS_DIR = DATA_DIR / "helpers"
-        WORLD_STATE_FILE = DATA_DIR / "world_state.json"
-        WORKFLOWS_DIR.mkdir(parents=True, exist_ok=True)
-        HELPERS_DIR.mkdir(parents=True, exist_ok=True)
+    WORKFLOWS_DIR.mkdir(parents=True, exist_ok=True)
+    HELPERS_DIR.mkdir(parents=True, exist_ok=True)
 
     # Security
     ENCRYPTION_KEY = hashlib.sha256(platform.node().encode()).hexdigest()[:32]
@@ -129,6 +133,7 @@ class Config:
 
     # Debug
     DEBUG = os.getenv("AI_PLATFORM_DEBUG", "false").lower() == "true"
+    USE_GROQ = bool(GROQ_API_KEY)
 
     @classmethod
     def refresh_from_env(cls):
@@ -148,6 +153,7 @@ class Config:
         cls.GOOGLE_GEMINI_MODEL = os.getenv("GOOGLE_GEMINI_MODEL", "gemini-2.5-flash")
         cls.HUGGINGFACE_MODEL = os.getenv("HUGGINGFACE_MODEL", "mistralai/Mistral-7B-Instruct-v0.2")
         cls.DEBUG = os.getenv("AI_PLATFORM_DEBUG", "false").lower() == "true"
+        cls.USE_GROQ = bool(cls.GROQ_API_KEY)
 
 
 def debug_log(message: str):
@@ -576,6 +582,15 @@ class AIModel:
             "credential_service": "",
         },
     }
+    PROVIDER_PACKAGES = {
+        "anthropic": "anthropic",
+        "groq": "groq",
+        "openai": "openai",
+        "openrouter": "openai",
+        "gemini": "google-genai",
+        "huggingface": "huggingface_hub",
+        "ollama": "",
+    }
 
     SYSTEM_PROMPT = """You are CONNECT - an autonomous AI operator and coding assistant.
 
@@ -610,7 +625,13 @@ STARTUP CREATION FLOW:
 7. Deploy and configure analytics
 8. Setup management tools
 
-Always be proactive, helpful, and clear about what you're doing."""
+Always be proactive, helpful, and clear about what you're doing.
+
+REASONING STYLE:
+- Prefer dynamic reasoning and custom code synthesis over canned routines
+- Use tools to observe, verify, execute, and persist, not as a substitute for thinking
+- When solving engineering tasks, adapt to the current repo and runtime instead of forcing preset flows
+- Generate code and plans from the actual problem state; avoid static templates unless the user explicitly wants them"""
 
     def __init__(self):
         self.provider = ""
@@ -753,8 +774,13 @@ Always be proactive, helpful, and clear about what you're doing."""
             return False, f"{label} is not configured. Add {env_key} in .env or run /provider {requested} in interactive mode."
 
         while not secret_to_save:
-            print(f"Paste {label} API key for {env_key} (input is visible so paste works normally):")
+            print(f"Paste {label} API key for {env_key}:")
             secret_to_save = input("> ").strip()
+            if not secret_to_save:
+                try:
+                    secret_to_save = getpass("> ").strip()
+                except Exception:
+                    secret_to_save = ""
             if not secret_to_save:
                 print("API key cannot be empty.")
 
@@ -841,6 +867,12 @@ Always be proactive, helpful, and clear about what you're doing."""
                         self.model_name = Config.OLLAMA_MODEL
                         return
                     self._provider_error = note
+            except ModuleNotFoundError as exc:
+                package_name = self.PROVIDER_PACKAGES.get(provider_name) or exc.name or provider_name
+                self._provider_error = (
+                    f"{provider_name}: missing dependency '{package_name}'. "
+                    f"Install project requirements and retry."
+                )
             except Exception as exc:
                 self._provider_error = f"{provider_name}: {exc}"
 
@@ -4403,6 +4435,7 @@ class AdvancedAIPlatform:
         self.conversation_history = []
         self.startup_wizard = StartupWizard(self.ai, self.data_store)
         self.console = Console(force_terminal=self._supports_color(), color_system="auto") if Console else None
+        self.launch_profile = self._load_launch_profile()
 
         # Autonomous Agent (NEW - transforms from command runner to AI operator)
         from autonomous_agent import AutonomousAgent, MemorySystem, AutonomousToolsWrapper
@@ -4413,8 +4446,7 @@ class AdvancedAIPlatform:
             memory=self.memory,
             emit_callback=self._emit_agent_event
         )
-        self._prompt_provider_setup()
-        self._prompt_optional_github_token()
+        self._run_startup_setup()
         self._print_welcome()
 
     def _supports_color(self) -> bool:
@@ -4446,6 +4478,165 @@ class AdvancedAIPlatform:
 
     def _section_header(self, label: str) -> str:
         return self._accent(f"[{label}]")
+
+    def _load_launch_profile(self) -> Dict[str, Any]:
+        profile = self.data_store.user_profile.preferences.get("launch_profile", {})
+        default = {
+            "initialized": False,
+            "default_mode": "shell",
+            "preferred_provider": "",
+            "prompt_gateway_each_launch": True,
+        }
+        if not isinstance(profile, dict):
+            return default
+        merged = dict(default)
+        merged.update(profile)
+        return merged
+
+    def _save_launch_profile(self):
+        self.data_store.user_profile.preferences["launch_profile"] = dict(self.launch_profile)
+        self.data_store.save_profile()
+
+    def _ask_choice(self, prompt: str, options: List[str], default: str = "") -> str:
+        option_set = {item.strip().lower() for item in options}
+        while True:
+            raw = input(prompt).strip().lower()
+            if not raw and default:
+                return default
+            if raw in option_set:
+                return raw
+            print(self._muted(f"Choose one of: {', '.join(options)}"))
+
+    def _run_startup_setup(self):
+        if not sys.stdin.isatty():
+            return
+        if not self.launch_profile.get("initialized"):
+            self._run_first_launch_onboarding()
+            return
+        if not self.ai.provider:
+            self._prompt_provider_setup()
+        if not os.getenv("GITHUB_TOKEN", "").strip():
+            self._prompt_optional_github_token()
+        self._prompt_messaging_setup_if_missing()
+        self._prompt_deployment_setup_if_needed()
+        self._prompt_clerk_auth_setup_if_needed()
+
+    def _run_first_launch_onboarding(self):
+        print(f"\n{self._section_header('WELCOME')} First-time setup")
+        print(self._muted("This will configure the basics so `connect` can start cleanly next time."))
+        try:
+            current_name = (self.data_store.user_profile.name or "User").strip()
+            print(self._muted(f"Name [{current_name}]:"))
+            name = input("> ").strip()
+            if name:
+                self.data_store.user_profile.name = name
+
+            language_default = (self.data_store.user_profile.language or "en").strip().lower()
+            print(self._muted(f"Language [en/ur/hi] ({language_default}):"))
+            language = self._ask_choice("> ", ["en", "ur", "hi"], default=language_default)
+            self.data_store.user_profile.language = language
+
+            provider_default = self.launch_profile.get("preferred_provider") or self.ai.provider or "openai"
+            if not self.ai.provider:
+                print(self._muted("Choose model provider [openai/anthropic/groq/openrouter/gemini/huggingface/ollama]"))
+                provider = self._ask_choice(
+                    "> ",
+                    ["openai", "anthropic", "groq", "openrouter", "gemini", "huggingface", "ollama"],
+                    default=provider_default,
+                )
+                ok, message = self.ai.configure_provider(provider, interactive=True)
+                print(message)
+                if ok:
+                    self.launch_profile["preferred_provider"] = provider
+            else:
+                self.launch_profile["preferred_provider"] = self.ai.provider
+
+            self._prompt_optional_github_token()
+            self._prompt_messaging_setup_if_missing()
+            self._prompt_deployment_setup_if_needed()
+            self._prompt_clerk_auth_setup_if_needed()
+
+            print(self._muted("Default launch mode [shell/gateway/dashboard]"))
+            default_mode = self._ask_choice("> ", ["shell", "gateway", "dashboard"], default="shell")
+            self.launch_profile["default_mode"] = default_mode
+            self.launch_profile["initialized"] = True
+            self.launch_profile["prompt_gateway_each_launch"] = True
+            self._save_launch_profile()
+            self.data_store.save_profile()
+            print(f"{self._section_header('WELCOME')} Setup saved.")
+        except Exception:
+            pass
+
+    def _prompt_deployment_setup_if_needed(self):
+        if not sys.stdin.isatty():
+            return
+        data = self._ensure_gateway_sections(self._load_gateway_json())
+        gateway = data.setdefault("gateway", {})
+        current_mode = str(gateway.get("deployment_mode", "") or "").strip().lower()
+        if current_mode in {"local", "cloud"}:
+            return
+        print(f"\n{self._section_header('DEPLOY')} Where should gateway/dashboard bind by default? [local/cloud]")
+        mode = self._ask_choice("> ", ["local", "cloud"], default="local")
+        if mode == "cloud":
+            gateway["deployment_mode"] = "cloud"
+            gateway["host"] = "0.0.0.0"
+            gateway["dashboard_host"] = "0.0.0.0"
+        else:
+            gateway["deployment_mode"] = "local"
+            gateway["host"] = "127.0.0.1"
+            gateway["dashboard_host"] = "127.0.0.1"
+        self._save_gateway_json(data)
+
+    def _prompt_clerk_auth_setup_if_needed(self):
+        if not sys.stdin.isatty():
+            return
+        data = self._ensure_gateway_sections(self._load_gateway_json())
+        auth = data.setdefault("auth", {})
+        if os.getenv("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "").strip() and os.getenv("CLERK_SECRET_KEY", "").strip():
+            return
+        print(f"\n{self._section_header('AUTH')} Clerk env keys are not present.")
+        print(self._muted("Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY in your environment to enable sign-in."))
+        if auth.get("enabled"):
+            auth["enabled"] = False
+            self._save_gateway_json(data)
+
+    def _has_messaging_config(self) -> bool:
+        data = self._ensure_gateway_sections(self._load_gateway_json())
+        messaging = data.get("messaging", {})
+        if not isinstance(messaging, dict):
+            return False
+        telegram_ready = bool(str(messaging.get("telegram_bot_token", "")).strip() and str(messaging.get("telegram_default_chat_id", "")).strip())
+        discord_webhooks = messaging.get("discord_webhooks", {})
+        discord_ready = isinstance(discord_webhooks, dict) and any(
+            str(name).strip() and str(url).strip() for name, url in discord_webhooks.items()
+        )
+        slack_webhooks = messaging.get("slack_webhooks", {})
+        slack_ready = isinstance(slack_webhooks, dict) and any(
+            str(name).strip() and str(url).strip() for name, url in slack_webhooks.items()
+        )
+        slack_bot_ready = bool(str(messaging.get("slack_bot_token", "")).strip() and str(messaging.get("slack_signing_secret", "")).strip())
+        whatsapp_ready = bool(
+            str(messaging.get("whatsapp_account_sid", "")).strip()
+            and str(messaging.get("whatsapp_auth_token", "")).strip()
+            and str(messaging.get("whatsapp_from_number", "")).strip()
+        )
+        return telegram_ready or discord_ready or slack_ready or slack_bot_ready or whatsapp_ready
+
+    def _prompt_messaging_setup_if_missing(self):
+        if not sys.stdin.isatty():
+            return
+        if self._has_messaging_config():
+            return
+        print(f"\n{self._section_header('MESSAGING')} No messaging connector is configured yet.")
+        print(self._muted("Set one up now so CONNECT can send and receive real messages? [Y/n]"))
+        try:
+            answer = input("> ").strip().lower()
+        except Exception:
+            return
+        if answer in {"n", "no", "skip"}:
+            return
+        message = self.run_messaging_setup()
+        print(message)
 
     def _reference_title_lines(self) -> List[str]:
         return [
@@ -4712,7 +4903,67 @@ class AdvancedAIPlatform:
         lines.append(f"  - user launcher: {user_launcher} exists={user_launcher.exists()}")
         lines.append("")
         lines.append(f"Workspace cwd: {Path.cwd()}")
+        lines.append(f"Launch profile: {json.dumps(self.launch_profile, ensure_ascii=True)}")
+        gateway_config = self._load_gateway_json()
+        messaging = gateway_config.get("messaging", {}) if isinstance(gateway_config, dict) else {}
+        gateway = gateway_config.get("gateway", {}) if isinstance(gateway_config, dict) else {}
+        auth = gateway_config.get("auth", {}) if isinstance(gateway_config, dict) else {}
+        lines.append(
+            f"Gateway config: deployment_mode={gateway.get('deployment_mode', 'local')} "
+            f"host={gateway.get('host', '127.0.0.1')} "
+            f"dashboard_host={gateway.get('dashboard_host', gateway.get('host', '127.0.0.1'))} "
+            f"port={gateway.get('port', 18789)} dashboard_port={gateway.get('dashboard_port', 18890)}"
+        )
+        lines.append(
+            f"Auth config: enabled={bool(auth.get('enabled', False))} "
+            f"clerk_env={'yes' if (os.getenv('NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', '').strip() and os.getenv('CLERK_SECRET_KEY', '').strip()) else 'no'} "
+            f"webhook_bearer={'yes' if auth.get('webhook_bearer_token') else 'no'}"
+        )
+        lines.append(
+            f"Messaging config: telegram_token={'yes' if messaging.get('telegram_bot_token') else 'no'} "
+            f"telegram_chat_id={'yes' if messaging.get('telegram_default_chat_id') else 'no'} "
+            f"discord_webhooks={list((messaging.get('discord_webhooks') or {}).keys())} "
+            f"slack_webhooks={list((messaging.get('slack_webhooks') or {}).keys())} "
+            f"slack_bot={'yes' if messaging.get('slack_bot_token') else 'no'} "
+            f"whatsapp={'yes' if messaging.get('whatsapp_account_sid') else 'no'}"
+        )
         return "\n".join(lines)
+
+    def run_clerk_login(self) -> str:
+        data = self._ensure_gateway_sections(self._load_gateway_json())
+        auth = data.setdefault("auth", {})
+        enabled = bool(auth.get("enabled", False))
+        webhook_token = str(auth.get("webhook_bearer_token", "")).strip()
+        if not (os.getenv("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "").strip() and os.getenv("CLERK_SECRET_KEY", "").strip()):
+            return "Clerk env keys are missing. Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY."
+        try:
+            from gateway_runtime.auth import ClerkAuthManager
+            from gateway_runtime.config import load_gateway_config
+
+            config = load_gateway_config(self._gateway_config_path())
+            manager = ClerkAuthManager(config.workspace_root, enabled=enabled, webhook_bearer_token=webhook_token)
+            ok, message = manager.start_cli_login()
+            return message if ok else f"Login failed: {message}"
+        except Exception as exc:
+            return f"Login failed: {exc}"
+
+    def run_clerk_logout(self) -> str:
+        try:
+            from gateway_runtime.auth import ClerkAuthManager
+            from gateway_runtime.config import load_gateway_config
+
+            data = self._ensure_gateway_sections(self._load_gateway_json())
+            auth = data.setdefault("auth", {})
+            config = load_gateway_config(self._gateway_config_path())
+            manager = ClerkAuthManager(
+                config.workspace_root,
+                enabled=bool(auth.get("enabled", False)),
+                webhook_bearer_token=str(auth.get("webhook_bearer_token", "")).strip(),
+            )
+            manager.clear_state()
+            return "Signed out successfully."
+        except Exception as exc:
+            return f"Logout failed: {exc}"
 
     def provider_report(self) -> str:
         lines = ["Providers:"]
@@ -4846,26 +5097,192 @@ class AdvancedAIPlatform:
             # Keep startup resilient even if stdin is unavailable/interrupted
             pass
 
+    def _gateway_config_path(self) -> Path:
+        return Path.cwd() / "openclaw.json"
+
+    def _load_gateway_json(self) -> Dict[str, Any]:
+        path = self._gateway_config_path()
+        if not path.exists():
+            return {}
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+
+    def _save_gateway_json(self, data: Dict[str, Any]):
+        path = self._gateway_config_path()
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    def _ensure_gateway_sections(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        out = dict(data)
+        out.setdefault("gateway", {"host": "127.0.0.1", "port": 18789, "dashboard_host": "127.0.0.1", "dashboard_port": 18890, "deployment_mode": "local"})
+        out.setdefault("workspace", {"root": ".openclaw/workspace"})
+        out.setdefault("provider", {"default": os.getenv("AI_PROVIDER", "").strip().lower()})
+        out.setdefault("messaging", {})
+        out["messaging"].setdefault("discord_webhooks", {})
+        out["messaging"].setdefault("slack_webhooks", {})
+        out["messaging"].setdefault("slack_bot_token", "")
+        out["messaging"].setdefault("slack_signing_secret", "")
+        out["messaging"].setdefault("whatsapp_account_sid", "")
+        out["messaging"].setdefault("whatsapp_auth_token", "")
+        out["messaging"].setdefault("whatsapp_from_number", "")
+        out.setdefault("tools", {"allow": [], "deny": []})
+        out.setdefault("auth", {"enabled": False, "webhook_bearer_token": ""})
+        out.setdefault("agents", {"list": []})
+        return out
+
+    def run_messaging_setup(self) -> str:
+        if not sys.stdin.isatty():
+            return "Messaging setup requires interactive stdin."
+        data = self._ensure_gateway_sections(self._load_gateway_json())
+        messaging = data.setdefault("messaging", {})
+        print(f"\n{self._section_header('MESSAGING')} Connector setup")
+        print(self._muted("Choose connector [telegram/discord/slack/slack-bot/whatsapp/skip]"))
+        connector = self._ask_choice("> ", ["telegram", "discord", "slack", "slack-bot", "whatsapp", "skip"], default="telegram")
+        if connector == "skip":
+            return "Messaging setup skipped."
+        if connector == "telegram":
+            print(self._muted("Telegram bot token:"))
+            token = input("> ").strip()
+            print(self._muted("Telegram chat ID for validation/default replies:"))
+            chat_id = input("> ").strip()
+            if not token or not chat_id:
+                return "Telegram setup cancelled: token and chat ID are required."
+            messaging["telegram_bot_token"] = token
+            messaging["telegram_default_chat_id"] = chat_id
+            self._save_gateway_json(data)
+            return "Saved Telegram connector settings in openclaw.json"
+        if connector == "discord":
+            print(self._muted("Discord webhook name (example: ops):"))
+            name = input("> ").strip()
+            print(self._muted("Discord webhook URL:"))
+            url = input("> ").strip()
+            if not name or not url:
+                return "Discord setup cancelled: webhook name and URL are required."
+            webhooks = messaging.setdefault("discord_webhooks", {})
+            webhooks[name] = url
+            self._save_gateway_json(data)
+            return f"Saved Discord webhook '{name}' in openclaw.json"
+        if connector == "slack":
+            print(self._muted("Slack webhook name (example: alerts):"))
+            name = input("> ").strip()
+            print(self._muted("Slack incoming webhook URL:"))
+            url = input("> ").strip()
+            if not name or not url:
+                return "Slack setup cancelled: webhook name and URL are required."
+            webhooks = messaging.setdefault("slack_webhooks", {})
+            webhooks[name] = url
+            self._save_gateway_json(data)
+            return f"Saved Slack webhook '{name}' in openclaw.json"
+        if connector == "slack-bot":
+            print(self._muted("Slack bot token:"))
+            token = input("> ").strip()
+            print(self._muted("Slack signing secret:"))
+            secret = input("> ").strip()
+            if not token or not secret:
+                return "Slack bot setup cancelled: token and signing secret are required."
+            messaging["slack_bot_token"] = token
+            messaging["slack_signing_secret"] = secret
+            self._save_gateway_json(data)
+            return "Saved Slack bot mode settings in openclaw.json"
+        print(self._muted("Twilio Account SID:"))
+        sid = input("> ").strip()
+        print(self._muted("Twilio Auth Token:"))
+        token = input("> ").strip()
+        print(self._muted("Twilio WhatsApp sender (example: whatsapp:+14155238886):"))
+        from_number = input("> ").strip()
+        if not sid or not token or not from_number:
+            return "WhatsApp setup cancelled: SID, auth token, and sender are required."
+        messaging["whatsapp_account_sid"] = sid
+        messaging["whatsapp_auth_token"] = token
+        messaging["whatsapp_from_number"] = from_number
+        self._save_gateway_json(data)
+        return "Saved WhatsApp connector settings in openclaw.json"
+
+    def run_telegram_validation(self) -> str:
+        data = self._ensure_gateway_sections(self._load_gateway_json())
+        messaging = data.setdefault("messaging", {})
+        token = str(messaging.get("telegram_bot_token", "")).strip()
+        chat_id = str(messaging.get("telegram_default_chat_id", "")).strip()
+        if not token or not chat_id:
+            return "Telegram is not configured. Run /messaging-setup first."
+        try:
+            from gateway_runtime.messaging import TelegramConnector
+
+            connector = TelegramConnector(token, lambda payload: None)
+            result = connector.send_message(chat_id, "CONNECT Telegram validation: outbound test succeeded.")
+            return json.dumps({"ok": True, "result": result}, indent=2)
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc)}, indent=2)
+
+    def run_slack_validation(self, target: str) -> str:
+        data = self._ensure_gateway_sections(self._load_gateway_json())
+        messaging = data.setdefault("messaging", {})
+        try:
+            if str(messaging.get("slack_bot_token", "")).strip() and target.startswith(("C", "D")):
+                from gateway_runtime.messaging import SlackBotConnector
+
+                connector = SlackBotConnector(str(messaging.get("slack_bot_token", "")).strip(), str(messaging.get("slack_signing_secret", "")).strip(), lambda payload: None)
+                result = connector.send_message(target, "CONNECT Slack validation: outbound bot test succeeded.")
+                return json.dumps({"ok": True, "result": result}, indent=2)
+            webhooks = messaging.get("slack_webhooks", {}) or {}
+            if target in webhooks:
+                from gateway_runtime.messaging import SlackWebhookConnector
+
+                connector = SlackWebhookConnector(webhooks)
+                result = connector.send_message(target, "CONNECT Slack validation: outbound webhook test succeeded.")
+                return json.dumps({"ok": True, "result": result}, indent=2)
+            return "Slack target not configured. Use a webhook name or a Slack channel ID with bot mode configured."
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc)}, indent=2)
+
+    def run_whatsapp_validation(self, target: str) -> str:
+        data = self._ensure_gateway_sections(self._load_gateway_json())
+        messaging = data.setdefault("messaging", {})
+        sid = str(messaging.get("whatsapp_account_sid", "")).strip()
+        token = str(messaging.get("whatsapp_auth_token", "")).strip()
+        from_number = str(messaging.get("whatsapp_from_number", "")).strip()
+        if not sid or not token or not from_number:
+            return "WhatsApp is not configured. Run /messaging-setup first."
+        try:
+            from gateway_runtime.messaging import WhatsAppTwilioConnector
+
+            connector = WhatsAppTwilioConnector(sid, token, from_number, lambda payload: None)
+            target_number = target if target.startswith("whatsapp:") else f"whatsapp:{target}"
+            result = connector.send_message(target_number, "CONNECT WhatsApp validation: outbound test succeeded.")
+            return json.dumps({"ok": True, "result": result}, indent=2)
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc)}, indent=2)
+
     def _reference_title_lines(self) -> List[str]:
-        return ["CONNECT"]
+        return [
+            "  _________  _   _ _   _ _   _ ______ _____ _______",
+            " / ____/ _ \\| \\ | | \\ | | \\ | |  ____/ ____|__   __|",
+            "| |   | | | |  \\| |  \\| |  \\| | |__ | |       | |   ",
+            "| |   | | | | . ` | . ` | . ` |  __|| |       | |   ",
+            "| |___| |_| | |\\  | |\\  | |\\  | |___| |____   | |   ",
+            " \\_____\\___/|_| \\_|_| \\_|_| \\_|______\\_____|  |_|   ",
+        ]
 
     def _welcome_lines(self) -> List[str]:
         provider = self.ai.provider or "none"
         model = self.ai.model_name or "unavailable"
         return [
             f"Provider: {provider} ({model})",
-            "Commands: /provider, /llm, /doctor, /help, /agent <goal>",
-            "Mode: repo-aware local coding assistant",
+            f"Default mode: {self.launch_profile.get('default_mode', 'shell')}",
+            "Modes: interactive shell, autonomous operator, gateway server, visual dashboard",
+            "Commands: /provider, /llm, /doctor, /setup, /login, /logout, /messaging-setup, /telegram-test, /agent <goal>",
         ]
 
     def _print_welcome_rich(self, title: str, subtitle: str, feature_lines: List[str]):
-        title_text = Text("CONNECT", style="bold #f5eadc")
+        title_text = Text("\n".join(self._reference_title_lines()), style="bold #f5eadc")
         body_text = Text("\n".join(self._welcome_lines()), style="#e7d7c7")
         content = Text()
         content.append_text(title_text)
-        content.append("\n")
-        content.append_text(Text("Local AI workspace", style="#c58c67"))
         content.append("\n\n")
+        content.append_text(Text("Operator Console", style="bold #c58c67"))
+        content.append("\n")
         content.append_text(body_text)
         self.console.print(
             Panel(
@@ -4896,9 +5313,24 @@ class AdvancedAIPlatform:
         ok, message = self.ai.configure_provider(provider_name, interactive=True)
         print(message)
 
+    def choose_start_mode(self) -> str:
+        default_mode = str(self.launch_profile.get("default_mode", "shell") or "shell").lower()
+        if not self.launch_profile.get("prompt_gateway_each_launch", True):
+            return default_mode
+        if not sys.stdin.isatty():
+            return "shell"
+        print(f"\n{self._section_header('MODE')} Launch mode [shell/gateway/dashboard] ({default_mode})")
+        try:
+            choice = self._ask_choice("> ", ["shell", "gateway", "dashboard"], default=default_mode)
+        except Exception:
+            return default_mode
+        self.launch_profile["default_mode"] = choice
+        self._save_launch_profile()
+        return choice
+
     def _emit_agent_event(self, event_type: str, payload: Dict[str, Any]):
         """Print structured cognition for the autonomous operator."""
-        if self.console and Panel:
+        if getattr(self, "console", None) and Panel:
             self._emit_agent_event_rich(event_type, payload)
             return
         if event_type == "plan_created":
@@ -5024,6 +5456,13 @@ Commands:
   /chat - Start conversation mode
   /provider - Show provider status or switch provider
   /llm - Alias for /provider
+  /setup - Rerun first-launch setup questions
+  /login - Sign in with Clerk in the browser and return to CLI
+  /logout - Clear local Clerk session
+  /messaging-setup - Ask for Telegram/Discord connector details in CLI
+  /telegram-test - Send a real outbound Telegram validation message
+  /slack-test [target] - Send a real Slack validation message
+  /whatsapp-test [number] - Send a real WhatsApp validation message
   agent - Start autonomous mode without slash
   /agent [goal] - Execute a goal autonomously
   /agent-runs - List recent autonomous runs
@@ -5058,6 +5497,27 @@ Tip:
             return self.handle_provider_command(cmd)
         elif cmd == "/doctor":
             return self.doctor_report()
+        elif cmd == "/setup":
+            self.launch_profile["initialized"] = False
+            self._save_launch_profile()
+            self._run_first_launch_onboarding()
+            return "Setup updated."
+        elif cmd == "/login":
+            return self.run_clerk_login()
+        elif cmd == "/logout":
+            return self.run_clerk_logout()
+        elif cmd == "/messaging-setup":
+            return self.run_messaging_setup()
+        elif cmd == "/telegram-test":
+            return self.run_telegram_validation()
+        elif cmd.startswith("/slack-test "):
+            return self.run_slack_validation(cmd[len("/slack-test "):].strip())
+        elif cmd == "/slack-test":
+            return "Usage: /slack-test [webhook_name|channel_id]"
+        elif cmd.startswith("/whatsapp-test "):
+            return self.run_whatsapp_validation(cmd[len("/whatsapp-test "):].strip())
+        elif cmd == "/whatsapp-test":
+            return "Usage: /whatsapp-test [number]"
         elif cmd == "/agent-status":
             status = self.agent.get_status()
             return f"""
@@ -5298,16 +5758,153 @@ def main():
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument("goal", nargs="*", help="Optional goal to run once instead of opening the interactive CLI.")
     parser.add_argument("--doctor", action="store_true", help="Print provider and launcher diagnostics, then exit.")
+    parser.add_argument("--gateway", action="store_true", help="Run the OpenClaw-style WebSocket gateway server.")
+    parser.add_argument("--dashboard", action="store_true", help="Run the local operator dashboard.")
+    parser.add_argument("--service-stack", action="store_true", help="Run the selected stack for Windows service/background mode.")
+    parser.add_argument("--cloud", action="store_true", help="Bind gateway/dashboard for remote access (0.0.0.0).")
+    parser.add_argument("--local", action="store_true", help="Bind gateway/dashboard to localhost only.")
+    parser.add_argument("--open-browser", action="store_true", help="Open the dashboard URL in the default browser.")
+    parser.add_argument("--gateway-config", help="Path to an openclaw-style JSON config for gateway mode.")
+    parser.add_argument("--login", action="store_true", help="Open Clerk sign-in in the browser and return to CLI.")
+    parser.add_argument("--logout", action="store_true", help="Clear the local Clerk session.")
     args = parser.parse_args()
+    alias = args.goal[0].strip().lower() if len(args.goal) == 1 else ""
+    if alias == "gateway":
+        args.gateway = True
+        args.goal = []
+    elif alias == "dashboard":
+        args.dashboard = True
+        args.open_browser = True
+        args.goal = []
+    elif alias == "login":
+        args.goal = []
+        args.login = True
+    elif alias == "logout":
+        args.goal = []
+        args.logout = True
+    elif alias == "doctor":
+        args.doctor = True
+        args.goal = []
+    elif len(args.goal) >= 2 and args.goal[0].strip().lower() == "service":
+        pass
     platform = AdvancedAIPlatform()
     if args.doctor:
         print(platform.doctor_report())
+        return
+    if getattr(args, "login", False):
+        print(platform.run_clerk_login())
+        return
+    if getattr(args, "logout", False):
+        print(platform.run_clerk_logout())
+        return
+    from gateway_runtime import AgentRuntime, DashboardServer, GatewayServer, load_gateway_config
+    import asyncio
+    import webbrowser
+
+    def prepare_config():
+        config = load_gateway_config(Path(args.gateway_config) if args.gateway_config else None)
+        if args.cloud:
+            config.deployment_mode = "cloud"
+            config.host = "0.0.0.0"
+            config.dashboard_host = "0.0.0.0"
+        elif args.local:
+            config.deployment_mode = "local"
+            config.host = "127.0.0.1"
+            config.dashboard_host = "127.0.0.1"
+        return config
+
+    def ensure_authenticated(config) -> bool:
+        from gateway_runtime.auth import ClerkAuthManager
+
+        manager = ClerkAuthManager(config.workspace_root, config.clerk_publishable_key, config.auth_enabled, config.webhook_bearer_token)
+        if not manager.requires_auth(config.deployment_mode):
+            return True
+        if manager.is_signed_in():
+            return True
+        print("Authentication required. Opening browser sign-in...")
+        ok, message = manager.start_cli_login()
+        print(message)
+        return ok
+
+    def run_gateway_only(config, require_cli_login: bool = True):
+        if require_cli_login and not ensure_authenticated(config):
+            return
+        runtime = AgentRuntime(config)
+        print(f"Starting gateway on ws://{config.host}:{config.port}")
+        asyncio.run(GatewayServer(runtime).serve())
+
+    def run_dashboard_stack(config, open_browser: bool = False, require_cli_login: bool = True):
+        if require_cli_login and not ensure_authenticated(config):
+            return
+        runtime = AgentRuntime(config)
+
+        def gateway_thread():
+            asyncio.run(GatewayServer(runtime).serve())
+
+        thread = threading.Thread(target=gateway_thread, name="connect-gateway", daemon=True)
+        thread.start()
+        dashboard_url = f"http://{('127.0.0.1' if config.dashboard_host == '0.0.0.0' else config.dashboard_host)}:{config.dashboard_port}"
+        print(f"Starting dashboard on {dashboard_url}")
+        if open_browser:
+            try:
+                webbrowser.open(dashboard_url)
+            except Exception:
+                pass
+        DashboardServer(runtime, host=config.dashboard_host, port=config.dashboard_port).serve()
+
+    if len(args.goal) >= 2 and args.goal[0].strip().lower() == "service":
+        from gateway_runtime.service_manager import (
+            format_result,
+            install_windows_service,
+            remove_windows_service,
+            start_windows_service,
+            status_windows_service,
+            stop_windows_service,
+        )
+
+        subcommand = args.goal[1].strip().lower()
+        config = prepare_config()
+        mode = "dashboard" if (len(args.goal) >= 3 and args.goal[2].strip().lower() == "gateway") is False else "gateway"
+        config_path = str(Path(args.gateway_config) if args.gateway_config else Path.cwd() / "openclaw.json")
+        if subcommand == "install":
+            print(format_result(install_windows_service(mode, config_path)))
+            return
+        if subcommand == "uninstall":
+            print(format_result(remove_windows_service()))
+            return
+        if subcommand == "start":
+            print(format_result(start_windows_service()))
+            return
+        if subcommand == "stop":
+            print(format_result(stop_windows_service()))
+            return
+        if subcommand == "status":
+            print(format_result(status_windows_service()))
+            return
+        print("Usage: connect service [install|uninstall|start|stop|status] [gateway]")
+        return
+
+    if args.gateway:
+        run_gateway_only(prepare_config())
+        return
+    if args.dashboard:
+        run_dashboard_stack(prepare_config(), open_browser=args.open_browser or True)
+        return
+    if args.service_stack:
+        run_dashboard_stack(prepare_config(), open_browser=False, require_cli_login=False)
         return
     if args.goal:
         platform.run_goal_once(" ".join(args.goal).strip())
         return
     if not sys.stdin.isatty():
         print("No interactive stdin detected. Pass a goal or use --doctor.")
+        return
+    start_mode = platform.choose_start_mode()
+    if start_mode == "gateway":
+        run_gateway_only(prepare_config())
+        return
+    if start_mode == "dashboard":
+        run_dashboard_stack(prepare_config(), open_browser=True)
         return
     platform.run()
 

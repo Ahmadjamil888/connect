@@ -1,0 +1,68 @@
+{
+  "gateway": {
+    "host": "127.0.0.1",
+    "port": 18789,
+    "dashboard_port": 18890
+  },
+  "workspace": {
+    "root": ".openclaw/workspace"
+  },
+  "provider": {
+    "default": "openai"
+  },
+  "auth": {
+    "enabled": false,
+    "webhook_bearer_token": ""
+  },
+  "messaging": {
+    "telegram_bot_token": "",
+    "telegram_default_chat_id": "",
+    "discord_webhooks": {
+      "ops": ""
+    },
+    "slack_webhooks": {
+      "alerts": ""
+    },
+    "slack_bot_token": "",
+    "slack_signing_secret": "",
+    "whatsapp_account_sid": "",
+    "whatsapp_auth_token": "",
+    "whatsapp_from_number": "whatsapp:+14155238886"
+  },
+  "tools": {
+    "allow": [
+      "group:fs",
+      "group:runtime",
+      "group:sessions",
+      "group:memory",
+      "group:web"
+    ],
+    "deny": [
+      "group:nodes",
+      "group:messaging"
+    ]
+  },
+  "agents": {
+    "list": [
+      {
+        "name": "default",
+        "tools": {
+          "profile": "coding",
+          "allow": [
+            "group:web",
+            "gateway_status"
+          ],
+          "deny": [
+            "install_package"
+          ]
+        }
+      },
+      {
+        "name": "personal",
+        "tools": {
+          "profile": "messaging"
+        }
+      }
+    ]
+  }
+}

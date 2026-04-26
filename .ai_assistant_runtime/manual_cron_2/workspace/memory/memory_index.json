@@ -1,0 +1,20 @@
+[
+  {
+    "ts": "2026-04-26T16:58:56.643211",
+    "kind": "user",
+    "session_id": "fcd4704ce71a",
+    "content": "hello cron",
+    "metadata": {
+      "role": "user"
+    }
+  },
+  {
+    "ts": "2026-04-26T16:58:56.682172",
+    "kind": "assistant",
+    "session_id": "fcd4704ce71a",
+    "content": "ok",
+    "metadata": {
+      "role": "assistant"
+    }
+  }
+]

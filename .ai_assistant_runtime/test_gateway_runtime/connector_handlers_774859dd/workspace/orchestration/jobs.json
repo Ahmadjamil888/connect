@@ -1,0 +1,19 @@
+[
+  {
+    "job_id": "job_1777215477286_0",
+    "type": "connector_message",
+    "payload": {
+      "session_id": "7fd8d58d6a22",
+      "text": "hello slack",
+      "target": "slack:C123"
+    },
+    "status": "completed",
+    "created_at": "2026-04-26T19:57:57.286199",
+    "updated_at": "2026-04-26T19:57:57.360852",
+    "result": {
+      "ok": false,
+      "error": "Tool not allowed for session profile: write_file",
+      "session_id": "7fd8d58d6a22"
+    }
+  }
+]
