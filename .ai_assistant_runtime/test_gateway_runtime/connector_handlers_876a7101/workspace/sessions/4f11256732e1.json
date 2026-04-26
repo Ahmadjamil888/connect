@@ -1,0 +1,11 @@
+{
+  "id": "4f11256732e1",
+  "name": "whatsapp_whatsapp:+123456789",
+  "created_at": "2026-04-26T23:56:25.104705",
+  "updated_at": "2026-04-26T23:56:25.104705",
+  "status": "idle",
+  "profile": "messaging",
+  "parent_id": "",
+  "target": "whatsapp:whatsapp:+123456789",
+  "messages": []
+}

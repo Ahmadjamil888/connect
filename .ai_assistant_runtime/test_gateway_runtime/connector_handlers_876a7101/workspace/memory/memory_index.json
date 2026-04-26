@@ -1,0 +1,24 @@
+[
+  {
+    "ts": "2026-04-26T23:56:25.083637",
+    "kind": "connector",
+    "session_id": "afeff952ee58",
+    "content": "hello slack",
+    "metadata": {
+      "connector": "slack",
+      "job_id": "job_1777229785082_0"
+    }
+  },
+  {
+    "ts": "2026-04-26T23:56:25.129010",
+    "kind": "user",
+    "session_id": "afeff952ee58",
+    "content": "hello slack",
+    "metadata": {
+      "role": "user"
+    }
+  }
+]     "job_id": "job_1777229785107_1"
+    }
+  }
+]

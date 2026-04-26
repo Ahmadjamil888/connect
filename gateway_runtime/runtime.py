@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -274,6 +275,65 @@ class AgentRuntime:
             "workflow_count": len(self.workflows.list_workflows()),
             "services": self.service_state,
         }
+
+    def integration_snapshot(self) -> Dict[str, Any]:
+        return {
+            "github": {"connected": bool(Path(self.config.config_path).resolve().parent.joinpath(".env").exists() and os.getenv("GITHUB_TOKEN", "").strip())},
+            "telegram": {"connected": bool(self.config.telegram_bot_token), "default_chat_id": self.config.telegram_default_chat_id},
+            "slack_webhooks": {"connected": bool(self.config.slack_webhooks), "names": list(self.config.slack_webhooks.keys())},
+            "slack_bot": {"connected": bool(self.config.slack_bot_token and self.config.slack_signing_secret)},
+            "discord": {"connected": bool(self.config.discord_webhooks), "names": list(self.config.discord_webhooks.keys())},
+            "whatsapp": {"connected": bool(self.config.whatsapp_account_sid and self.config.whatsapp_auth_token and self.config.whatsapp_from_number)},
+        }
+
+    def save_integration(self, kind: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        config_data: Dict[str, Any] = {}
+        if self.config.config_path.exists():
+            try:
+                config_data = json.loads(self.config.config_path.read_text(encoding="utf-8"))
+            except Exception:
+                config_data = {}
+        messaging = config_data.setdefault("messaging", {})
+
+        if kind == "telegram":
+            messaging["telegram_bot_token"] = str(payload.get("bot_token", "")).strip()
+            messaging["telegram_default_chat_id"] = str(payload.get("default_chat_id", "")).strip()
+        elif kind == "slack_webhook":
+            hooks = messaging.setdefault("slack_webhooks", {})
+            hooks[str(payload.get("name", "default")).strip() or "default"] = str(payload.get("webhook_url", "")).strip()
+        elif kind == "slack_bot":
+            messaging["slack_bot_token"] = str(payload.get("bot_token", "")).strip()
+            messaging["slack_signing_secret"] = str(payload.get("signing_secret", "")).strip()
+        elif kind == "discord":
+            hooks = messaging.setdefault("discord_webhooks", {})
+            hooks[str(payload.get("name", "default")).strip() or "default"] = str(payload.get("webhook_url", "")).strip()
+        elif kind == "whatsapp":
+            messaging["whatsapp_account_sid"] = str(payload.get("account_sid", "")).strip()
+            messaging["whatsapp_auth_token"] = str(payload.get("auth_token", "")).strip()
+            messaging["whatsapp_from_number"] = str(payload.get("from_number", "")).strip()
+        elif kind == "github":
+            env_path = Path(self.config.config_path).resolve().parent / ".env"
+            token = str(payload.get("token", "")).strip()
+            lines: List[str] = []
+            if env_path.exists():
+                lines = env_path.read_text(encoding="utf-8").splitlines()
+            updated = False
+            output: List[str] = []
+            for line in lines:
+                if line.startswith("GITHUB_TOKEN="):
+                    output.append(f"GITHUB_TOKEN={token}")
+                    updated = True
+                else:
+                    output.append(line)
+            if not updated:
+                output.append(f"GITHUB_TOKEN={token}")
+            env_path.write_text("\n".join(output).rstrip() + "\n", encoding="utf-8")
+            return {"ok": True, "kind": kind, "saved": True}
+        else:
+            raise RuntimeError(f"unsupported integration kind: {kind}")
+
+        self.config.config_path.write_text(json.dumps(config_data, indent=2), encoding="utf-8")
+        return {"ok": True, "kind": kind, "saved": True}
 
     def config_lookup(self, path: str) -> Any:
         schema = {

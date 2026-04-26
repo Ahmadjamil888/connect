@@ -1,0 +1,28 @@
+[
+  {
+    "job_id": "job_1777229812730_0",
+    "type": "connector_message",
+    "payload": {
+      "session_id": "a602408f3839",
+      "text": "hello slack",
+      "target": "slack:C123"
+    },
+    "status": "running",
+    "created_at": "2026-04-26T23:56:52.730972",
+    "updated_at": "2026-04-26T23:56:52.743181",
+    "result": null
+  },
+  {
+    "job_id": "job_1777229812755_1",
+    "type": "connector_message",
+    "payload": {
+      "session_id": "bc015f4770db",
+      "text": "hello wa",
+      "target": "whatsapp:whatsapp:+123456789"
+    },
+    "status": "queued",
+    "created_at": "2026-04-26T23:56:52.764997",
+    "updated_at": "2026-04-26T23:56:52.765007",
+    "result": null
+  }
+]

@@ -1,0 +1,31 @@
+[
+  {
+    "ts": "2026-04-26T23:56:52.732119",
+    "kind": "connector",
+    "session_id": "a602408f3839",
+    "content": "hello slack",
+    "metadata": {
+      "connector": "slack",
+      "job_id": "job_1777229812730_0"
+    }
+  },
+  {
+    "ts": "2026-04-26T23:56:52.777554",
+    "kind": "connector",
+    "session_id": "bc015f4770db",
+    "content": "hello wa",
+    "metadata": {
+      "connector": "whatsapp",
+      "job_id": "job_1777229812755_1"
+    }
+  },
+  {
+    "ts": "2026-04-26T23:56:52.790645",
+    "kind": "user",
+    "session_id": "a602408f3839",
+    "content": "hello slack",
+    "metadata": {
+      "role": "user"
+    }
+  }
+]
