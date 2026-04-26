@@ -1,5 +1,5 @@
 import { SignInButton, useAuth, useUser } from '@clerk/react'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { AuthCliPage } from './pages/AuthCliPage'
 import { SiteHeader } from './components/SiteHeader'
 import { AboutPage } from './pages/AboutPage'
@@ -16,8 +16,6 @@ import { DocsInstallationPage } from './pages/docs/DocsInstallationPage'
 import { DocsOperationsPage } from './pages/docs/DocsOperationsPage'
 import { DocsOverviewPage } from './pages/docs/DocsOverviewPage'
 import { DocsRuntimePage } from './pages/docs/DocsRuntimePage'
-
-const dashboardUrl = import.meta.env.VITE_CONNECT_DASHBOARD_URL || 'http://127.0.0.1:18890'
 
 function Footer() {
   const { isSignedIn } = useAuth()
@@ -45,7 +43,6 @@ function Footer() {
             <div className="mt-4 grid gap-3 text-sm text-neutral-300">
               <a href="/about" className="transition hover:text-white">About</a>
               <a href="/platform" className="transition hover:text-white">Platform</a>
-              <a href="/integrations" className="transition hover:text-white">Integrations</a>
               <a href="/docs" className="transition hover:text-white">Docs</a>
               <a href="/changelog" className="transition hover:text-white">Changelog</a>
               <a href="/launch" className="transition hover:text-white">Launch</a>
@@ -65,13 +62,8 @@ function Footer() {
                   Signed in as {user?.primaryEmailAddress?.emailAddress || user?.id}
                 </div>
               )}
-              <a
-                href={dashboardUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-full bg-[#27F3A9] px-4 py-2 text-sm font-medium text-black transition hover:brightness-110"
-              >
-                Open Operator
+              <a href="/docs" className="rounded-full bg-[#27F3A9] px-4 py-2 text-sm font-medium text-black transition hover:brightness-110">
+                Documentation
               </a>
             </div>
           </div>
@@ -81,32 +73,43 @@ function Footer() {
   )
 }
 
+const dashboardUrl = import.meta.env.VITE_CONNECT_DASHBOARD_URL || 'http://127.0.0.1:18890'
+
+function AppRoutes() {
+  const location = useLocation()
+  const isDocsRoute = location.pathname === '/docs' || location.pathname.startsWith('/docs/')
+
+  return (
+    <div className="min-h-screen bg-black text-white">
+      {!isDocsRoute ? <SiteHeader /> : null}
+      <main>
+        <Routes>
+          <Route path="/" element={<HomePage dashboardUrl={dashboardUrl} />} />
+          <Route path="/auth/cli" element={<AuthCliPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/platform" element={<PlatformPage />} />
+          <Route path="/integrations" element={<IntegrationsPage />} />
+          <Route path="/docs" element={<DocsPage />} />
+          <Route path="/docs/overview" element={<DocsOverviewPage />} />
+          <Route path="/docs/installation" element={<DocsInstallationPage />} />
+          <Route path="/docs/authentication" element={<DocsAuthenticationPage />} />
+          <Route path="/docs/runtime" element={<DocsRuntimePage />} />
+          <Route path="/docs/dashboard" element={<DocsDashboardPage />} />
+          <Route path="/docs/connectors" element={<DocsConnectorsPage />} />
+          <Route path="/docs/operations" element={<DocsOperationsPage />} />
+          <Route path="/changelog" element={<ChangelogPage />} />
+          <Route path="/launch" element={<LaunchPage />} />
+        </Routes>
+      </main>
+      {!isDocsRoute ? <Footer /> : null}
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-black text-white">
-        <SiteHeader dashboardUrl={dashboardUrl} />
-        <main>
-          <Routes>
-            <Route path="/" element={<HomePage dashboardUrl={dashboardUrl} />} />
-            <Route path="/auth/cli" element={<AuthCliPage />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/platform" element={<PlatformPage />} />
-            <Route path="/integrations" element={<IntegrationsPage />} />
-            <Route path="/docs" element={<DocsPage />} />
-            <Route path="/docs/overview" element={<DocsOverviewPage />} />
-            <Route path="/docs/installation" element={<DocsInstallationPage />} />
-            <Route path="/docs/authentication" element={<DocsAuthenticationPage />} />
-            <Route path="/docs/runtime" element={<DocsRuntimePage />} />
-            <Route path="/docs/dashboard" element={<DocsDashboardPage />} />
-            <Route path="/docs/connectors" element={<DocsConnectorsPage />} />
-            <Route path="/docs/operations" element={<DocsOperationsPage />} />
-            <Route path="/changelog" element={<ChangelogPage />} />
-            <Route path="/launch" element={<LaunchPage />} />
-          </Routes>
-        </main>
-        <Footer />
-      </div>
+      <AppRoutes />
     </BrowserRouter>
   )
 }

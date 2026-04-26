@@ -4588,17 +4588,7 @@ class AdvancedAIPlatform:
         self._save_gateway_json(data)
 
     def _prompt_clerk_auth_setup_if_needed(self):
-        if not sys.stdin.isatty():
-            return
-        data = self._ensure_gateway_sections(self._load_gateway_json())
-        auth = data.setdefault("auth", {})
-        if os.getenv("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "").strip() and os.getenv("CLERK_SECRET_KEY", "").strip():
-            return
-        print(f"\n{self._section_header('AUTH')} Clerk env keys are not present.")
-        print(self._muted("Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY in your environment to enable sign-in."))
-        if auth.get("enabled"):
-            auth["enabled"] = False
-            self._save_gateway_json(data)
+        return
 
     def _has_messaging_config(self) -> bool:
         data = self._ensure_gateway_sections(self._load_gateway_json())
@@ -4934,14 +4924,14 @@ class AdvancedAIPlatform:
         auth = data.setdefault("auth", {})
         enabled = bool(auth.get("enabled", False))
         webhook_token = str(auth.get("webhook_bearer_token", "")).strip()
-        if not (os.getenv("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "").strip() and os.getenv("CLERK_SECRET_KEY", "").strip()):
-            return "Clerk env keys are missing. Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY."
         try:
             from gateway_runtime.auth import ClerkAuthManager
             from gateway_runtime.config import load_gateway_config
 
             config = load_gateway_config(self._gateway_config_path())
             manager = ClerkAuthManager(config.workspace_root, enabled=enabled, webhook_bearer_token=webhook_token)
+            if not manager.is_configured():
+                return "Clerk publishable key is missing. Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY so CONNECT can open the frontend login flow."
             ok, message = manager.start_cli_login()
             return message if ok else f"Login failed: {message}"
         except Exception as exc:

@@ -209,6 +209,21 @@ def test_main_login_alias_dispatches_directly():
         sys.argv = original_argv
         ai_assistant.AdvancedAIPlatform = original_platform
 
+def test_clerk_prompt_is_silent():
+    """Test Clerk setup prompt no longer prints or mutates auth config."""
+    print("\n=== Testing Silent Clerk Prompt ===")
+    from ai_assistant import AdvancedAIPlatform
+
+    obj = AdvancedAIPlatform.__new__(AdvancedAIPlatform)
+    obj._load_gateway_json = lambda: {"auth": {"enabled": True}}
+    obj._ensure_gateway_sections = lambda data: data
+    obj._save_gateway_json = lambda data: (_ for _ in ()).throw(AssertionError("should not save gateway config"))
+
+    result = AdvancedAIPlatform._prompt_clerk_auth_setup_if_needed(obj)
+    assert result is None
+    print("   Silent Clerk prompt: OK")
+    return True
+
 def test_launch_profile_defaults():
     """Test startup launch profile defaults."""
     print("\n=== Testing Launch Profile Defaults ===")

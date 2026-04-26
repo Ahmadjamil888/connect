@@ -1,21 +1,14 @@
 import { SignInButton, SignUpButton, UserButton, useAuth } from '@clerk/react'
 import { Link, NavLink } from 'react-router-dom'
 
-type SiteHeaderProps = {
-  dashboardUrl: string
-}
-
 const NAV_ITEMS = [
   { to: '/', label: 'Home' },
-  { to: '/about', label: 'About' },
   { to: '/platform', label: 'Platform' },
-  { to: '/integrations', label: 'Integrations' },
   { to: '/docs', label: 'Docs' },
-  { to: '/changelog', label: 'Changelog' },
   { to: '/launch', label: 'Launch' },
 ]
 
-export function SiteHeader({ dashboardUrl }: SiteHeaderProps) {
+export function SiteHeader() {
   const { isSignedIn } = useAuth()
 
   return (
@@ -43,14 +36,12 @@ export function SiteHeader({ dashboardUrl }: SiteHeaderProps) {
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <a
-            href={dashboardUrl}
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            to="/docs"
             className="hidden rounded-full border border-white/10 px-4 py-2 text-sm text-neutral-200 transition hover:border-[#27F3A9]/50 hover:text-white md:inline-flex"
           >
-            Open Operator
-          </a>
+            Documentation
+          </Link>
           {!isSignedIn ? (
             <>
               <SignInButton mode="modal">
