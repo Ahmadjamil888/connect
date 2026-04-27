@@ -1,6 +1,6 @@
 import { SignInButton, SignUpButton, UserButton, useAuth } from '@clerk/react'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { DocSidebar, type DocItem } from './DocSidebar'
 
 export const DOC_ITEMS: DocItem[] = [
@@ -21,7 +21,9 @@ type DocsShellProps = {
 
 export function DocsShell({ title, description, children }: DocsShellProps) {
   const { isSignedIn } = useAuth()
+  const location = useLocation()
   const [query, setQuery] = useState('')
+  const contentRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     document.body.classList.add('docs-shell-active')
@@ -30,6 +32,10 @@ export function DocsShell({ title, description, children }: DocsShellProps) {
     }
   }, [])
 
+  useEffect(() => {
+    contentRef.current?.scrollTo({ top: 0, behavior: 'auto' })
+  }, [location.pathname])
+
   const filteredItems = useMemo(() => {
     const value = query.trim().toLowerCase()
     if (!value) return DOC_ITEMS
@@ -37,7 +43,7 @@ export function DocsShell({ title, description, children }: DocsShellProps) {
   }, [query])
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-black text-white">
+    <div className="flex h-dvh min-h-dvh flex-col overflow-hidden bg-black text-white">
       <header className="z-50 shrink-0 border-b border-[#1d1a14] bg-black/92 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-3 px-4 py-4 sm:px-5">
           <Link to="/" className="shrink-0 font-['YDYoonche_M','IBM_Plex_Sans',sans-serif] text-lg tracking-[0.28em] text-white">
@@ -92,7 +98,7 @@ export function DocsShell({ title, description, children }: DocsShellProps) {
       <div className="mx-auto grid min-h-0 w-full max-w-[1500px] flex-1 grid-cols-[168px_minmax(0,1fr)] sm:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[280px_minmax(0,1fr)]">
         <DocSidebar items={filteredItems} />
 
-        <section className="min-h-0 overflow-y-auto">
+        <section ref={contentRef} className="min-h-0 min-w-0 overflow-y-auto">
           <div className="border-b border-[#1d1a14] px-4 py-10 sm:px-6 lg:px-10 lg:py-14">
             <div className="text-xs uppercase tracking-[0.22em] text-[#27F3A9]">Documentation</div>
             <h1 className="mt-4 max-w-4xl text-3xl font-light tracking-[-0.05em] text-white sm:text-4xl lg:text-6xl">

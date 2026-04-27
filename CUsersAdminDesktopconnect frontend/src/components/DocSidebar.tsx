@@ -12,7 +12,9 @@ type DocSidebarProps = {
 export function DocSidebar({ items }: DocSidebarProps) {
   return (
     <aside className="min-h-0 overflow-y-auto border-r border-[#1d1a14] bg-[#080706] px-3 py-5 sm:px-4 sm:py-6">
-      <div className="text-[11px] uppercase tracking-[0.22em] text-neutral-500">Documentation</div>
+      <div className="sticky top-0 z-10 bg-[#080706] pb-4 text-[11px] uppercase tracking-[0.22em] text-neutral-500">
+        Documentation
+      </div>
       <nav className="mt-5 grid gap-2">
         {items.map((item) => (
           <NavLink

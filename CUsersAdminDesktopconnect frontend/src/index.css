@@ -28,11 +28,12 @@ body {
 }
 
 body.docs-shell-active {
+  height: 100dvh;
   overflow: hidden;
 }
 
 body.docs-shell-active #root {
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
