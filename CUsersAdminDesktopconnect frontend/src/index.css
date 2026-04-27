@@ -27,6 +27,15 @@ body {
   color: #ffffff;
 }
 
+body.docs-shell-active {
+  overflow: hidden;
+}
+
+body.docs-shell-active #root {
+  height: 100vh;
+  overflow: hidden;
+}
+
 a {
   color: inherit;
   text-decoration: none;

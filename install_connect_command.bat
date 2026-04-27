@@ -10,12 +10,14 @@ if not exist "%BIN_DIR%" mkdir "%BIN_DIR%"
 (
 echo @echo off
 echo setlocal
-echo set "SCRIPT=%REPO_DIR%\ai_assistant.py"
-echo where python ^>nul 2^>nul
-echo if %%errorlevel%%==0 ^(
-echo     python "%%SCRIPT%%" %%*
+echo set "REPO_DIR=%REPO_DIR%"
+echo set "VENV_PYTHON=%%REPO_DIR%%\venv\Scripts\python.exe"
+echo if exist "%%VENV_PYTHON%%" ^(
+echo     "%%VENV_PYTHON%%" "%%REPO_DIR%%\ai_assistant.py" %%*
+echo ^) else if exist "%%LocalAppData%%\Programs\Python\Launcher\py.exe" ^(
+echo     py -3 "%%REPO_DIR%%\ai_assistant.py" %%*
 echo ^) else ^(
-echo     py -3 "%%SCRIPT%%" %%*
+echo     python "%%REPO_DIR%%\ai_assistant.py" %%*
 echo ^)
 echo endlocal
 ) > "%BIN_DIR%\connect.cmd"
@@ -26,10 +28,10 @@ echo %PATH% | find /I "%BIN_DIR%" >nul
 if errorlevel 1 (
     setx PATH "%PATH%;%BIN_DIR%" >nul
     echo [*] Added "%BIN_DIR%" to your user PATH
-    echo [*] Open a new terminal, then run: connect
+    echo [*] Open a new terminal, then run: connect --doctor
 ) else (
     echo [*] "%BIN_DIR%" is already in PATH
-    echo [*] You can run: connect
+    echo [*] You can run: connect --doctor
 )
 
 endlocal

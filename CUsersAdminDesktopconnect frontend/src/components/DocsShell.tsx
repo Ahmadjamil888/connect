@@ -1,5 +1,5 @@
 import { SignInButton, SignUpButton, UserButton, useAuth } from '@clerk/react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { DocSidebar, type DocItem } from './DocSidebar'
 
@@ -23,6 +23,13 @@ export function DocsShell({ title, description, children }: DocsShellProps) {
   const { isSignedIn } = useAuth()
   const [query, setQuery] = useState('')
 
+  useEffect(() => {
+    document.body.classList.add('docs-shell-active')
+    return () => {
+      document.body.classList.remove('docs-shell-active')
+    }
+  }, [])
+
   const filteredItems = useMemo(() => {
     const value = query.trim().toLowerCase()
     if (!value) return DOC_ITEMS
@@ -30,8 +37,8 @@ export function DocsShell({ title, description, children }: DocsShellProps) {
   }, [query])
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <header className="sticky top-0 z-50 border-b border-[#1d1a14] bg-black/92 backdrop-blur-xl">
+    <div className="flex h-screen flex-col overflow-hidden bg-black text-white">
+      <header className="z-50 shrink-0 border-b border-[#1d1a14] bg-black/92 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-3 px-4 py-4 sm:px-5">
           <Link to="/" className="shrink-0 font-['YDYoonche_M','IBM_Plex_Sans',sans-serif] text-lg tracking-[0.28em] text-white">
             CONNECT
@@ -82,20 +89,23 @@ export function DocsShell({ title, description, children }: DocsShellProps) {
         </div>
       </header>
 
-      <section className="border-b border-[#1d1a14] px-4 py-14 sm:px-5 md:py-18">
-        <div className="mx-auto max-w-[1500px]">
-          <div className="text-xs uppercase tracking-[0.22em] text-[#27F3A9]">Documentation</div>
-          <h1 className="mt-4 max-w-4xl text-4xl font-light tracking-[-0.05em] text-white md:text-6xl">{title}</h1>
-          <p className="mt-6 max-w-3xl text-base leading-8 text-neutral-400">{description}</p>
-        </div>
-      </section>
+      <div className="mx-auto grid min-h-0 w-full max-w-[1500px] flex-1 grid-cols-[168px_minmax(0,1fr)] sm:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[280px_minmax(0,1fr)]">
+        <DocSidebar items={filteredItems} />
 
-      <section className="px-4 py-10 sm:px-5 md:py-12">
-        <div className="mx-auto grid max-w-[1500px] gap-8 xl:grid-cols-[280px_minmax(0,1fr)]">
-          <DocSidebar items={filteredItems} />
-          <div className="min-h-[60vh] rounded-[2rem] border border-[#1d1a14] bg-[#0b0a08] p-6 sm:p-8 md:p-10">{children}</div>
-        </div>
-      </section>
+        <section className="min-h-0 overflow-y-auto">
+          <div className="border-b border-[#1d1a14] px-4 py-10 sm:px-6 lg:px-10 lg:py-14">
+            <div className="text-xs uppercase tracking-[0.22em] text-[#27F3A9]">Documentation</div>
+            <h1 className="mt-4 max-w-4xl text-3xl font-light tracking-[-0.05em] text-white sm:text-4xl lg:text-6xl">
+              {title}
+            </h1>
+            <p className="mt-6 max-w-3xl text-sm leading-7 text-neutral-400 sm:text-base sm:leading-8">{description}</p>
+          </div>
+
+          <div className="px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+            <div className="rounded-[2rem] border border-[#1d1a14] bg-[#0b0a08] p-5 sm:p-8 lg:p-10">{children}</div>
+          </div>
+        </section>
+      </div>
     </div>
   )
 }

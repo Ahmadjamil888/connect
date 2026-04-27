@@ -1,58 +1,108 @@
 #!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
-REPO_URL="https://github.com/Ahmadjamil888/connect"
-PROJECT_DIR="connect"
+REPO_URL="https://github.com/Ahmadjamil888/connect.git"
+ARCHIVE_URL="https://github.com/Ahmadjamil888/connect/archive/refs/heads/main.tar.gz"
+INSTALL_DIR="${CONNECT_INSTALL_DIR:-$HOME/connect}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DATA_DIR="$HOME/.ai_assistant"
 
-echo "========================================"
-echo " AI ASSISTANT - AUTO INSTALLER"
-echo "========================================"
+log() {
+  printf '[*] %s\n' "$1"
+}
 
-# ---------- Check Git ----------
-echo "[*] Checking Git..."
-if ! command -v git &> /dev/null; then
-    echo "[!] Git not found. Installing..."
+fail() {
+  printf '[!] %s\n' "$1" >&2
+  exit 1
+}
 
-    sudo apt update && sudo apt install -y git
-fi
+ensure_command() {
+  command -v "$1" >/dev/null 2>&1 || fail "$2"
+}
 
-# ---------- Clone Repo ----------
-if [ -d "$PROJECT_DIR" ]; then
-    echo "[!] Folder '$PROJECT_DIR' already exists. Skipping clone."
-else
-    echo "[*] Cloning repository..."
-    git clone "$REPO_URL"
-fi
+resolve_repo_dir() {
+  if [[ -f "$SCRIPT_DIR/ai_assistant.py" ]]; then
+    REPO_DIR="$SCRIPT_DIR"
+    log "Using existing repo at $REPO_DIR"
+    return
+  fi
 
-cd "$PROJECT_DIR"
+  REPO_DIR="$INSTALL_DIR"
+  mkdir -p "$REPO_DIR"
 
-# ---------- Check Python ----------
-echo "[*] Checking Python..."
-if ! command -v python3 &> /dev/null; then
-    echo "[!] Python3 not found. Installing..."
-    sudo apt update && sudo apt install -y python3 python3-pip python3-venv
-fi
+  if [[ -d "$REPO_DIR/.git" ]]; then
+    ensure_command git "Git is required to update the existing CONNECT clone."
+    log "Updating existing clone in $REPO_DIR"
+    git -C "$REPO_DIR" pull --ff-only
+    return
+  fi
 
-echo "[✓] Python: $(python3 --version)"
+  if [[ -f "$REPO_DIR/ai_assistant.py" ]]; then
+    log "Reusing existing install in $REPO_DIR"
+    return
+  fi
 
-# ---------- Setup Virtual Env ----------
-echo "[*] Creating virtual environment..."
-python3 -m venv venv
+  if command -v git >/dev/null 2>&1; then
+    if [[ -n "$(find "$REPO_DIR" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
+      fail "$REPO_DIR already exists and is not a CONNECT repo. Set CONNECT_INSTALL_DIR to an empty directory or run install.sh from the repo itself."
+    fi
+    log "Cloning CONNECT into $REPO_DIR"
+    git clone "$REPO_URL" "$REPO_DIR"
+    return
+  fi
 
-echo "[*] Activating virtual environment..."
-source venv/bin/activate
+  ensure_command curl "curl is required when git is not installed."
+  ensure_command tar "tar is required when git is not installed."
+  if [[ -n "$(find "$REPO_DIR" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" && ! -f "$REPO_DIR/ai_assistant.py" ]]; then
+    fail "$REPO_DIR already exists and is not empty. Set CONNECT_INSTALL_DIR to an empty directory or install from a repo clone."
+  fi
 
-# ---------- Install Dependencies ----------
-echo "[*] Installing dependencies..."
-pip install --upgrade pip
-pip install -r requirements.txt
+  log "Downloading CONNECT archive into $REPO_DIR"
+  tmp_archive="$(mktemp)"
+  trap 'rm -f "$tmp_archive"' EXIT
+  curl -fsSL "$ARCHIVE_URL" -o "$tmp_archive"
+  mkdir -p "$REPO_DIR"
+  tar -xzf "$tmp_archive" --strip-components=1 -C "$REPO_DIR"
+  rm -f "$tmp_archive"
+  trap - EXIT
+}
 
-# ---------- Setup .env ----------
-if [ ! -f ".env" ]; then
-    echo "[*] Creating .env file..."
+resolve_python() {
+  if command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+  elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
+  else
+    fail "Python 3 is required. Install Python 3.10+ and rerun the installer."
+  fi
+}
 
-    cat <<EOF > .env
+create_venv() {
+  if [[ ! -d "$REPO_DIR/venv" ]]; then
+    log "Creating virtual environment"
+    "$PYTHON_BIN" -m venv "$REPO_DIR/venv"
+  else
+    log "Using existing virtual environment"
+  fi
+  VENV_PYTHON="$REPO_DIR/venv/bin/python"
+  [[ -x "$VENV_PYTHON" ]] || fail "Virtual environment creation failed."
+}
+
+install_requirements() {
+  log "Installing Python dependencies"
+  "$VENV_PYTHON" -m pip install --upgrade pip
+  "$VENV_PYTHON" -m pip install -r "$REPO_DIR/requirements.txt"
+}
+
+ensure_env_file() {
+  if [[ ! -f "$REPO_DIR/.env" ]]; then
+    if [[ -f "$REPO_DIR/.env.example" ]]; then
+      log "Creating .env from .env.example"
+      cp "$REPO_DIR/.env.example" "$REPO_DIR/.env"
+    else
+      log "Creating minimal .env"
+      cat > "$REPO_DIR/.env" <<'EOF'
 AI_PROVIDER=groq
 GROQ_API_KEY=
 
@@ -64,34 +114,74 @@ HUGGINGFACE_API_KEY=
 
 AI_ASSISTANT_DEBUG=false
 EOF
+    fi
+  fi
+}
+
+ensure_data_dir() {
+  log "Preparing local data directory"
+  mkdir -p "$DATA_DIR"
+  touch \
+    "$DATA_DIR/user_data.json" \
+    "$DATA_DIR/history.json" \
+    "$DATA_DIR/projects.json" \
+    "$DATA_DIR/analytics.json" \
+    "$DATA_DIR/credentials.enc.json"
+}
+
+install_launcher() {
+  local bin_dir="$HOME/.local/bin"
+  local launcher="$bin_dir/connect"
+  mkdir -p "$bin_dir"
+
+  cat > "$launcher" <<EOF
+#!/usr/bin/env bash
+REPO_DIR="$REPO_DIR"
+VENV_PYTHON="\$REPO_DIR/venv/bin/python"
+if [[ -x "\$VENV_PYTHON" ]]; then
+  exec "\$VENV_PYTHON" "\$REPO_DIR/ai_assistant.py" "\$@"
 fi
-
-# ---------- Data Directory ----------
-DATA_DIR="$HOME/.ai_assistant"
-mkdir -p "$DATA_DIR"
-
-touch "$DATA_DIR/user_data.json"
-touch "$DATA_DIR/history.json"
-touch "$DATA_DIR/projects.json"
-touch "$DATA_DIR/analytics.json"
-touch "$DATA_DIR/credentials.enc.json"
-
-echo "[✓] Data directory ready at $DATA_DIR"
-
-# ---------- Ask API Key ----------
-echo ""
-read -p "Enter your GROQ API Key (or press Enter to skip): " GROQ_KEY
-
-if [ ! -z "$GROQ_KEY" ]; then
-    sed -i "s/GROQ_API_KEY=/GROQ_API_KEY=$GROQ_KEY/" .env
-    echo "[✓] API key saved"
+if command -v python3 >/dev/null 2>&1; then
+  exec python3 "\$REPO_DIR/ai_assistant.py" "\$@"
 fi
+exec python "\$REPO_DIR/ai_assistant.py" "\$@"
+EOF
 
-# ---------- Run Assistant ----------
-echo ""
-echo "========================================"
-echo " STARTING AI ASSISTANT..."
-echo "========================================"
-echo ""
+  chmod +x "$launcher"
+  log "Installed launcher at $launcher"
 
-python ai_assistant.py
+  case ":$PATH:" in
+    *":$bin_dir:"*) ;;
+    *)
+      printf '[!] %s is not in PATH. Add this line to your shell profile:\n' "$bin_dir"
+      printf '    export PATH="%s:$PATH"\n' "$bin_dir"
+      ;;
+  esac
+}
+
+print_next_steps() {
+  cat <<EOF
+
+========================================
+ CONNECT INSTALL COMPLETE
+========================================
+Repo: $REPO_DIR
+Launcher: $HOME/.local/bin/connect
+
+Next steps:
+  1. Add an API key to $REPO_DIR/.env
+  2. Open a new shell if PATH was updated
+  3. Run: connect --doctor
+  4. Run: connect
+EOF
+}
+
+log "Starting CONNECT installer"
+resolve_repo_dir
+resolve_python
+create_venv
+install_requirements
+ensure_env_file
+ensure_data_dir
+install_launcher
+print_next_steps

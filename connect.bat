@@ -1,10 +1,14 @@
 @echo off
 setlocal
-set "SCRIPT=%~dp0ai_assistant.py"
-where python >nul 2>nul
-if %errorlevel%==0 (
-    python "%SCRIPT%" %*
-) else (
+set "REPO_DIR=%~dp0"
+if "%REPO_DIR:~-1%"=="\" set "REPO_DIR=%REPO_DIR:~0,-1%"
+set "SCRIPT=%REPO_DIR%\ai_assistant.py"
+set "VENV_PYTHON=%REPO_DIR%\venv\Scripts\python.exe"
+if exist "%VENV_PYTHON%" (
+    "%VENV_PYTHON%" "%SCRIPT%" %*
+) else if exist "%LocalAppData%\Programs\Python\Launcher\py.exe" (
     py -3 "%SCRIPT%" %*
+) else (
+    python "%SCRIPT%" %*
 )
 endlocal
