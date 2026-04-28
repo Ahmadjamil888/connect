@@ -15,57 +15,58 @@ def render_dashboard_html() -> str:
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Connect AI</title>
+<title>CONNECT Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
---bg:#0a0b0f;
---bg2:#111318;
---bg3:#181b22;
---bg4:#1e2229;
+--bg:#050505;
+--bg2:#0b0b0b;
+--bg3:#111111;
+--bg4:#181818;
 --border:#ffffff12;
 --border2:#ffffff20;
---text:#e8eaf0;
---text2:#8b90a0;
---text3:#555b6a;
---accent:#27f3a9;
---accent2:#14c98a;
---accent3:#7ff7cb;
---green:#10d9a0;
+--text:#f1f1f1;
+--text2:#b2b2b2;
+--text3:#6f6f6f;
+--accent:#ffffff;
+--accent2:#d9d9d9;
+--accent3:#f4f4f4;
+--green:#f4f4f4;
 --amber:#f59e0b;
 --red:#ef4444;
---blue:#3b82f6;
---pink:#ec4899;
+--blue:#d2d2d2;
+--pink:#bdbdbd;
 --font-head:'Syne',sans-serif;
 --font-body:'DM Sans',sans-serif;
 --font-mono:'DM Mono',monospace;
 --sidebar:240px;
---rad:10px;
---rad2:14px;
+--rad:12px;
+--rad2:18px;
 }
-body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;display:flex;height:100vh;overflow:hidden}
+body{background:radial-gradient(circle at top left,rgba(255,255,255,.05),transparent 24%),radial-gradient(circle at top right,rgba(190,190,190,.04),transparent 20%),var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;display:flex;height:100vh;overflow:hidden}
 button,input,select,textarea{font:inherit}
 button{cursor:pointer}
 .sidebar{width:var(--sidebar);min-width:var(--sidebar);background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:10;transition:transform .25s ease}
 .sidebar-logo{padding:20px 18px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
-.logo-mark{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-family:var(--font-head);font-size:13px;font-weight:800}
+.logo-mark{width:108px;height:auto;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo-mark svg{width:108px;height:auto;display:block}
 .logo-text{font-family:"Helvetica World","Helvetica Neue",Helvetica,Arial,sans-serif;font-size:17px;font-weight:700;color:var(--text);letter-spacing:-0.3px}
-.logo-badge{font-size:9px;background:#ffffff15;color:var(--text2);padding:2px 6px;border-radius:20px;font-family:var(--font-mono);border:1px solid var(--border2)}
+.logo-badge{font-size:9px;background:#ffffff0a;color:var(--text2);padding:2px 6px;border-radius:12px;font-family:var(--font-mono);border:1px solid var(--border2)}
 .sidebar-section{padding:10px 10px 4px;font-size:10px;font-weight:600;letter-spacing:1.2px;color:var(--text3);text-transform:uppercase;font-family:var(--font-head)}
 .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--rad);margin:1px 8px;cursor:pointer;color:var(--text2);font-size:13.5px;font-weight:400;transition:all .15s;position:relative}
 .nav-item:hover{background:var(--bg3);color:var(--text)}
-.nav-item.active{background:linear-gradient(90deg,#6c63ff18,#6c63ff08);color:var(--text);border-left:2px solid var(--accent)}
+.nav-item.active{background:linear-gradient(90deg,#ffffff10,#ffffff05);color:var(--text);border-left:2px solid var(--accent)}
 .nav-item.active .nav-icon{color:var(--accent)}
 .nav-icon{width:16px;height:16px;flex-shrink:0;opacity:.8;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-family:var(--font-mono)}
-.nav-badge{margin-left:auto;background:var(--accent);color:white;font-size:10px;padding:1px 6px;border-radius:20px;font-family:var(--font-mono)}
-.nav-badge.green{background:var(--green);color:#000}
-.nav-badge.amber{background:var(--amber);color:#000}
+.nav-badge{margin-left:auto;background:var(--accent);color:#050505;font-size:10px;padding:1px 6px;border-radius:12px;font-family:var(--font-mono)}
+.nav-badge.green{background:var(--green);color:#050505}
+.nav-badge.amber{background:#ffffff18;color:var(--text2)}
 .sidebar-divider{height:1px;background:var(--border);margin:8px 12px}
 .sidebar-bottom{margin-top:auto;border-top:1px solid var(--border);padding:10px}
 .user-card{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--rad);cursor:pointer;transition:background .15s}
 .user-card:hover{background:var(--bg3)}
-.avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--pink));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;flex-shrink:0}
+.avatar{width:30px;height:30px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#050505;flex-shrink:0}
 .user-info{flex:1;min-width:0}
 .user-name{font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .user-plan{font-size:11px;color:var(--text3)}
@@ -76,9 +77,9 @@ button{cursor:pointer}
 .topbar-spacer{flex:1}
 .tb-btn{display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:var(--rad);border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:13px;font-family:var(--font-body);cursor:pointer;transition:all .15s}
 .tb-btn:hover{border-color:var(--border2);background:var(--bg3);color:var(--text)}
-.tb-btn.primary{background:var(--accent);border-color:var(--accent);color:white;font-weight:500}
+.tb-btn.primary{background:var(--accent);border-color:var(--accent);color:#050505;font-weight:600}
 .tb-btn.primary:hover{background:var(--accent2)}
-.status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px #10d9a060}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px rgba(255,255,255,.35)}
 .content{flex:1;overflow-y:auto;overflow-x:hidden}
 .content::-webkit-scrollbar{width:4px}
 .content::-webkit-scrollbar-track{background:transparent}
@@ -88,17 +89,17 @@ button{cursor:pointer}
 .chat-view{padding:0 !important;flex-direction:row !important}
 .chat-container{flex:1;display:flex;flex-direction:column;height:100%}
 .chat-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
-.chat-model-pill{display:flex;align-items:center;gap:7px;padding:5px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:20px;cursor:pointer;transition:all .15s;font-size:12.5px;color:var(--text)}
+.chat-model-pill{display:flex;align-items:center;gap:7px;padding:5px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:14px;cursor:pointer;transition:all .15s;font-size:12.5px;color:var(--text)}
 .chat-model-pill:hover{border-color:var(--accent)}
-.model-dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
+.model-dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
 .chat-messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:18px}
 .chat-messages::-webkit-scrollbar{width:4px}
 .chat-messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px}
 .msg{display:flex;gap:12px;animation:fadeup .25s ease}
 @keyframes fadeup{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .msg-avatar{width:30px;height:30px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
-.msg-avatar.user{background:linear-gradient(135deg,var(--accent),var(--pink));color:white}
-.msg-avatar.ai{background:linear-gradient(135deg,var(--green),var(--blue));color:#000}
+.msg-avatar.user{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#050505}
+.msg-avatar.ai{background:linear-gradient(135deg,#dcdcdc,#9d9d9d);color:#050505}
 .msg-body{flex:1;min-width:0}
 .msg-meta{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}
 .msg-name{font-size:12.5px;font-weight:600;color:var(--text)}
@@ -120,7 +121,7 @@ button{cursor:pointer}
 .chat-input-box:focus-within{border-color:var(--accent)}
 #chat-input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-body);font-size:14px;resize:none;max-height:140px;min-height:22px;line-height:1.5}
 #chat-input::placeholder{color:var(--text3)}
-.send-btn{width:34px;height:34px;background:var(--accent);border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;color:#fff}
+.send-btn{width:38px;height:38px;background:var(--accent);border:none;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;color:#050505}
 .send-btn:hover{background:var(--accent2);transform:scale(1.04)}
 .send-btn:disabled{opacity:.4;cursor:not-allowed}
 .chat-tools{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
@@ -128,7 +129,7 @@ button{cursor:pointer}
 .chat-tool-btn:hover{border-color:var(--border2);color:var(--text);background:var(--bg4)}
 .chat-history-panel{width:220px;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg2);flex-shrink:0}
 .chat-hist-header{padding:14px 14px 10px;font-family:var(--font-head);font-size:13px;font-weight:600;color:var(--text);display:flex;align-items:center;justify-content:space-between}
-.new-chat-btn{width:24px;height:24px;background:var(--accent);border:none;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;color:#fff;font-size:14px}
+.new-chat-btn{width:28px;height:28px;background:var(--accent);border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;color:#050505;font-size:14px}
 .new-chat-btn:hover{background:var(--accent2)}
 .hist-search{margin:0 10px 10px;position:relative}
 .hist-search input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:7px 10px 7px 30px;color:var(--text);font-family:var(--font-body);font-size:12.5px;outline:none}
@@ -141,7 +142,7 @@ button{cursor:pointer}
 .hist-group-label{font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--text3);padding:8px 6px 4px;font-weight:600;font-family:var(--font-head)}
 .hist-item{padding:8px 8px;border-radius:8px;cursor:pointer;transition:background .15s;margin-bottom:1px}
 .hist-item:hover{background:var(--bg3)}
-.hist-item.active{background:#6c63ff18}
+.hist-item.active{background:#ffffff10}
 .hist-item-title{font-size:12.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:400}
 .hist-item-meta{font-size:11px;color:var(--text3);margin-top:2px}
 .page-header{margin-bottom:22px}
@@ -160,11 +161,11 @@ button{cursor:pointer}
 .trend-up{color:var(--green)}
 .trend-down{color:var(--red)}
 .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500}
-.badge-green{background:#10d9a018;color:var(--green);border:1px solid #10d9a030}
+.badge-green{background:#ffffff14;color:var(--green);border:1px solid #ffffff24}
 .badge-amber{background:#f59e0b18;color:var(--amber);border:1px solid #f59e0b30}
 .badge-red{background:#ef444418;color:var(--red);border:1px solid #ef444430}
 .badge-blue{background:#3b82f618;color:var(--blue);border:1px solid #3b82f630}
-.badge-purple{background:#6c63ff18;color:var(--accent3);border:1px solid #6c63ff30}
+.badge-purple{background:#ffffff10;color:var(--accent3);border:1px solid #ffffff20}
 .badge-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
 .model-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rad2);padding:16px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
 .model-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));opacity:0;transition:opacity .2s}
@@ -178,7 +179,7 @@ button{cursor:pointer}
 .model-tags{display:flex;flex-wrap:wrap;gap:5px}
 .toggle{width:36px;height:20px;background:var(--bg4);border-radius:10px;cursor:pointer;position:relative;transition:background .2s;border:1px solid var(--border);flex-shrink:0}
 .toggle.on{background:var(--accent);border-color:var(--accent)}
-.toggle::after{content:'';width:14px;height:14px;background:white;border-radius:50%;position:absolute;top:2px;left:2px;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.toggle::after{content:'';width:14px;height:14px;background:#050505;border-radius:50%;position:absolute;top:2px;left:2px;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .toggle.on::after{left:18px}
 .int-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rad2);padding:14px;display:flex;align-items:center;gap:12px;transition:border-color .15s}
 .int-card:hover{border-color:var(--border2)}
@@ -266,9 +267,21 @@ select.input{cursor:pointer}
 <div class="overlay" id="sidebar-overlay"></div>
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
-    <div class="logo-mark">CN</div>
-    <span class="logo-text">CONNECT AI</span>
-    <span class="logo-badge">v2.0</span>
+    <div class="logo-mark">
+      <svg viewBox="0 0 420 140" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M120 28H214L194 60H126C101 60 81 81 81 106C81 131 101 152 126 152H214L194 184H120C78 184 44 150 44 108C44 66 78 28 120 28Z" fill="url(#dashLogo)" transform="translate(0 -22) scale(1 0.86)"/>
+        <path d="M216 121L261 68H291L277 91H295L305 75H337L309 121H278L291 99H274L260 121H216Z" fill="url(#dashLogo)"/>
+        <path d="M281 121L339 28H373L420 121H385L355 61L322 121H281Z" fill="url(#dashLogo)"/>
+        <path d="M86 96L248 35" stroke="url(#dashLogo)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M193 69L238 101" stroke="url(#dashLogo)" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="84" cy="96" r="17" fill="url(#dashLogo)"/>
+        <circle cx="192" cy="69" r="17" fill="url(#dashLogo)"/>
+        <circle cx="249" cy="36" r="17" fill="url(#dashLogo)"/>
+        <defs><linearGradient id="dashLogo" x1="36" y1="16" x2="387" y2="138" gradientUnits="userSpaceOnUse"><stop stop-color="#F7F7F7"/><stop offset="0.5" stop-color="#FFFFFF"/><stop offset="1" stop-color="#D8D8D8"/></linearGradient></defs>
+      </svg>
+    </div>
+    <span class="logo-text">CONNECT</span>
+    <span class="logo-badge">shell + dashboard</span>
   </div>
   <div style="flex:1;overflow-y:auto;padding:8px 0">
     <div class="sidebar-section">Main</div>
@@ -300,7 +313,7 @@ select.input{cursor:pointer}
   <div id="view-dashboard" class="view active">
     <div class="topbar">
       <button class="tb-btn" id="sidebar-toggle">Menu</button>
-      <span class="topbar-title">Connect AI</span>
+      <span class="topbar-title">CONNECT</span>
       <span class="topbar-sub">Overview</span>
       <div class="topbar-spacer"></div>
       <div class="cmd-hint"><span class="kbd">Ctrl</span><span class="kbd">K</span><span style="margin-left:2px">Command</span></div>
@@ -413,7 +426,7 @@ select.input{cursor:pointer}
   <div id="view-models" class="view" style="display:none">
     <div class="topbar">
       <button class="tb-btn" id="sidebar-toggle-models">Menu</button>
-      <span class="topbar-title">Connect AI</span>
+      <span class="topbar-title">CONNECT</span>
       <div class="topbar-spacer"></div>
       <button class="tb-btn primary" id="open-model-modal-btn">+ Add Model</button>
     </div>
@@ -434,7 +447,7 @@ select.input{cursor:pointer}
   <div id="view-integrations" class="view" style="display:none">
     <div class="topbar">
       <button class="tb-btn" id="sidebar-toggle-integrations">Menu</button>
-      <span class="topbar-title">Connect AI</span>
+      <span class="topbar-title">CONNECT</span>
       <div class="topbar-spacer"></div>
       <button class="tb-btn primary" data-open-view="settings">Configure</button>
     </div>
@@ -454,7 +467,7 @@ select.input{cursor:pointer}
   <div id="view-workflows" class="view" style="display:none">
     <div class="topbar">
       <button class="tb-btn" id="sidebar-toggle-workflows">Menu</button>
-      <span class="topbar-title">Connect AI</span>
+      <span class="topbar-title">CONNECT</span>
       <div class="topbar-spacer"></div>
       <button class="tb-btn" id="refresh-workflows-btn">Refresh</button>
     </div>
@@ -468,7 +481,7 @@ select.input{cursor:pointer}
   <div id="view-locals" class="view" style="display:none">
     <div class="topbar">
       <button class="tb-btn" id="sidebar-toggle-locals">Menu</button>
-      <span class="topbar-title">Connect AI</span>
+      <span class="topbar-title">CONNECT</span>
       <div class="topbar-spacer"></div>
       <button class="tb-btn" id="open-node-client-btn">Node client</button>
     </div>
@@ -477,7 +490,7 @@ select.input{cursor:pointer}
         <div class="page-sub" style="margin-bottom:20px;color:var(--text3)">Local runtime visibility comes from the current CONNECT provider state, node pairing, and workspace services.</div>
         <div class="grid-4" style="margin-bottom:22px">
           <div class="card card-sm"><div class="card-sub">Selected Provider</div><div class="stat-num" style="font-size:20px" id="local-selected-provider">-</div><div class="progress-bar"><div class="progress-fill" id="local-provider-fill" style="width:0%"></div></div></div>
-          <div class="card card-sm"><div class="card-sub">Node Count</div><div class="stat-num" style="font-size:20px" id="local-node-count">0</div><div class="progress-bar"><div class="progress-fill" style="width:40%;background:linear-gradient(90deg,var(--green),#10d9a080)"></div></div></div>
+          <div class="card card-sm"><div class="card-sub">Node Count</div><div class="stat-num" style="font-size:20px" id="local-node-count">0</div><div class="progress-bar"><div class="progress-fill" style="width:40%;background:linear-gradient(90deg,var(--green),rgba(255,255,255,.35))"></div></div></div>
           <div class="card card-sm"><div class="card-sub">Canvas Cards</div><div class="stat-num" style="font-size:20px" id="local-canvas-count">0</div><div class="progress-bar"><div class="progress-fill" style="width:50%;background:linear-gradient(90deg,var(--amber),#f59e0b80)"></div></div></div>
           <div class="card card-sm"><div class="card-sub">Gateway Status</div><div style="margin:10px 0 4px;display:flex;align-items:center;gap:8px"><div class="status-dot"></div><span style="font-family:var(--font-head);font-size:16px;font-weight:700;color:var(--text)" id="local-gateway-status">Running</span></div><div style="font-size:12px;color:var(--text3)" id="local-gateway-meta">dashboard and gateway state</div></div>
         </div>
@@ -488,7 +501,7 @@ select.input{cursor:pointer}
   </div>
 
   <div id="view-settings" class="view" style="display:none">
-    <div class="topbar"><button class="tb-btn" id="sidebar-toggle-settings">Menu</button><span class="topbar-title">Connect AI</span><div class="topbar-spacer"></div></div>
+    <div class="topbar"><button class="tb-btn" id="sidebar-toggle-settings">Menu</button><span class="topbar-title">CONNECT</span><div class="topbar-spacer"></div></div>
     <div class="content">
       <div style="padding:24px;max-width:620px">
         <div style="margin-bottom:24px">
@@ -511,7 +524,7 @@ select.input{cursor:pointer}
   </div>
 
   <div id="view-analytics" class="view" style="display:none">
-    <div class="topbar"><button class="tb-btn" id="sidebar-toggle-analytics">Menu</button><span class="topbar-title">Connect AI</span><div class="topbar-spacer"></div><button class="tb-btn" id="refresh-analytics-btn">Refresh</button></div>
+    <div class="topbar"><button class="tb-btn" id="sidebar-toggle-analytics">Menu</button><span class="topbar-title">CONNECT</span><div class="topbar-spacer"></div><button class="tb-btn" id="refresh-analytics-btn">Refresh</button></div>
     <div class="content">
       <div style="padding:24px">
         <div class="grid-4" style="margin-bottom:20px">
@@ -653,7 +666,7 @@ function renderDashboard(){
   const activityList = byId('dashboard-activity-list');
   activityList.innerHTML = activity.length ? activity.map(item => `
     <div class="notif">
-      <div class="notif-icon" style="background:${item.kind === 'provider' ? '#ef444418' : item.kind === 'integration' ? '#6c63ff18' : '#10d9a018'}">${escapeHtml(item.kind.slice(0,2).toUpperCase())}</div>
+      <div class="notif-icon" style="background:${item.kind === 'provider' ? '#ef444418' : item.kind === 'integration' ? '#ffffff12' : '#ffffff10'}">${escapeHtml(item.kind.slice(0,2).toUpperCase())}</div>
       <div><div style="font-size:13px;color:var(--text);font-weight:500">${escapeHtml(item.title)}</div><div style="font-size:12px;color:var(--text3);margin-top:2px">${escapeHtml(item.meta)}</div></div>
     </div>`).join('') : '<div class="empty-state"><div class="empty-title">No recent activity</div><div class="empty-sub">Runtime activity will appear here once sessions, workflows, or integrations change.</div></div>';
 

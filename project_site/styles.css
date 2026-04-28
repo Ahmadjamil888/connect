@@ -1,15 +1,15 @@
 :root {
-  --bg: #f7f3ee;
-  --bg-soft: #fbf8f3;
-  --panel: #ffffff;
-  --panel-soft: #fcfaf7;
-  --ink: #26231f;
-  --muted: #6f685f;
-  --line: #e8e0d7;
-  --line-strong: #d9cfc3;
-  --accent: #d46f4d;
-  --accent-soft: #f5e5dc;
-  --shadow: 0 16px 40px rgba(48, 36, 28, 0.08);
+  --bg: #050505;
+  --bg-soft: #0a0a0a;
+  --panel: rgba(255, 255, 255, 0.04);
+  --panel-soft: rgba(255, 255, 255, 0.03);
+  --ink: #f4f4f4;
+  --muted: #a4a4a4;
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --accent: #ffffff;
+  --accent-soft: rgba(255, 255, 255, 0.08);
+  --shadow: 0 20px 44px rgba(0, 0, 0, 0.32);
 }
 
 * {
@@ -26,8 +26,9 @@ body {
   color: var(--ink);
   font-family: Georgia, "Times New Roman", serif;
   background:
-    radial-gradient(circle at top left, rgba(212, 111, 77, 0.08), transparent 30%),
-    linear-gradient(180deg, #fcf8f2 0%, var(--bg) 100%);
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.06), transparent 30%),
+    radial-gradient(circle at top right, rgba(190, 190, 190, 0.05), transparent 26%),
+    linear-gradient(180deg, #090909 0%, var(--bg) 100%);
 }
 
 a {
@@ -67,17 +68,35 @@ textarea {
   z-index: 20;
   margin-bottom: 18px;
   padding: 14px 18px;
-  border: 1px solid rgba(217, 207, 195, 0.72);
-  border-radius: 18px;
-  background: rgba(252, 248, 243, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(10, 10, 10, 0.84);
   backdrop-filter: blur(14px);
 }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+}
+
+.brand-mark svg {
+  width: 108px;
+  height: auto;
+  display: block;
+}
+
+.brand-label {
+  color: var(--ink);
 }
 
 .site-nav {
@@ -97,8 +116,8 @@ textarea {
 .contact-card,
 .card {
   border: 1px solid var(--line);
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.88);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.04);
   box-shadow: var(--shadow);
 }
 
@@ -160,18 +179,19 @@ h2 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 46px;
-  padding: 0 18px;
-  border-radius: 999px;
+  min-height: 48px;
+  min-width: 170px;
+  padding: 0 20px;
+  border-radius: 14px;
   border: 1px solid var(--line-strong);
-  background: #fff;
+  background: rgba(255, 255, 255, 0.04);
   cursor: pointer;
 }
 
 .button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff9f5;
+  color: #050505;
 }
 
 .button.secondary {
@@ -200,8 +220,8 @@ h2 {
 .proof-strip > div {
   padding: 22px;
   border: 1px solid var(--line);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.7);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .proof-strip strong,
@@ -240,7 +260,7 @@ h2 {
 .claude-panel,
 .summary-card {
   border: 1px solid var(--line);
-  border-radius: 24px;
+  border-radius: 20px;
   background: var(--panel);
   box-shadow: var(--shadow);
 }
@@ -276,7 +296,7 @@ h2 {
   min-height: 36px;
   padding: 0 12px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 14px;
   background: var(--panel-soft);
   color: var(--muted);
   white-space: nowrap;
@@ -291,15 +311,15 @@ h2 {
   width: 100%;
   padding: 14px 16px;
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background: #fff;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
   color: var(--ink);
   text-align: left;
   cursor: pointer;
 }
 
 .provider-item.is-active {
-  border-color: #efc6b4;
+  border-color: var(--line-strong);
   background: var(--accent-soft);
 }
 
@@ -326,8 +346,8 @@ h2 {
   min-height: 54px;
   padding: 14px 16px;
   border: 1px solid var(--line-strong);
-  border-radius: 18px;
-  background: #fff;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
   color: var(--ink);
   outline: none;
   resize: vertical;
@@ -343,11 +363,11 @@ h2 {
 .field input:focus,
 .field textarea:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(212, 111, 77, 0.12);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.08);
 }
 
 .field input[readonly] {
-  background: #faf7f3;
+  background: rgba(255, 255, 255, 0.02);
   color: var(--muted);
 }
 
@@ -368,7 +388,7 @@ h2 {
   min-height: 54px;
   padding: 0 16px;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 14px;
   background: var(--panel-soft);
   cursor: pointer;
 }

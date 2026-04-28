@@ -4631,13 +4631,11 @@ class AdvancedAIPlatform:
 
     def _reference_title_lines(self) -> List[str]:
         return [
-            "  #####   ###   #   #  #   #  #####   #####  #####",
-            " #       #   #  ##  #  ##  #  #      #         #  ",
-            " #       #   #  # # #  # # #  ###    #         #  ",
-            " #       #   #  #  ##  #  ##  #      #         #  ",
-            "  #####   ###   #   #  #   #  #####   #####    #  ",
+            "   C----o====A",
+            "        \\",
+            "         o",
             "",
-            "    AI",
+            "      CONNECT",
         ]
         return [
             " ██████╗ ██████╗ ███╗   ██╗███╗   ██╗███████╗ ██████╗████████╗",
@@ -4658,7 +4656,7 @@ class AdvancedAIPlatform:
         provider = self.ai.provider or "none"
         model = self.ai.model_name or "unavailable"
         return [
-            "CONNECT AI is ready with your configured model provider.",
+            "CONNECT is ready with your configured model provider.",
             "",
             "Select login method:",
             f"  1. Active provider: {provider} ({model})",
@@ -4668,8 +4666,8 @@ class AdvancedAIPlatform:
         ]
 
     def _print_welcome_rich(self, title: str, subtitle: str, feature_lines: List[str]):
-        title_text = Text("\n".join(self._reference_title_lines()), style="bold #6cb6ff")
-        body_text = Text("\n".join(self._welcome_lines()), style="#d7e9ff")
+        title_text = Text("\n".join(self._reference_title_lines()), style="bold #f3f3f3")
+        body_text = Text("\n".join(self._welcome_lines()), style="#d2d2d2")
         content = Text()
         content.append_text(title_text)
         content.append("\n\n")
@@ -4677,11 +4675,11 @@ class AdvancedAIPlatform:
         self.console.print(
             Panel(
                 content,
-                border_style="#365f8c",
+                border_style="#d0d0d0",
                 box=box.SQUARE if box else None,
                 padding=(1, 2),
-                style="on #141414",
-                title="Welcome to CONNECT AI",
+                style="on #0f0f0f",
+                title="CONNECT",
                 title_align="left",
             )
         )
@@ -4724,7 +4722,7 @@ class AdvancedAIPlatform:
                 lines.extend(f"{idx}. {step}" for idx, step in enumerate(plan, start=1))
             lines.append("")
             lines.append(f"Next: {payload.get('next_action', '')}")
-            render(lines, "#7fb3ff")
+            render(lines, "#d0d0d0")
             return
         if event_type == "action":
             lines = []
@@ -4732,7 +4730,7 @@ class AdvancedAIPlatform:
             if intent:
                 lines.append(f"Intent: {intent}")
             lines.append(payload.get("action", ""))
-            render(lines, "#4ea1ff")
+            render(lines, "#ffffff")
             return
         if event_type == "result":
             lines = []
@@ -4740,7 +4738,7 @@ class AdvancedAIPlatform:
             if intent:
                 lines.append(f"Intent: {intent}")
             lines.append(payload.get("summary", ""))
-            render(lines, "#d7e9ff")
+            render(lines, "#dcdcdc")
             return
         if event_type == "patch":
             lines = []
@@ -4751,7 +4749,7 @@ class AdvancedAIPlatform:
             if target:
                 lines.append(f"Target: {target}")
             lines.extend(payload.get("changes", []))
-            render(lines, "#4ea1ff")
+            render(lines, "#ffffff")
             return
         if event_type == "observation":
             snapshot = str(payload.get("snapshot", "")).strip()
@@ -4773,19 +4771,19 @@ class AdvancedAIPlatform:
                         lines.append(f"Network Failures: {len(data.get('network_failures', []))}")
                     if data.get("screenshot_path"):
                         lines.append(f"Screenshot: {data.get('screenshot_path')}")
-                    render(lines, "#6f8fb2")
+                    render(lines, "#bcbcbc")
                     return
                 except Exception:
                     pass
             body = snapshot or "(none)"
             if len(body) > 420:
                 body = body[:420] + "\n..."
-            render([body], "#6f8fb2")
+            render([body], "#bcbcbc")
             return
         if event_type == "replan":
             lines = [f"Reason: {payload.get('error', '')}"]
             lines.extend(f"{idx}. {step}" for idx, step in enumerate(payload.get("plan", []), start=1))
-            render(lines, "#4ea1ff")
+            render(lines, "#ffffff")
             return
         if event_type == "evaluation":
             lines = []
@@ -4809,7 +4807,7 @@ class AdvancedAIPlatform:
                 lines.append("")
                 lines.append("Next Steps:")
                 lines.extend(f"{idx}. {step}" for idx, step in enumerate(next_steps, start=1))
-            render(lines, "#d7e9ff")
+            render(lines, "#dcdcdc")
 
     def _print_tool_result_rich(self, tool_name: str, tool_args: Dict[str, Any], result: str):
         lines = [f"Tool: {tool_name}"]
@@ -4819,10 +4817,10 @@ class AdvancedAIPlatform:
             Panel(
                 "\n".join(lines),
                 title="TOOL",
-                border_style="#365f8c",
+                border_style="#d0d0d0",
                 box=box.SQUARE if box else None,
                 padding=(0, 1),
-                style="on #141414",
+                style="on #0f0f0f",
             )
         )
         if tool_name == "run_shell_command":
@@ -4837,10 +4835,10 @@ class AdvancedAIPlatform:
                 Panel(
                     "\n".join(summary),
                     title="RESULT",
-                    border_style="#d7e9ff",
+                    border_style="#e4e4e4",
                     box=box.SQUARE if box else None,
                     padding=(0, 1),
-                    style="on #141414",
+                    style="on #0f0f0f",
                 )
             )
             stdout = parsed.get("stdout", "") or "(empty)"
@@ -4849,10 +4847,10 @@ class AdvancedAIPlatform:
                 Panel(
                     stdout[:1200],
                     title="STDOUT",
-                    border_style="#6f8fb2",
+                    border_style="#bcbcbc",
                     box=box.SQUARE if box else None,
                     padding=(0, 1),
-                    style="on #141414",
+                    style="on #0f0f0f",
                 )
             )
             if stderr != "(empty)":
@@ -4860,10 +4858,10 @@ class AdvancedAIPlatform:
                     Panel(
                         stderr[:1200],
                         title="STDERR",
-                        border_style="#4ea1ff",
+                        border_style="#ef4444",
                         box=box.SQUARE if box else None,
                         padding=(0, 1),
-                        style="on #141414",
+                        style="on #0f0f0f",
                     )
                 )
             return
@@ -4871,10 +4869,10 @@ class AdvancedAIPlatform:
             Panel(
                 result or "(empty result)",
                 title="RESULT",
-                border_style="#d7e9ff",
+                border_style="#e4e4e4",
                 box=box.SQUARE if box else None,
                 padding=(0, 1),
-                style="on #141414",
+                style="on #0f0f0f",
             )
         )
 
@@ -5054,7 +5052,7 @@ class AdvancedAIPlatform:
             )
             return
         print("")
-        print(self._muted("Welcome to CONNECT AI"))
+        print(self._muted("Welcome to CONNECT"))
         print("")
         for line in self._reference_title_lines():
             print(self._style(line, "38;5;111"))
@@ -5285,12 +5283,11 @@ class AdvancedAIPlatform:
 
     def _reference_title_lines(self) -> List[str]:
         return [
-            "  _________  _   _ _   _ _   _ ______ _____ _______",
-            " / ____/ _ \\| \\ | | \\ | | \\ | |  ____/ ____|__   __|",
-            "| |   | | | |  \\| |  \\| |  \\| | |__ | |       | |   ",
-            "| |   | | | | . ` | . ` | . ` |  __|| |       | |   ",
-            "| |___| |_| | |\\  | |\\  | |\\  | |___| |____   | |   ",
-            " \\_____\\___/|_| \\_|_| \\_|_| \\_|______\\_____|  |_|   ",
+            "   C----o====A",
+            "        \\",
+            "         o",
+            "",
+            "      CONNECT",
         ]
 
     def _welcome_lines(self) -> List[str]:
@@ -5304,22 +5301,22 @@ class AdvancedAIPlatform:
         ]
 
     def _print_welcome_rich(self, title: str, subtitle: str, feature_lines: List[str]):
-        title_text = Text("\n".join(self._reference_title_lines()), style="bold #f5eadc")
-        body_text = Text("\n".join(self._welcome_lines()), style="#e7d7c7")
+        title_text = Text("\n".join(self._reference_title_lines()), style="bold #f3f3f3")
+        body_text = Text("\n".join(self._welcome_lines()), style="#d2d2d2")
         content = Text()
         content.append_text(title_text)
         content.append("\n\n")
-        content.append_text(Text("Operator Console", style="bold #c58c67"))
+        content.append_text(Text("Operator Console", style="bold #ffffff"))
         content.append("\n")
         content.append_text(body_text)
         self.console.print(
             Panel(
                 content,
-                border_style="#c58c67",
+                border_style="#d0d0d0",
                 box=box.SQUARE if box else None,
                 padding=(1, 2),
-                style="on #1d1a17",
-                title="Session",
+                style="on #0f0f0f",
+                title="CONNECT",
                 title_align="left",
             )
         )
