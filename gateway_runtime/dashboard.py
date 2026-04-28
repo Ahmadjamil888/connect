@@ -985,9 +985,6 @@ async function refreshAll(){
 document.querySelectorAll('.nav-item[data-view]').forEach(el => {
   el.onclick = () => switchView(el.getAttribute('data-view'));
 });
-document.querySelectorAll('[data-open-view]').forEach(el => {
-  el.onclick = () => switchView(el.getAttribute('data-open-view'));
-});
 ['sidebar-toggle','sidebar-toggle-models','sidebar-toggle-integrations','sidebar-toggle-workflows','sidebar-toggle-locals','sidebar-toggle-settings','sidebar-toggle-analytics'].forEach(id => {
   const el = byId(id);
   if(el) el.onclick = () => toggleSidebar();
@@ -1017,10 +1014,22 @@ byId('chat-search-input').addEventListener('input', event => {
   state.chatSearch = event.target.value || '';
   renderChatHistory();
 });
-document.querySelectorAll('.toggle').forEach(el => {
-  el.onclick = () => el.classList.toggle('on');
-});
 byId('add-model-modal').addEventListener('click', function(event){ if(event.target === this) this.classList.remove('open'); });
+document.addEventListener('click', event => {
+  const target = event.target.closest('[data-open-view],[data-pick-provider],.toggle');
+  if(!target) return;
+  if(target.matches('[data-open-view]')){
+    switchView(target.getAttribute('data-open-view'));
+    return;
+  }
+  if(target.matches('[data-pick-provider]')){
+    openProviderModal(target.getAttribute('data-pick-provider') || '');
+    return;
+  }
+  if(target.matches('.toggle')){
+    target.classList.toggle('on');
+  }
+});
 
 refreshAll();
 setInterval(refreshAll, 7000);
