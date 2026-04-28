@@ -11,37 +11,46 @@ from gateway_runtime.runtime import AgentRuntime
 
 def render_dashboard_html() -> str:
     return """<!doctype html>
-<html lang="en">
+<html class="dark" lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CONNECT Operator Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #060606;
-      --bg-soft: #0d0d0d;
-      --sidebar: #090909;
-      --panel: rgba(17, 17, 17, 0.94);
-      --panel-2: rgba(25, 25, 25, 0.96);
-      --line: rgba(255, 255, 255, 0.08);
-      --text: #f6f6f2;
-      --muted: #9a9a94;
+      --bg: #131313;
+      --surface: #181818;
+      --surface-2: #1f1f1f;
+      --surface-3: #272727;
+      --surface-4: rgba(255, 255, 255, 0.035);
+      --line: rgba(255, 255, 255, 0.075);
+      --line-strong: rgba(39, 243, 169, 0.18);
+      --text: #ebeee9;
+      --muted: #94a196;
       --accent: #27f3a9;
-      --accent-soft: rgba(39, 243, 169, 0.14);
-      --accent-strong: rgba(39, 243, 169, 0.28);
-      --danger: #ff7f7f;
-      --shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+      --accent-2: #ffb95e;
+      --accent-soft: rgba(39, 243, 169, 0.12);
+      --accent-soft-2: rgba(255, 185, 94, 0.12);
+      --danger: #ff908e;
+      --shadow: 0 30px 90px rgba(0, 0, 0, 0.34);
+      --radius-xl: 28px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; }
     body {
       margin: 0;
-      background:
-        radial-gradient(circle at top left, rgba(39,243,169,0.1), transparent 24%),
-        radial-gradient(circle at top right, rgba(255,255,255,0.05), transparent 18%),
-        linear-gradient(180deg, #040404, #080808 42%, #060606);
+      font-family: "Inter", system-ui, sans-serif;
       color: var(--text);
-      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 0% 0%, rgba(39,243,169,0.14), transparent 26%),
+        radial-gradient(circle at 100% 0%, rgba(255,185,94,0.08), transparent 22%),
+        linear-gradient(180deg, #0f0f0f 0%, #131313 48%, #111111 100%);
       overflow: hidden;
     }
     button, input, select, textarea, a {
@@ -49,36 +58,79 @@ def render_dashboard_html() -> str:
       color: inherit;
     }
     button {
-      cursor: pointer;
       border: 0;
+      cursor: pointer;
+      background: none;
     }
     a {
-      color: inherit;
       text-decoration: none;
+      color: inherit;
     }
-    #app {
+    .material-symbols-outlined {
+      font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 20;
+      line-height: 1;
+      font-size: 20px;
+    }
+    ::-webkit-scrollbar { width: 7px; height: 7px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.12);
+      border-radius: 999px;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(39,243,169,0.35); }
+    .hidden { display: none !important; }
+    .app-shell {
       height: 100dvh;
       display: grid;
-      grid-template-columns: 292px minmax(0, 1fr);
+      grid-template-columns: 280px minmax(0, 1fr);
     }
     .sidebar {
-      background: var(--sidebar);
-      border-right: 1px solid var(--line);
+      position: relative;
+      z-index: 30;
+      min-height: 0;
       display: flex;
       flex-direction: column;
-      min-height: 0;
-      padding: 22px 18px 18px;
       gap: 18px;
+      padding: 18px;
+      background: rgba(10, 10, 10, 0.88);
+      backdrop-filter: blur(24px);
+      border-right: 1px solid var(--line);
     }
-    .brand {
+    .brand-block,
+    .status-panel,
+    .nav-panel,
+    .sidebar-panel,
+    .hero-panel,
+    .surface-card,
+    .info-card,
+    .row-card,
+    .integration-card,
+    .workflow-card,
+    .doc-card,
+    .composer,
+    .chat-input-wrap,
+    .stat-card {
+      background: rgba(25, 25, 25, 0.82);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+    .brand-block,
+    .status-panel,
+    .nav-panel,
+    .sidebar-panel,
+    .surface-card,
+    .hero-panel {
+      border-radius: var(--radius-xl);
+    }
+    .brand-block {
+      padding: 18px;
       display: flex;
-      align-items: center;
       gap: 14px;
-      padding: 16px;
-      border-radius: 24px;
-      background: linear-gradient(180deg, rgba(39,243,169,0.12), rgba(39,243,169,0.04));
-      border: 1px solid rgba(39,243,169,0.14);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+      align-items: center;
+      background:
+        linear-gradient(180deg, rgba(39,243,169,0.1), rgba(39,243,169,0.03)),
+        rgba(25,25,25,0.88);
+      border-color: var(--line-strong);
     }
     .brand-mark {
       width: 48px;
@@ -86,114 +138,28 @@ def render_dashboard_html() -> str:
       border-radius: 16px;
       display: grid;
       place-items: center;
-      background: #071e17;
-      border: 1px solid rgba(39,243,169,0.18);
-      font-weight: 800;
-      letter-spacing: 0.16em;
+      background: rgba(39,243,169,0.12);
+      border: 1px solid rgba(39,243,169,0.22);
       color: var(--accent);
+    }
+    .brand-mark .material-symbols-outlined {
+      font-variation-settings: "FILL" 1, "wght" 500, "GRAD" 0, "opsz" 20;
     }
     .brand-copy strong {
       display: block;
-      font-size: 15px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 22px;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      color: var(--accent);
     }
     .brand-copy span {
+      display: block;
+      margin-top: 4px;
       color: var(--muted);
-      font-size: 12px;
-    }
-    .status-card, .nav-card, .sidebar-card {
-      border-radius: 24px;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow);
-    }
-    .status-card, .sidebar-card {
-      padding: 16px;
-    }
-    .status-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: center;
-      margin-top: 10px;
-    }
-    .status-row:first-of-type { margin-top: 0; }
-    .status-label {
-      color: var(--muted);
-      font-size: 12px;
+      font-size: 11px;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
-      letter-spacing: 0.12em;
-    }
-    .status-value {
-      font-size: 13px;
-      font-weight: 700;
-    }
-    .nav-card {
-      padding: 10px;
-      display: grid;
-      gap: 6px;
-    }
-    .nav-btn {
-      width: 100%;
-      border-radius: 18px;
-      padding: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      background: transparent;
-      border: 1px solid transparent;
-      transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
-    }
-    .nav-btn:hover {
-      background: rgba(255,255,255,0.04);
-      border-color: rgba(255,255,255,0.04);
-      transform: translateX(2px);
-    }
-    .nav-btn.active {
-      background: rgba(39,243,169,0.1);
-      border-color: rgba(39,243,169,0.18);
-    }
-    .nav-main {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-width: 0;
-    }
-    .nav-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 12px;
-      display: grid;
-      place-items: center;
-      background: rgba(255,255,255,0.04);
-      color: var(--accent);
-      font-size: 16px;
-      flex: 0 0 auto;
-    }
-    .nav-copy {
-      min-width: 0;
-      text-align: left;
-    }
-    .nav-copy strong {
-      display: block;
-      font-size: 14px;
-      font-weight: 600;
-    }
-    .nav-copy span {
-      display: block;
-      color: var(--muted);
-      font-size: 12px;
-      margin-top: 2px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .nav-count {
-      color: var(--muted);
-      font-size: 12px;
-      flex: 0 0 auto;
     }
     .sidebar-scroll {
       min-height: 0;
@@ -202,244 +168,447 @@ def render_dashboard_html() -> str:
       gap: 18px;
       padding-right: 4px;
     }
-    .sidebar-card h3 {
-      margin: 0 0 8px;
-      font-size: 13px;
+    .status-panel,
+    .sidebar-panel {
+      padding: 16px;
+    }
+    .status-grid {
+      display: grid;
+      gap: 14px;
+    }
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .eyebrow,
+    .subtle {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 11px;
+      line-height: 1;
       text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--muted);
+    }
+    .status-value {
+      margin-top: 5px;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+    .pill,
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 7px 11px;
+      background: var(--accent-soft);
+      border: 1px solid var(--line-strong);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .nav-panel {
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+    .nav-btn {
+      width: 100%;
+      border-radius: 18px;
+      padding: 13px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px solid transparent;
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+    }
+    .nav-btn:hover {
+      transform: translateX(2px);
+      background: rgba(255,255,255,0.04);
+      border-color: rgba(255,255,255,0.05);
+    }
+    .nav-btn.active {
+      background: linear-gradient(180deg, rgba(39,243,169,0.13), rgba(39,243,169,0.05));
+      border-color: var(--line-strong);
+    }
+    .nav-main {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+    .nav-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 14px;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      background: rgba(255,255,255,0.04);
+      color: var(--accent);
+    }
+    .nav-copy {
+      min-width: 0;
+      text-align: left;
+    }
+    .nav-copy strong {
+      display: block;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 15px;
+      line-height: 1.1;
+    }
+    .nav-copy span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .nav-count {
+      flex: 0 0 auto;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .sidebar-panel h3,
+    .hero-copy h2,
+    .surface-head h2,
+    .integration-card h3,
+    .workflow-card h3,
+    .doc-card h3,
+    .panel-title {
+      font-family: "Space Grotesk", sans-serif;
+    }
+    .sidebar-panel h3 {
+      margin: 0 0 12px;
+      font-size: 13px;
       letter-spacing: 0.14em;
+      text-transform: uppercase;
       color: var(--muted);
     }
     .metric-stack {
       display: grid;
-      gap: 12px;
+      gap: 10px;
     }
-    .metric-pill {
+    .metric-card {
       border-radius: 18px;
       padding: 12px 14px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.04);
+      background: rgba(255,255,255,0.035);
+      border: 1px solid rgba(255,255,255,0.05);
     }
-    .metric-pill strong {
+    .metric-card strong {
       display: block;
-      font-size: 22px;
+      font-size: 24px;
       line-height: 1;
-      margin-bottom: 4px;
+      margin-bottom: 5px;
     }
-    .metric-pill span {
+    .metric-card span {
       color: var(--muted);
       font-size: 12px;
     }
+    .sidebar-footer {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 10px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    .footer-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: var(--accent);
+    }
+    .footer-meta {
+      min-width: 0;
+    }
+    .footer-meta strong {
+      display: block;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .footer-meta span {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+    }
     .main-shell {
       min-width: 0;
+      min-height: 0;
       display: flex;
       flex-direction: column;
-      min-height: 0;
       overflow: hidden;
     }
     .topbar {
       display: flex;
-      gap: 18px;
       align-items: center;
       justify-content: space-between;
-      padding: 24px 28px 18px;
+      gap: 18px;
+      padding: 18px 24px;
       border-bottom: 1px solid var(--line);
-      background: rgba(6, 6, 6, 0.88);
-      backdrop-filter: blur(20px);
+      background: rgba(12, 12, 12, 0.74);
+      backdrop-filter: blur(24px);
+      position: relative;
+      z-index: 20;
     }
-    .title-copy {
+    .topbar-left {
+      min-width: 0;
       display: flex;
-      flex-direction: column;
-      gap: 8px;
+      align-items: center;
+      gap: 16px;
+      flex: 1;
+    }
+    .topbar-title {
       min-width: 0;
     }
-    .eyebrow {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.22em;
-      color: var(--accent);
-    }
-    .topbar h1 {
-      margin: 0;
-      font-size: clamp(26px, 3vw, 42px);
-      line-height: 1;
-      letter-spacing: -0.04em;
-      font-weight: 500;
+    .topbar-title h1 {
+      margin: 8px 0 0;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: clamp(28px, 4vw, 40px);
+      line-height: 0.96;
+      letter-spacing: -0.05em;
+      font-weight: 600;
     }
     .topbar-sub {
+      margin-top: 8px;
       color: var(--muted);
       font-size: 14px;
+      line-height: 1.55;
       max-width: 720px;
     }
     .topbar-actions {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       flex-wrap: wrap;
+      justify-content: flex-end;
     }
-    .badge-btn, .ghost-btn, .link-btn {
-      border-radius: 999px;
-      padding: 12px 16px;
-      font-size: 13px;
-      font-weight: 600;
+    .mobile-toggle,
+    .ghost-btn,
+    .link-btn,
+    .primary-btn,
+    .secondary-btn,
+    .chip-btn,
+    .top-action,
+    .compact-btn {
+      border-radius: 16px;
+      padding: 11px 15px;
       border: 1px solid rgba(255,255,255,0.08);
-      background: transparent;
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, color 160ms ease;
     }
-    .badge-btn {
-      background: rgba(39,243,169,0.1);
-      color: var(--accent);
+    .mobile-toggle:hover,
+    .ghost-btn:hover,
+    .link-btn:hover,
+    .primary-btn:hover,
+    .secondary-btn:hover,
+    .chip-btn:hover,
+    .top-action:hover,
+    .compact-btn:hover {
+      transform: translateY(-1px);
       border-color: rgba(39,243,169,0.18);
     }
-    .ghost-btn {
+    .mobile-toggle {
+      display: none;
+      width: 46px;
+      height: 46px;
+      padding: 0;
+      place-items: center;
+      background: rgba(255,255,255,0.03);
+    }
+    .badge-btn {
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+      background: var(--accent-soft);
+      border: 1px solid var(--line-strong);
+      font-weight: 700;
+    }
+    .ghost-btn,
+    .link-btn,
+    .secondary-btn,
+    .chip-btn,
+    .compact-btn,
+    .top-action {
       background: rgba(255,255,255,0.03);
       color: var(--text);
     }
-    .link-btn {
+    .primary-btn {
+      background: var(--accent);
+      color: #063322;
+      font-weight: 800;
+      border-color: rgba(39,243,169,0.3);
+    }
+    .top-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
       color: var(--muted);
     }
+    .search-shell {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 220px;
+      padding: 11px 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .search-shell input {
+      width: 100%;
+      background: transparent;
+      border: 0;
+      outline: 0;
+      color: var(--text);
+      font-size: 13px;
+    }
     .main-scroll {
-      flex: 1;
       min-height: 0;
       overflow-y: auto;
-      padding: 24px 28px 28px;
+      padding: 24px;
       display: grid;
       gap: 24px;
     }
-    .hero-card, .surface-card {
-      border-radius: 30px;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow);
-    }
-    .hero-card {
-      padding: 28px;
+    .hero-panel {
       position: relative;
       overflow: hidden;
+      padding: 24px;
+      background:
+        radial-gradient(circle at 10% 0%, rgba(39,243,169,0.13), transparent 30%),
+        radial-gradient(circle at 100% 20%, rgba(255,185,94,0.08), transparent 20%),
+        rgba(25, 25, 25, 0.86);
     }
-    .hero-card::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(circle at top left, rgba(39,243,169,0.12), transparent 28%);
-      pointer-events: none;
-    }
-    .hero-head {
-      display: flex;
-      justify-content: space-between;
-      gap: 18px;
-      align-items: flex-start;
+    .hero-grid {
       position: relative;
       z-index: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(280px, 420px);
+      gap: 18px;
+      align-items: start;
     }
     .hero-copy h2 {
       margin: 10px 0 0;
-      font-size: clamp(34px, 5vw, 62px);
-      line-height: 0.98;
-      letter-spacing: -0.03em;
-      font-weight: 500;
+      font-size: clamp(34px, 5.2vw, 58px);
+      line-height: 0.95;
+      letter-spacing: -0.05em;
+      font-weight: 600;
       max-width: 760px;
     }
     .hero-copy p {
       margin: 16px 0 0;
-      color: var(--muted);
-      max-width: 720px;
-      line-height: 1.7;
+      color: #c1c9c1;
       font-size: 15px;
-    }
-    .hero-stats {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(120px, 1fr));
-      gap: 12px;
-      min-width: 280px;
-      position: relative;
-      z-index: 1;
-    }
-    .hero-stat {
-      border-radius: 20px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.05);
-      padding: 14px;
-    }
-    .hero-stat strong {
-      display: block;
-      font-size: 22px;
-      margin-bottom: 4px;
-    }
-    .hero-stat span {
-      color: var(--muted);
-      font-size: 12px;
+      line-height: 1.7;
+      max-width: 780px;
     }
     .hero-actions {
+      margin-top: 22px;
       display: flex;
-      gap: 12px;
       flex-wrap: wrap;
-      margin-top: 24px;
-      position: relative;
-      z-index: 1;
+      gap: 10px;
     }
-    .chip-btn {
-      border-radius: 999px;
-      padding: 12px 16px;
-      background: transparent;
-      border: 1px solid rgba(255,255,255,0.08);
+    .hero-side {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .stat-card {
+      border-radius: 22px;
+      padding: 16px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)),
+        rgba(20,20,20,0.84);
+    }
+    .stat-card strong {
+      display: block;
+      margin-top: 10px;
+      font-size: 26px;
+      line-height: 1;
+      font-family: "Space Grotesk", sans-serif;
+    }
+    .stat-card span {
+      display: block;
+      margin-top: 5px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .stat-card .material-symbols-outlined {
+      color: var(--accent);
+      font-size: 22px;
     }
     .surface-card {
       padding: 22px;
+      display: grid;
+      gap: 20px;
     }
     .surface-head {
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 16px;
-      margin-bottom: 18px;
+      flex-wrap: wrap;
     }
     .surface-head h2 {
-      margin: 0;
-      font-size: 18px;
+      margin: 8px 0 0;
+      font-size: 24px;
+      line-height: 1;
       font-weight: 600;
+      letter-spacing: -0.03em;
     }
-    .subtle {
-      color: var(--muted);
-      font-size: 12px;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-    }
-    .status-badge, .pill {
-      border-radius: 999px;
-      padding: 6px 10px;
-      background: var(--accent-soft);
-      color: var(--accent);
-      font-size: 12px;
-      font-weight: 700;
+    .view-section {
+      display: grid;
+      gap: 18px;
     }
     .view-grid {
       display: grid;
-      gap: 24px;
+      gap: 18px;
     }
     .chat-layout {
       display: grid;
-      grid-template-columns: minmax(0, 1.4fr) 360px;
-      gap: 24px;
-      min-height: 640px;
+      grid-template-columns: minmax(0, 1.45fr) minmax(300px, 420px);
+      gap: 20px;
+      min-height: 680px;
     }
     .chat-shell {
+      min-height: 0;
       display: grid;
       grid-template-rows: auto minmax(0, 1fr) auto;
-      gap: 18px;
-      min-height: 0;
+      gap: 14px;
     }
     .chat-toolbar {
       display: flex;
+      align-items: center;
       gap: 10px;
       flex-wrap: wrap;
-      align-items: center;
     }
-    .select, .field {
+    .select,
+    .field {
       width: 100%;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.08);
-      color: var(--text);
       border-radius: 16px;
       padding: 12px 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
       outline: 0;
     }
     .select {
@@ -452,60 +621,61 @@ def render_dashboard_html() -> str:
       display: flex;
       flex-direction: column;
       gap: 14px;
-      padding-right: 8px;
+      padding-right: 6px;
     }
     .empty-state {
       border-radius: 24px;
-      border: 1px dashed rgba(255,255,255,0.12);
-      padding: 24px;
+      border: 1px dashed rgba(255,255,255,0.11);
+      padding: 22px;
       color: var(--muted);
-      line-height: 1.7;
       background: rgba(255,255,255,0.02);
+      line-height: 1.7;
     }
     .message {
-      max-width: min(88%, 760px);
+      max-width: min(90%, 820px);
       border-radius: 22px;
       padding: 16px 18px;
+      box-shadow: 0 14px 34px rgba(0,0,0,0.18);
       animation: riseIn 180ms ease;
-      position: relative;
       white-space: pre-wrap;
       word-break: break-word;
       line-height: 1.65;
-      box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+      position: relative;
     }
     .message.user {
       align-self: flex-end;
-      background: linear-gradient(180deg, rgba(39,243,169,0.18), rgba(39,243,169,0.08));
+      background: linear-gradient(180deg, rgba(39,243,169,0.16), rgba(39,243,169,0.08));
       border: 1px solid rgba(39,243,169,0.18);
     }
     .message.assistant {
       align-self: flex-start;
-      background: rgba(255,255,255,0.04);
+      background: rgba(255,255,255,0.045);
       border: 1px solid rgba(255,255,255,0.06);
     }
     .message.tool {
       align-self: flex-start;
       background: rgba(255,255,255,0.025);
       border: 1px dashed rgba(255,255,255,0.1);
-      color: #d4d4ce;
+      color: #d5d9d3;
     }
     .message-meta {
       display: flex;
       align-items: center;
       gap: 10px;
       margin-bottom: 8px;
-      font-size: 11px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
       color: var(--muted);
+      font-size: 11px;
+      line-height: 1;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
     }
     .typing {
       display: inline-flex;
-      gap: 6px;
       align-items: center;
+      gap: 6px;
       padding: 14px 16px;
       border-radius: 18px;
-      background: rgba(255,255,255,0.03);
+      background: rgba(255,255,255,0.04);
       border: 1px solid rgba(255,255,255,0.06);
       width: fit-content;
     }
@@ -516,86 +686,95 @@ def render_dashboard_html() -> str:
       background: var(--accent);
       animation: pulse 1s infinite ease-in-out;
     }
-    .typing span:nth-child(2) { animation-delay: .15s; }
-    .typing span:nth-child(3) { animation-delay: .3s; }
+    .typing span:nth-child(2) { animation-delay: 0.15s; }
+    .typing span:nth-child(3) { animation-delay: 0.3s; }
     .composer {
-      border-radius: 28px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.07);
       padding: 14px;
+      border-radius: 24px;
+      background: rgba(255,255,255,0.035);
+    }
+    .chat-input-wrap {
+      border-radius: 18px;
+      padding: 14px;
+      background: rgba(0,0,0,0.16);
+      border-color: rgba(255,255,255,0.05);
+      box-shadow: none;
     }
     .composer textarea {
-      resize: vertical;
+      width: 100%;
       min-height: 120px;
+      resize: vertical;
       background: transparent;
       border: 0;
-      padding: 0;
-      color: var(--text);
       outline: 0;
-      width: 100%;
-      font-size: 16px;
+      color: var(--text);
+      font-size: 15px;
       line-height: 1.6;
+      padding: 0;
     }
     .composer-actions {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
       margin-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
       flex-wrap: wrap;
     }
-    .primary-btn {
-      border-radius: 999px;
-      padding: 12px 18px;
-      background: var(--accent);
-      color: #042e1e;
-      font-weight: 800;
+    .tiny {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
     }
-    .secondary-btn {
-      border-radius: 999px;
-      padding: 12px 16px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.06);
-      color: var(--text);
-      font-weight: 600;
-    }
-    .right-stack, .card-list, .integration-grid, .docs-grid, .workflow-grid {
+    .right-stack,
+    .card-list,
+    .integration-grid,
+    .workflow-grid,
+    .docs-grid {
       display: grid;
       gap: 14px;
     }
-    .info-card, .row-card, .integration-card, .doc-card, .workflow-card {
+    .info-card,
+    .integration-card,
+    .workflow-card,
+    .doc-card,
+    .row-card {
       border-radius: 22px;
-      background: var(--panel-2);
-      border: 1px solid rgba(255,255,255,0.06);
       padding: 16px;
       min-width: 0;
+      background: rgba(30,30,30,0.84);
     }
-    .row-title {
+    .row-title,
+    .panel-title {
+      font-size: 15px;
       font-weight: 600;
       margin-bottom: 4px;
       word-break: break-word;
     }
-    .row-meta, .row-extra {
+    .row-meta,
+    .row-extra {
       color: var(--muted);
       font-size: 13px;
-      line-height: 1.45;
+      line-height: 1.55;
       word-break: break-word;
     }
     .row-extra { margin-top: 6px; }
     .json-box {
       margin: 0;
+      max-height: 320px;
+      overflow: auto;
       white-space: pre-wrap;
       word-break: break-word;
       font-family: Consolas, "SFMono-Regular", monospace;
       font-size: 12px;
-      line-height: 1.5;
-      color: #d4d4d4;
-      background: rgba(0,0,0,0.28);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 16px;
+      line-height: 1.55;
+      color: #d8ddd8;
+      border-radius: 18px;
       padding: 14px;
-      max-height: 320px;
-      overflow: auto;
+      background: rgba(0,0,0,0.24);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .integration-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .integration-top {
       display: flex;
@@ -604,43 +783,52 @@ def render_dashboard_html() -> str:
       align-items: flex-start;
       margin-bottom: 10px;
     }
-    .integration-card h3, .doc-card h3, .workflow-card h3 {
+    .integration-card h3,
+    .workflow-card h3,
+    .doc-card h3 {
       margin: 0 0 8px;
-      font-size: 16px;
+      font-size: 18px;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
     }
-    .integration-card p, .doc-card p, .workflow-card p {
+    .integration-card p,
+    .workflow-card p,
+    .doc-card p {
       margin: 0;
       color: var(--muted);
-      line-height: 1.6;
       font-size: 14px;
+      line-height: 1.65;
     }
-    .integration-form, .session-form {
+    .integration-form,
+    .session-form {
       display: grid;
       gap: 10px;
       margin-top: 10px;
     }
     .status-ok { color: var(--accent); }
     .status-bad { color: var(--danger); }
-    .footer-note, .tiny {
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.6;
-    }
-    .docs-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .doc-actions, .workflow-actions {
+    .workflow-actions,
+    .doc-actions {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
       margin-top: 16px;
     }
-    .hidden {
-      display: none !important;
+    .docs-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    .view-section {
-      display: grid;
-      gap: 18px;
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.54);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease;
+      z-index: 15;
+    }
+    body.sidebar-open .overlay {
+      opacity: 1;
+      pointer-events: auto;
     }
     @keyframes riseIn {
       from { opacity: 0; transform: translateY(8px); }
@@ -650,141 +838,250 @@ def render_dashboard_html() -> str:
       0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
       40% { transform: scale(1); opacity: 1; }
     }
-    @media (max-width: 1320px) {
-      #app { grid-template-columns: 260px minmax(0, 1fr); }
-      .chat-layout { grid-template-columns: 1fr; }
+    @media (max-width: 1360px) {
+      .chat-layout,
+      .hero-grid {
+        grid-template-columns: 1fr;
+      }
+      .integration-grid,
+      .docs-grid {
+        grid-template-columns: 1fr;
+      }
+      .hero-side {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
     }
-    @media (max-width: 1040px) {
-      #app { grid-template-columns: 1fr; }
-      .sidebar { display: none; }
-      .docs-grid, .hero-stats { grid-template-columns: 1fr; }
+    @media (max-width: 1100px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        width: min(86vw, 340px);
+        transform: translateX(-105%);
+        transition: transform 180ms ease;
+      }
+      body.sidebar-open .sidebar {
+        transform: translateX(0);
+      }
+      .mobile-toggle {
+        display: grid;
+      }
+      .search-shell {
+        min-width: 0;
+        width: min(300px, 100%);
+      }
     }
-    @media (max-width: 720px) {
-      .topbar { padding: 18px 18px 14px; }
-      .main-scroll { padding: 18px; }
-      .hero-card, .surface-card { padding: 18px; }
+    @media (max-width: 820px) {
+      .topbar,
+      .main-scroll,
+      .hero-panel,
+      .surface-card {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+      .topbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .topbar-actions {
+        justify-content: flex-start;
+      }
+      .hero-side {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 620px) {
+      .main-scroll {
+        padding: 14px;
+      }
+      .topbar {
+        padding: 14px;
+      }
+      .hero-panel,
+      .surface-card {
+        padding: 16px;
+      }
+      .hero-copy h2 {
+        font-size: 34px;
+      }
+      .hero-actions,
+      .composer-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .chat-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .select {
+        width: 100%;
+      }
+      .hero-side {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
-  <div id="app">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-mark">CN</div>
+  <div class="overlay" id="sidebarOverlay"></div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand-block">
+        <div class="brand-mark"><span class="material-symbols-outlined">terminal</span></div>
         <div class="brand-copy">
-          <strong>CONNECT</strong>
-          <span>Operator dashboard</span>
+          <strong>Connect AI</strong>
+          <span>v1 operator runtime</span>
         </div>
       </div>
 
       <div class="sidebar-scroll">
-        <div class="status-card">
-          <div class="status-row">
-            <div>
-              <div class="status-label">Mode</div>
-              <div class="status-value" id="sidebarMode">local</div>
+        <section class="status-panel">
+          <div class="status-grid">
+            <div class="status-row">
+              <div>
+                <div class="eyebrow">Mode</div>
+                <div class="status-value" id="sidebarMode">local</div>
+              </div>
+              <span class="pill" id="sidebarLive">idle</span>
             </div>
-            <span class="pill" id="sidebarLive">idle</span>
-          </div>
-          <div class="status-row">
-            <div>
-              <div class="status-label">Provider</div>
-              <div class="status-value" id="sidebarProvider">-</div>
+            <div class="status-row">
+              <div>
+                <div class="eyebrow">Provider</div>
+                <div class="status-value" id="sidebarProvider">-</div>
+              </div>
+              <div>
+                <div class="eyebrow">Operator</div>
+                <div class="status-value" id="sidebarUser">guest</div>
+              </div>
             </div>
-            <div class="status-value" id="sidebarUser">guest</div>
           </div>
-        </div>
+        </section>
 
-        <nav class="nav-card">
+        <nav class="nav-panel">
           <button class="nav-btn active" data-view="chat">
             <div class="nav-main">
-              <div class="nav-icon">◉</div>
-              <div class="nav-copy"><strong>Chat</strong><span>Live CONNECT operator thread</span></div>
+              <div class="nav-icon"><span class="material-symbols-outlined">dashboard</span></div>
+              <div class="nav-copy"><strong>Dashboard</strong><span>Live CONNECT operator thread</span></div>
             </div>
             <div class="nav-count" id="navChatCount">0</div>
           </button>
           <button class="nav-btn" data-view="integrations">
             <div class="nav-main">
-              <div class="nav-icon">⌁</div>
+              <div class="nav-icon"><span class="material-symbols-outlined">hub</span></div>
               <div class="nav-copy"><strong>Integrations</strong><span>GitHub, Telegram, Slack, Discord, WhatsApp</span></div>
             </div>
             <div class="nav-count" id="navIntegrationCount">0</div>
           </button>
           <button class="nav-btn" data-view="sessions">
             <div class="nav-main">
-              <div class="nav-icon">◎</div>
-              <div class="nav-copy"><strong>Sessions</strong><span>Threads, agents, activity, memory</span></div>
+              <div class="nav-icon"><span class="material-symbols-outlined">forum</span></div>
+              <div class="nav-copy"><strong>Sessions</strong><span>Threads, agents, memory, activity</span></div>
             </div>
             <div class="nav-count" id="navSessionCount">0</div>
           </button>
           <button class="nav-btn" data-view="workflows">
             <div class="nav-main">
-              <div class="nav-icon">↺</div>
-              <div class="nav-copy"><strong>Workflows</strong><span>Automation, routines, triggers</span></div>
+              <div class="nav-icon"><span class="material-symbols-outlined">account_tree</span></div>
+              <div class="nav-copy"><strong>Workflows</strong><span>Automation and runnable routines</span></div>
             </div>
             <div class="nav-count" id="navWorkflowCount">0</div>
           </button>
           <button class="nav-btn" data-view="nodes">
             <div class="nav-main">
-              <div class="nav-icon">⌂</div>
-              <div class="nav-copy"><strong>Nodes</strong><span>Devices, pairing, canvas state</span></div>
+              <div class="nav-icon"><span class="material-symbols-outlined">devices</span></div>
+              <div class="nav-copy"><strong>Nodes</strong><span>Devices, pairing, shared canvas state</span></div>
             </div>
             <div class="nav-count" id="navNodeCount">0</div>
           </button>
           <button class="nav-btn" data-view="docs">
             <div class="nav-main">
-              <div class="nav-icon">≣</div>
+              <div class="nav-icon"><span class="material-symbols-outlined">description</span></div>
               <div class="nav-copy"><strong>Docs</strong><span>Operational guides and quick links</span></div>
             </div>
             <div class="nav-count">guide</div>
           </button>
         </nav>
 
-        <div class="sidebar-card">
+        <section class="sidebar-panel">
           <h3>System</h3>
           <div class="metric-stack">
-            <div class="metric-pill"><strong id="metricTools">0</strong><span>tools available</span></div>
-            <div class="metric-pill"><strong id="metricServices">0</strong><span>live services</span></div>
-            <div class="metric-pill"><strong id="metricMemory">0</strong><span>memory entries</span></div>
+            <div class="metric-card"><strong id="metricTools">0</strong><span>tools available</span></div>
+            <div class="metric-card"><strong id="metricServices">0</strong><span>live services</span></div>
+            <div class="metric-card"><strong id="metricMemory">0</strong><span>memory entries</span></div>
           </div>
-        </div>
+          <div class="sidebar-footer">
+            <div class="footer-avatar"><span class="material-symbols-outlined">bolt</span></div>
+            <div class="footer-meta">
+              <strong id="footerIdentity">CONNECT operator</strong>
+              <span id="footerUptime">Runtime control plane ready</span>
+            </div>
+          </div>
+        </section>
       </div>
     </aside>
 
     <main class="main-shell">
-      <div class="topbar">
-        <div class="title-copy">
-          <div class="eyebrow">Connect control plane</div>
-          <h1 id="pageTitle">CONNECT Operator</h1>
-          <div class="topbar-sub" id="topbarSubtext">Production-style dashboard backed by live runtime state, session history, tool execution, and connector configuration.</div>
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+            <span class="material-symbols-outlined">menu</span>
+          </button>
+          <div class="topbar-title">
+            <div class="eyebrow">Connect control plane</div>
+            <h1 id="pageTitle">Connect AI Dashboard</h1>
+            <div class="topbar-sub" id="topbarSubtext">Production dashboard backed by live runtime state, sessions, tools, integrations, workflows, and memory.</div>
+          </div>
         </div>
         <div class="topbar-actions">
-          <button class="badge-btn" id="plusBadge">idle</button>
+          <div class="search-shell">
+            <span class="material-symbols-outlined">search</span>
+            <input id="topSearchInput" type="text" placeholder="Search sessions, docs, workflows" />
+          </div>
+          <button class="top-action" id="nodeClientButton"><span class="material-symbols-outlined">smartphone</span><span>Node client</span></button>
+          <button class="badge-btn" id="plusBadge">runtime idle</button>
           <button class="ghost-btn" id="newSessionButton">New session</button>
-          <a class="link-btn" href="/node-client">Node client</a>
           <button class="link-btn" id="refreshButton">Refresh</button>
         </div>
-      </div>
+      </header>
 
       <div class="main-scroll">
-        <section class="hero-card">
-          <div class="hero-head">
+        <section class="hero-panel">
+          <div class="hero-grid">
             <div class="hero-copy">
               <div class="eyebrow">Live operator interface</div>
-              <h2>Run CONNECT from a real GUI, not a placeholder shell.</h2>
-              <p>Sessions, integrations, workflows, node pairing, memory, and backend execution all flow through this surface. The sidebar is your control plane. The main chat surface talks to the same runtime used by the local shell.</p>
+              <h2>Use CONNECT through a real command center, not a fake placeholder shell.</h2>
+              <p>Everything here is wired to the same runtime used by your local shell: real sessions, memory, integrations, workflows, node pairing, and live backend execution. The layout follows your reference, but it stays practical for production use and smaller screens.</p>
+              <div class="hero-actions">
+                <button class="chip-btn" data-prompt="Inspect the current workspace and tell me what to work on next.">Inspect workspace</button>
+                <button class="chip-btn" data-prompt="Summarize the current runtime health and any missing configuration.">Check runtime health</button>
+                <button class="chip-btn" data-prompt="Help me configure integrations for production.">Configure integrations</button>
+                <button class="chip-btn" data-view-jump="docs">Open docs</button>
+              </div>
             </div>
-            <div class="hero-stats">
-              <div class="hero-stat"><strong id="heroProvider">-</strong><span>provider</span></div>
-              <div class="hero-stat"><strong id="heroSessions">0</strong><span>sessions</span></div>
-              <div class="hero-stat"><strong id="heroServices">0</strong><span>live services</span></div>
+            <div class="hero-side">
+              <article class="stat-card">
+                <span class="material-symbols-outlined">neurology</span>
+                <strong id="heroProvider">-</strong>
+                <span>active provider</span>
+              </article>
+              <article class="stat-card">
+                <span class="material-symbols-outlined">forum</span>
+                <strong id="heroSessions">0</strong>
+                <span>live sessions</span>
+              </article>
+              <article class="stat-card">
+                <span class="material-symbols-outlined">dns</span>
+                <strong id="heroServices">0</strong>
+                <span>running services</span>
+              </article>
+              <article class="stat-card">
+                <span class="material-symbols-outlined">hub</span>
+                <strong id="heroIntegrations">0</strong>
+                <span>connected integrations</span>
+              </article>
             </div>
-          </div>
-          <div class="hero-actions">
-            <button class="chip-btn" data-prompt="Inspect the current workspace and tell me what to work on next.">Inspect workspace</button>
-            <button class="chip-btn" data-prompt="Summarize the current runtime health and any missing configuration.">Check runtime health</button>
-            <button class="chip-btn" data-prompt="Help me configure integrations for production.">Configure integrations</button>
-            <button class="chip-btn" data-view-jump="docs">Open docs section</button>
           </div>
         </section>
 
@@ -806,9 +1103,11 @@ def render_dashboard_html() -> str:
                 <div class="empty-state">No session history yet. Start with a real operator request and CONNECT will respond here using the same backend runtime used by the shell.</div>
               </div>
               <div class="composer">
-                <textarea id="askInput" placeholder="Ask CONNECT to code, inspect, route, search, configure, automate, or message."></textarea>
+                <div class="chat-input-wrap">
+                  <textarea id="askInput" placeholder="Ask CONNECT to code, inspect, route, search, configure, automate, or message."></textarea>
+                </div>
                 <div class="composer-actions">
-                  <div class="tiny">Responses are stored in the selected session and reflected in runtime memory.</div>
+                  <div class="tiny">Responses are stored in the selected session and reflected into runtime memory and history.</div>
                   <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <button class="secondary-btn" id="refreshChatButton">Refresh thread</button>
                     <button class="primary-btn" id="askButton">Send to CONNECT</button>
@@ -819,7 +1118,7 @@ def render_dashboard_html() -> str:
             <div class="right-stack">
               <div class="info-card">
                 <div class="subtle">Selected session</div>
-                <div class="row-title" id="selectedSessionTitle">No session</div>
+                <div class="panel-title" id="selectedSessionTitle">No session</div>
                 <div class="row-meta" id="selectedSessionMeta">Choose or create a session.</div>
               </div>
               <div class="info-card">
@@ -898,7 +1197,7 @@ def render_dashboard_html() -> str:
               <div class="subtle">Canvas snapshot</div>
               <div id="canvasList" class="card-list"></div>
               <div class="doc-actions">
-                <a class="secondary-btn" href="/node-client">Open node client</a>
+                <button class="secondary-btn" id="nodeClientInlineButton">Open node client</button>
               </div>
             </div>
           </div>
@@ -916,7 +1215,7 @@ def render_dashboard_html() -> str:
             <article class="doc-card">
               <div class="subtle">Guide</div>
               <h3>Installation</h3>
-              <p>Install from the repo clone or the raw GitHub installer, then verify the launcher with `connect --doctor`.</p>
+              <p>Install from the repo clone or from the raw GitHub installer, then verify the launcher with <code>connect --doctor</code>.</p>
               <div class="doc-actions">
                 <button class="secondary-btn" data-prompt="Show me the correct CONNECT installation steps for this machine.">Ask CONNECT</button>
               </div>
@@ -924,7 +1223,7 @@ def render_dashboard_html() -> str:
             <article class="doc-card">
               <div class="subtle">Guide</div>
               <h3>Authentication</h3>
-              <p>Use Clerk-backed sign-in when auth is enabled, and the dashboard will honor the local operator session.</p>
+              <p>Use Clerk-backed sign-in when auth is enabled. The dashboard honors the same local operator session and deployment mode.</p>
               <div class="doc-actions">
                 <button class="secondary-btn" data-prompt="Explain how CONNECT auth works in local and cloud mode.">Ask CONNECT</button>
               </div>
@@ -940,7 +1239,7 @@ def render_dashboard_html() -> str:
             <article class="doc-card">
               <div class="subtle">Guide</div>
               <h3>Integrations</h3>
-              <p>Configure GitHub, Telegram, Slack, Discord, and WhatsApp here, then use messaging targets directly from sessions and workflows.</p>
+              <p>Configure GitHub, Telegram, Slack, Discord, and WhatsApp here, then use those messaging targets directly from sessions and workflows.</p>
               <div class="doc-actions">
                 <button class="secondary-btn" data-view-jump="integrations">Open integrations</button>
               </div>
@@ -964,6 +1263,7 @@ def render_dashboard_html() -> str:
       status: {},
       activeSessionId: "",
       loadingAsk: false,
+      searchTerm: "",
     };
 
     async function loadJson(url, options) {
@@ -1017,6 +1317,7 @@ def render_dashboard_html() -> str:
         <div class="integration-card">
           <div class="integration-top">
             <div>
+              <div class="subtle">connector</div>
               <h3>${escapeHtml(title)}</h3>
               <p>${escapeHtml(description)}</p>
             </div>
@@ -1029,10 +1330,44 @@ def render_dashboard_html() -> str:
         </div>`;
     }
 
+    function openNodeClient() {
+      window.location.href = "/node-client";
+    }
+
+    function closeSidebar() {
+      document.body.classList.remove("sidebar-open");
+    }
+
+    function toggleSidebar() {
+      document.body.classList.toggle("sidebar-open");
+    }
+
+    function applySearchToView() {
+      const raw = String(state.searchTerm || "").trim().toLowerCase();
+      if (!raw) return;
+      const sessionMatch = state.sessions.some(item => `${item.name} ${item.id} ${item.profile}`.toLowerCase().includes(raw));
+      const workflowMatch = state.workflows.some(item => `${item.name || ""} ${item.description || ""}`.toLowerCase().includes(raw));
+      const integrationMatch = ["github", "telegram", "slack", "discord", "whatsapp"].some(item => item.includes(raw));
+      if (sessionMatch) {
+        setView("sessions");
+        return;
+      }
+      if (workflowMatch) {
+        setView("workflows");
+        return;
+      }
+      if (integrationMatch) {
+        setView("integrations");
+        return;
+      }
+      setView("docs");
+    }
+
     function renderShellStatus() {
       const status = state.status || {};
       const currentUser = status.current_user || {};
       const services = Object.values(status.services || {}).filter(item => item && item.running);
+      const connectedIntegrations = Object.values(state.integrations || {}).filter(item => item && item.connected).length;
       document.getElementById("sidebarMode").textContent = status.deployment_mode || "local";
       document.getElementById("sidebarLive").textContent = services.length ? `${services.length} live` : "idle";
       document.getElementById("sidebarProvider").textContent = status.provider || "none";
@@ -1043,21 +1378,28 @@ def render_dashboard_html() -> str:
       document.getElementById("heroProvider").textContent = status.provider || "none";
       document.getElementById("heroSessions").textContent = String(state.sessions.length);
       document.getElementById("heroServices").textContent = String(services.length);
+      document.getElementById("heroIntegrations").textContent = String(connectedIntegrations);
       document.getElementById("plusBadge").textContent = services.length ? `${services.length} live services` : "runtime idle";
       document.getElementById("topbarSubtext").textContent = currentUser.email
-        ? `Signed in as ${currentUser.email}. Runtime-backed operator dashboard with sessions, tools, memory, integrations, and workflows.`
-        : "Runtime-backed operator dashboard with sessions, tools, memory, integrations, and workflows.";
+        ? `Signed in as ${currentUser.email}. Runtime-backed operator dashboard with sessions, tools, memory, integrations, workflows, and node state.`
+        : "Runtime-backed operator dashboard with sessions, tools, memory, integrations, workflows, and node state.";
+      document.getElementById("footerIdentity").textContent = currentUser.email || currentUser.user_id || "CONNECT operator";
+      document.getElementById("footerUptime").textContent = status.provider_error ? `Provider issue: ${status.provider_error}` : `${services.length} live services · ${status.memory_entries || 0} memory entries`;
     }
 
     function renderSessions() {
+      const raw = String(state.searchTerm || "").trim().toLowerCase();
+      const rows = raw
+        ? state.sessions.filter(s => `${s.name} ${s.id} ${s.profile} ${s.status}`.toLowerCase().includes(raw))
+        : state.sessions;
       const target = document.getElementById("sessionList");
       document.getElementById("navSessionCount").textContent = String(state.sessions.length);
       document.getElementById("sessionBadge").textContent = `${state.sessions.length} sessions`;
-      target.innerHTML = state.sessions.length
-        ? state.sessions.map(s => `
+      target.innerHTML = rows.length
+        ? rows.map(s => `
             <button class="nav-btn ${s.id === state.activeSessionId ? "active" : ""}" data-session-pick="${escapeHtml(s.id)}">
               <div class="nav-main">
-                <div class="nav-icon">◌</div>
+                <div class="nav-icon"><span class="material-symbols-outlined">chat_bubble</span></div>
                 <div class="nav-copy">
                   <strong>${escapeHtml(s.name)}</strong>
                   <span>${escapeHtml(s.profile)} · ${escapeHtml(s.status)}</span>
@@ -1065,13 +1407,14 @@ def render_dashboard_html() -> str:
               </div>
               <div class="nav-count">${escapeHtml(s.id)}</div>
             </button>`).join("")
-        : rowHtml("No sessions", "Create one by asking CONNECT a question.");
+        : rowHtml("No sessions", raw ? "No sessions match the current search." : "Create one by asking CONNECT a question.");
 
       target.querySelectorAll("[data-session-pick]").forEach(button => {
         button.onclick = async () => {
           state.activeSessionId = button.getAttribute("data-session-pick") || "";
           syncSessionSelect();
           await loadChat();
+          setView("chat");
         };
       });
     }
@@ -1104,7 +1447,7 @@ def render_dashboard_html() -> str:
       document.getElementById("nodeBadge").textContent = `${items.length} nodes`;
       document.getElementById("navNodeCount").textContent = String(items.length);
       target.innerHTML = items.length
-        ? items.map(n => rowHtml(`${n.name} - ${n.node_id}`, `${n.platform} - last seen ${formatTime(n.last_seen)}`, Object.keys(n.location || {}).length ? JSON.stringify(n.location) : "")).join("")
+        ? items.map(n => rowHtml(`${n.name} · ${n.node_id}`, `${n.platform} · last seen ${formatTime(n.last_seen)}`, Object.keys(n.location || {}).length ? JSON.stringify(n.location) : "")).join("")
         : rowHtml("No paired nodes", "Pair a node from the mobile client when ready.");
     }
 
@@ -1116,14 +1459,18 @@ def render_dashboard_html() -> str:
     }
 
     function renderWorkflows() {
+      const raw = String(state.searchTerm || "").trim().toLowerCase();
+      const rows = raw
+        ? state.workflows.filter(item => `${item.name || ""} ${item.description || ""}`.toLowerCase().includes(raw))
+        : state.workflows;
       const target = document.getElementById("workflowList");
       document.getElementById("navWorkflowCount").textContent = String(state.workflows.length);
       document.getElementById("workflowBadge").textContent = `${state.workflows.length} workflows`;
-      if (!state.workflows.length) {
-        target.innerHTML = rowHtml("No workflows", "Create workflow files in the workspace to make them runnable from here.");
+      if (!rows.length) {
+        target.innerHTML = rowHtml("No workflows", raw ? "No workflows match the current search." : "Create workflow files in the workspace to make them runnable from here.");
         return;
       }
-      target.innerHTML = state.workflows.map(item => `
+      target.innerHTML = rows.map(item => `
         <article class="workflow-card">
           <div class="subtle">workflow</div>
           <h3>${escapeHtml(item.name || "unnamed")}</h3>
@@ -1239,6 +1586,7 @@ def render_dashboard_html() -> str:
       document.querySelectorAll("[data-view]").forEach(button => {
         button.classList.toggle("active", button.getAttribute("data-view") === view);
       });
+      closeSidebar();
     }
 
     async function loadChat() {
@@ -1294,13 +1642,13 @@ def render_dashboard_html() -> str:
       } else if (state.activeSessionId && !state.sessions.some(session => session.id === state.activeSessionId)) {
         state.activeSessionId = (state.sessions[0] || {}).id || "";
       }
+      renderIntegrations(integrationRows);
       renderShellStatus();
       syncSessionSelect();
       renderSessions();
       renderNodes(state.nodes);
       renderCanvas(state.canvas);
       renderWorkflows();
-      renderIntegrations(integrationRows);
       renderDocs();
       await loadChat();
     }
@@ -1336,8 +1684,20 @@ def render_dashboard_html() -> str:
     document.getElementById("clearComposerButton").onclick = () => { document.getElementById("askInput").value = ""; };
     document.getElementById("newSessionButton").onclick = createSession;
     document.getElementById("createSessionButton").onclick = createSession;
+    document.getElementById("sidebarToggle").onclick = toggleSidebar;
+    document.getElementById("sidebarOverlay").onclick = closeSidebar;
+    document.getElementById("nodeClientButton").onclick = openNodeClient;
+    document.getElementById("nodeClientInlineButton").onclick = openNodeClient;
     document.getElementById("askInput").addEventListener("keydown", (event) => {
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) ask();
+    });
+    document.getElementById("topSearchInput").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        state.searchTerm = event.target.value || "";
+        applySearchToView();
+        renderSessions();
+        renderWorkflows();
+      }
     });
     document.querySelectorAll("[data-view]").forEach(button => {
       button.onclick = () => setView(button.getAttribute("data-view") || "chat");
