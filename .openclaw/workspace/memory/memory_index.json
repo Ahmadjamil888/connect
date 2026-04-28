@@ -25,5 +25,14 @@
     "metadata": {
       "role": "user"
     }
+  },
+  {
+    "ts": "2026-04-28T14:10:13.554136",
+    "kind": "user",
+    "session_id": "973a4fdf4fd8",
+    "content": "hello",
+    "metadata": {
+      "role": "user"
+    }
   }
 ]

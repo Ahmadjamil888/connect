@@ -11,6 +11,17 @@
       "camera": "",
       "location": {},
       "notifications": []
+    },
+    {
+      "node_id": "node_7da67f748c45",
+      "name": "Mobile Browser",
+      "platform": "mobile-web",
+      "paired_at": "2026-04-28T14:13:24.744979",
+      "last_seen": "2026-04-28T14:13:49.319677",
+      "screen": "okoekff",
+      "camera": "rfrg",
+      "location": {},
+      "notifications": []
     }
   ]
 }

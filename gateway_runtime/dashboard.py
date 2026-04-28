@@ -50,7 +50,7 @@ button{cursor:pointer}
 .sidebar{width:var(--sidebar);min-width:var(--sidebar);background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:10;transition:transform .25s ease}
 .sidebar-logo{padding:20px 18px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
 .logo-mark{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-family:var(--font-head);font-size:13px;font-weight:800}
-.logo-text{font-family:var(--font-head);font-size:17px;font-weight:700;color:var(--text);letter-spacing:-0.3px}
+.logo-text{font-family:"Helvetica World","Helvetica Neue",Helvetica,Arial,sans-serif;font-size:17px;font-weight:700;color:var(--text);letter-spacing:-0.3px}
 .logo-badge{font-size:9px;background:#ffffff15;color:var(--text2);padding:2px 6px;border-radius:20px;font-family:var(--font-mono);border:1px solid var(--border2)}
 .sidebar-section{padding:10px 10px 4px;font-size:10px;font-weight:600;letter-spacing:1.2px;color:var(--text3);text-transform:uppercase;font-family:var(--font-head)}
 .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--rad);margin:1px 8px;cursor:pointer;color:var(--text2);font-size:13.5px;font-weight:400;transition:all .15s;position:relative}
@@ -267,7 +267,7 @@ select.input{cursor:pointer}
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
     <div class="logo-mark">CN</div>
-    <span class="logo-text">Connect AI</span>
+    <span class="logo-text">CONNECT AI</span>
     <span class="logo-badge">v2.0</span>
   </div>
   <div style="flex:1;overflow-y:auto;padding:8px 0">
@@ -494,8 +494,9 @@ select.input{cursor:pointer}
         <div style="margin-bottom:24px">
           <div class="sec-title" style="margin-bottom:14px">Provider</div>
           <div class="field"><label>Default Provider</label><select class="input" id="settings-provider-select"></select></div>
-          <div class="field"><label>Model Name</label><input class="input" id="settings-model-input" placeholder="e.g. gpt-4.1-mini"></div>
-          <div class="field"><label>API Key</label><input class="input" id="settings-key-input" type="password" placeholder="Enter API key only when you need to save or rotate it"></div>
+          <div class="field"><label id="settings-model-label">Model Name</label><input class="input" id="settings-model-input" placeholder="e.g. gpt-4.1-mini"></div>
+          <div class="field" id="settings-key-field"><label id="settings-key-label">API Key</label><input class="input" id="settings-key-input" type="password" placeholder="Enter API key only when you need to save or rotate it"></div>
+          <div class="field" id="settings-ollama-note" style="display:none"><label>Local Runtime</label><div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text2);font-size:13px;line-height:1.6">Ollama runs locally, so no API key is needed here. Set the local model name you want CONNECT to use, for example <span style="font-family:var(--font-mono);color:var(--accent3)">llama3.2</span> or <span style="font-family:var(--font-mono);color:var(--accent3)">mistral:7b</span>.</div></div>
         </div>
         <div style="margin-bottom:24px">
           <div class="sec-title" style="margin-bottom:14px">Preferences</div>
@@ -536,8 +537,9 @@ select.input{cursor:pointer}
     <div class="modal-title">Save Provider / Model</div>
     <div class="modal-sub">Store a provider selection and optional API key in the project env used by CONNECT.</div>
     <div class="field"><label>Provider</label><select class="input" id="modal-provider-select"></select></div>
-    <div class="field"><label>Model ID</label><input class="input" id="modal-model-input" placeholder="e.g. gpt-4.1-mini"></div>
-    <div class="field"><label>API Key</label><input class="input" id="modal-key-input" type="password" placeholder="Leave blank to keep the current key"></div>
+    <div class="field"><label id="modal-model-label">Model ID</label><input class="input" id="modal-model-input" placeholder="e.g. gpt-4.1-mini"></div>
+    <div class="field" id="modal-key-field"><label id="modal-key-label">API Key</label><input class="input" id="modal-key-input" type="password" placeholder="Leave blank to keep the current key"></div>
+    <div class="field" id="modal-ollama-note" style="display:none"><label>Local Runtime</label><div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text2);font-size:13px;line-height:1.6">Ollama is local. No API key is required. Choose the installed model name CONNECT should use.</div></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" id="close-model-modal-btn">Cancel</button>
       <button class="btn btn-primary" id="save-model-modal-btn">Save</button>
@@ -846,12 +848,36 @@ function renderSettings(){
   renderProviderSelects();
   byId('settings-provider-select').value = state.status.provider || state.providers[0]?.name || '';
   byId('settings-model-input').value = state.status.provider_model || '';
+  syncProviderFields(false);
 }
 
 function renderProviderSelects(){
   const options = state.providers.map(item => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</option>`).join('');
   byId('settings-provider-select').innerHTML = options;
   byId('modal-provider-select').innerHTML = options;
+}
+
+function syncProviderFields(fromModal){
+  const prefix = fromModal ? 'modal' : 'settings';
+  const provider = byId(`${prefix}-provider-select`).value || '';
+  const modelLabel = byId(`${prefix}-model-label`);
+  const modelInput = byId(`${prefix}-model-input`);
+  const keyField = byId(`${prefix}-key-field`);
+  const keyLabel = byId(`${prefix}-key-label`);
+  const keyInput = byId(`${prefix}-key-input`);
+  const ollamaNote = byId(`${prefix}-ollama-note`);
+  const isOllama = provider === 'ollama';
+  modelLabel.textContent = isOllama ? 'Local Model Name' : (fromModal ? 'Model ID' : 'Model Name');
+  modelInput.placeholder = isOllama ? 'e.g. llama3.2 or mistral:7b' : 'e.g. gpt-4.1-mini';
+  keyField.style.display = isOllama ? 'none' : 'block';
+  ollamaNote.style.display = isOllama ? 'block' : 'block';
+  if (!isOllama) {
+    ollamaNote.style.display = 'none';
+  }
+  keyLabel.textContent = 'API Key';
+  if (isOllama) {
+    keyInput.value = '';
+  }
 }
 
 function renderAnalytics(){
@@ -935,6 +961,7 @@ function openProviderModal(providerName){
   const provider = state.providers.find(item => item.name === byId('modal-provider-select').value);
   byId('modal-model-input').value = provider?.model || '';
   byId('modal-key-input').value = '';
+  syncProviderFields(true);
   byId('add-model-modal').classList.add('open');
 }
 
@@ -1002,6 +1029,8 @@ byId('open-model-modal-btn').onclick = () => openProviderModal(state.status.prov
 byId('close-model-modal-btn').onclick = () => byId('add-model-modal').classList.remove('open');
 byId('save-model-modal-btn').onclick = () => saveProviderSettings(true);
 byId('save-settings-btn').onclick = () => saveProviderSettings(false);
+byId('settings-provider-select').onchange = () => syncProviderFields(false);
+byId('modal-provider-select').onchange = () => syncProviderFields(true);
 byId('chat-input').addEventListener('keydown', event => {
   if(event.key === 'Enter' && !event.shiftKey){
     event.preventDefault();
