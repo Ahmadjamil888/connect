@@ -4,7 +4,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import requests
 
@@ -109,7 +109,13 @@ class AgentRuntime:
             group_map=self.catalog.group_map(),
         )
 
-    def run_turn(self, session_id: str, user_text: str, max_rounds: int = 4) -> Dict[str, Any]:
+    def run_turn(
+        self,
+        session_id: str,
+        user_text: str,
+        max_rounds: int = 4,
+        on_chunk: Optional[Callable[[str], None]] = None,
+    ) -> Dict[str, Any]:
         session = self.sessions.require(session_id)
         self.sessions.append_message(session.id, "user", user_text)
         self.sessions.set_status(session.id, "running")
@@ -127,7 +133,7 @@ class AgentRuntime:
             message = response.get("choices", [{}])[0].get("message", {})
             tool_calls = message.get("tool_calls") or []
             if not tool_calls:
-                content = str(message.get("content", "")).strip()
+                content = self._finalize_assistant_content(messages, message, on_chunk=on_chunk)
                 self.sessions.append_message(session.id, "assistant", content)
                 self.sessions.set_status(session.id, "idle")
                 self.memory.remember("assistant", session.id, content, {"role": "assistant"})
@@ -155,6 +161,15 @@ class AgentRuntime:
 
         self.sessions.set_status(session.id, "idle")
         return {"ok": False, "error": "Max tool rounds reached", "session_id": session.id}
+
+    def run_turn_stream(
+        self,
+        session_id: str,
+        user_text: str,
+        max_rounds: int = 4,
+        on_chunk: Optional[Callable[[str], None]] = None,
+    ) -> Dict[str, Any]:
+        return self.run_turn(session_id, user_text, max_rounds=max_rounds, on_chunk=on_chunk)
 
     def execute_tool(self, session_id: str, tool_name: str, args: Dict[str, Any]) -> ToolExecutionResult:
         try:
@@ -475,6 +490,25 @@ class AgentRuntime:
         if not result.ok:
             raise RuntimeError(str(result.output))
         return result.output
+
+    def _finalize_assistant_content(
+        self,
+        messages: List[Dict[str, Any]],
+        message: Dict[str, Any],
+        on_chunk: Optional[Callable[[str], None]] = None,
+    ) -> str:
+        fallback = str(message.get("content", "") or "").strip()
+        if not on_chunk or not hasattr(self.ai, "stream_chat"):
+            return fallback
+        try:
+            streamed = str(self.ai.stream_chat(messages, on_chunk=on_chunk) or "").strip()
+            if streamed:
+                return streamed
+        except Exception:
+            pass
+        if fallback:
+            on_chunk(fallback)
+        return fallback
 
     def node_manifest(self) -> Dict[str, Any]:
         return {
