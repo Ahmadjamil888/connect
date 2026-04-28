@@ -301,6 +301,41 @@ class AgentRuntime:
             "whatsapp": {"connected": bool(self.config.whatsapp_account_sid and self.config.whatsapp_auth_token and self.config.whatsapp_from_number)},
         }
 
+    def provider_snapshot(self) -> Dict[str, Any]:
+        items = self.ai.get_provider_status() if hasattr(self.ai, "get_provider_status") else []
+        selected = next((item for item in items if item.get("selected") == "yes"), None)
+        return {
+            "items": items,
+            "selected_provider": getattr(self.ai, "provider", "") or "",
+            "selected_model": getattr(self.ai, "model_name", "") or "",
+            "provider_error": getattr(self.ai, "_provider_error", "") or "",
+            "default_provider": self.config.provider_default or os.getenv("AI_PROVIDER", "").strip().lower(),
+            "selected": selected or {},
+        }
+
+    def save_provider_config(self, provider_name: str, api_key: str = "", model: str = "") -> Dict[str, Any]:
+        provider_name = str(provider_name or "").strip().lower()
+        settings = getattr(self.ai, "PROVIDER_SETTINGS", {}).get(provider_name, {})
+        if not settings:
+            raise RuntimeError(f"unknown provider: {provider_name}")
+        updates: Dict[str, str] = {"AI_PROVIDER": provider_name}
+        env_key = str(settings.get("env_key", "")).strip()
+        model_attr = str(settings.get("model_attr", "")).strip()
+        if env_key and api_key:
+            updates[env_key] = api_key
+        if model_attr and model:
+            updates[model_attr] = model
+        if hasattr(self.ai, "_write_env_values"):
+            self.ai._write_env_values(updates)
+        for key, value in updates.items():
+            os.environ[key] = value
+        if hasattr(self.ai, "_select_provider"):
+            self.ai._select_provider(preferred=provider_name, allow_fallback=False)
+        if self.ai.provider != provider_name:
+            raise RuntimeError(self.ai._provider_error or f"provider {provider_name} is not ready")
+        self.config.provider_default = provider_name
+        return {"ok": True, "provider": self.ai.provider, "model": self.ai.model_name}
+
     def save_integration(self, kind: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         config_data: Dict[str, Any] = {}
         if self.config.config_path.exists():
