@@ -27,6 +27,8 @@ pyperclip>=1.8.0
 
 # System
 psutil>=5.9.0
+alpaca-py>=0.28.1
+ccxt>=4.4.81
 
 # Security
 cryptography>=41.0.0
@@ -41,3 +43,10 @@ win10toast>=0.9; sys_platform == "win32"
 
 # Email
 secure-smtplib>=0.1.1
+google-api-python-client>=2.169.0
+google-auth-httplib2>=0.2.0
+google-auth-oauthlib>=1.2.0
+
+# Voice
+openai-whisper>=20240930
+pyttsx3>=2.98

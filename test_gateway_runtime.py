@@ -12,36 +12,31 @@ from gateway_runtime.node_client import render_node_client_html
 from gateway_runtime.runtime import AgentRuntime
 from gateway_runtime.server import GatewayController
 from gateway_runtime.workspace import WorkspaceLayout
+from gateway_runtime.memory_store import MemoryStore
 
 
 class FakeAI:
     def __init__(self):
         self.provider = "fake"
+        self.model_name = "fake-model"
         self._provider_error = ""
         self.calls = 0
 
     def chat(self, messages, tools=None):
         self.calls += 1
-        if self.calls == 1:
-            return {
-                "choices": [
-                    {
-                        "message": {
-                            "content": "",
-                            "tool_calls": [
-                                {
-                                    "id": "call_1",
-                                    "function": {
-                                        "name": "write_file",
-                                        "arguments": json.dumps({"path": "artifact.txt", "content": "hello gateway"}),
-                                    },
-                                }
-                            ],
-                        }
-                    }
-                ]
-            }
         return {"choices": [{"message": {"content": "done", "tool_calls": []}}]}
+
+    def stream_chat(self, messages, on_chunk=None):
+        content = "done"
+        if on_chunk:
+            on_chunk(content)
+        return content
+
+    def should_use_autonomous_agent(self, user_input, history=None):
+        return False
+
+    def get_provider_status(self):
+        return [{"name": "fake", "configured": "yes", "ready": "yes", "model": "fake-model", "selected": "yes"}]
 
 
 def _scratch_dir(name: str) -> Path:
@@ -99,13 +94,11 @@ def test_runtime_sessions_and_turn():
     config_path.write_text(json.dumps({"workspace": {"root": str(workspace)}}), encoding="utf-8")
     runtime = AgentRuntime(load_gateway_config(config_path), ai_model=FakeAI())
     session_id = runtime.ensure_default_session()
-    result = runtime.run_turn(session_id, "create a file")
+    result = runtime.run_turn(session_id, "hello")
     assert result["ok"] is True
     assert result["content"] == "done"
-    assert (workspace / "artifact.txt").exists()
     history = runtime.sessions.history(session_id)
     assert history[-1]["role"] == "assistant"
-    assert runtime.memory.search("hello gateway")
     shutil.rmtree(scratch, ignore_errors=True)
 
 
@@ -117,7 +110,7 @@ def test_gateway_controller_dispatch():
     runtime = AgentRuntime(load_gateway_config(config_path), ai_model=FakeAI())
     session_id = runtime.ensure_default_session()
     controller = GatewayController(runtime)
-    result = asyncio.run(controller.dispatch("agent.ask", {"session_id": session_id, "content": "create a file"}))
+    result = asyncio.run(controller.dispatch("agent.ask", {"session_id": session_id, "content": "hello"}))
     assert result["ok"] is True
     sessions = asyncio.run(controller.dispatch("sessions.list", {}))
     assert sessions
@@ -126,13 +119,30 @@ def test_gateway_controller_dispatch():
     shutil.rmtree(scratch, ignore_errors=True)
 
 
+def test_runtime_dashboard_tool_route_uses_real_tool_execution():
+    scratch = _scratch_dir("runtime_tool_route")
+    workspace = scratch / "workspace"
+    config_path = scratch / "openclaw.json"
+    config_path.write_text(json.dumps({"workspace": {"root": str(workspace)}}), encoding="utf-8")
+    runtime = AgentRuntime(load_gateway_config(config_path), ai_model=FakeAI())
+    session_id = runtime.ensure_default_session()
+    original_execute_tool = runtime.execute_tool
+    runtime.execute_tool = lambda sid, tool_name, args: type("Result", (), {"ok": True, "output": f"{tool_name}:{args['query']}"})()
+    result = runtime.run_turn(session_id, "search for python")
+    assert result["ok"] is True
+    assert result["mode"] == "tool"
+    assert "python" in result["content"].lower()
+    runtime.execute_tool = original_execute_tool
+    shutil.rmtree(scratch, ignore_errors=True)
+
+
 def test_dashboard_html_contains_core_sections():
     html = render_dashboard_html()
-    assert "CONNECT Operator" in html
+    assert "CONNECT Dashboard" in html
     assert "/api/status" in html
-    assert "Quick Ask" in html
     assert "Live Services" in html
-    assert "Chat Session" in html
+    assert "Real session threads" in html
+    assert "/api/ask" in html
 
 
 def test_node_client_html_contains_pairing_flows():
@@ -186,6 +196,33 @@ def test_discord_config_lookup():
     runtime = AgentRuntime(config, ai_model=FakeAI())
     value = runtime.config_lookup("messaging.discord_webhooks")
     assert value == ["ops"]
+    shutil.rmtree(scratch, ignore_errors=True)
+
+
+def test_save_integration_refreshes_runtime_state():
+    scratch = _scratch_dir("integration_refresh")
+    config_path = scratch / "openclaw.json"
+    config_path.write_text(json.dumps({"messaging": {}}), encoding="utf-8")
+    runtime = AgentRuntime(load_gateway_config(config_path), ai_model=FakeAI())
+    saved = runtime.save_integration("telegram", {"bot_token": "abc", "default_chat_id": "123"})
+    assert saved["ok"] is True
+    snapshot = runtime.integration_snapshot()
+    assert snapshot["telegram"]["connected"] is True
+    assert snapshot["telegram"]["default_chat_id"] == "123"
+    assert runtime.telegram is not None
+    runtime.telegram.stop()
+    shutil.rmtree(scratch, ignore_errors=True)
+
+
+def test_memory_store_persists_entries_in_sqlite():
+    scratch = _scratch_dir("memory_sqlite")
+    store = MemoryStore(scratch / "memory")
+    store.remember("assistant", "session-1", "remember this line", {"topic": "sql"})
+    recent = store.get_recent("session-1", 5)
+    matches = store.search("remember this line", 5)
+    assert recent and recent[-1]["content"] == "remember this line"
+    assert matches and matches[0]["content"] == "remember this line"
+    assert (scratch / "memory" / "memory.db").exists()
     shutil.rmtree(scratch, ignore_errors=True)
 
 

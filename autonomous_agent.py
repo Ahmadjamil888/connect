@@ -13,6 +13,7 @@ import hashlib
 import hmac
 import os
 import re
+import sqlite3
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -31,8 +32,8 @@ class AgentConfig:
     AUDIT_LOG_FILE = DATA_DIR / "audit.log.jsonl"
     WORLD_STATE_FILE = Path.home() / ".ai_assistant" / "world_state.json"
 
-    MAX_PLAN_STEPS = 12
-    MAX_RETRIES_PER_TASK = 1
+    MAX_PLAN_STEPS = 16
+    MAX_RETRIES_PER_TASK = 3
     MAX_REPLANS = 2
     MAX_CONTEXT_EVENTS = 200
 
@@ -87,12 +88,16 @@ class Task:
     dependencies: List[str] = field(default_factory=list)
     verification: str = ""
     rationale: str = ""
+    stage: str = ""
+    requires_confirmation: bool = False
+    min_output_chars: int = 0
     status: TaskStatus = TaskStatus.PENDING
     retry_count: int = 0
     result: str = ""
     error: str = ""
     started_at: str = ""
     completed_at: str = ""
+    attempt_sizes: List[int] = field(default_factory=list)
 
 
 @dataclass
@@ -142,6 +147,40 @@ class MemorySystem:
         )
         self.failures = self._load_json(AgentConfig.FAILURES_FILE, default=[])
         self.runs_index = self._load_json(AgentConfig.RUNS_INDEX_FILE, default=[])
+        self.db_path = AgentConfig.DATA_DIR / "memory.db"
+        self._init_db()
+
+    def _init_db(self):
+        try:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS memory_entries (
+                        id TEXT PRIMARY KEY,
+                        bucket TEXT NOT NULL,
+                        ts TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        payload TEXT NOT NULL
+                    )
+                    """
+                )
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memory_bucket_ts ON memory_entries(bucket, ts)")
+        except Exception:
+            pass
+
+    def _db_upsert(self, bucket: str, entry_id: str, ts: str, content: str, payload: Dict[str, Any]):
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO memory_entries (id, bucket, ts, content, payload)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (entry_id, bucket, ts, content, json.dumps(payload, ensure_ascii=True)),
+                )
+        except Exception:
+            pass
 
     def _load_json(self, path: Path, default: Any) -> Any:
         if path.exists():
@@ -184,65 +223,65 @@ class MemorySystem:
         self.save()
 
     def add_fact(self, content: str, tags: Optional[List[str]] = None):
-        self.ltm["facts"].append(
-            {
-                "id": self._short_id(content),
-                "content": content,
-                "tags": tags or [],
-                "ts": datetime.now().isoformat(),
-            }
-        )
+        entry = {
+            "id": self._short_id(content),
+            "content": content,
+            "tags": tags or [],
+            "ts": datetime.now().isoformat(),
+        }
+        self.ltm["facts"].append(entry)
         self.ltm["facts"] = self.ltm["facts"][-300:]
+        self._db_upsert("fact", entry["id"], entry["ts"], content, entry)
         self.save()
 
     def add_pattern(self, content: str, success_rate: float):
-        self.ltm["patterns"].append(
-            {
-                "id": self._short_id(content),
-                "content": content,
-                "success_rate": success_rate,
-                "ts": datetime.now().isoformat(),
-            }
-        )
+        entry = {
+            "id": self._short_id(content),
+            "content": content,
+            "success_rate": success_rate,
+            "ts": datetime.now().isoformat(),
+        }
+        self.ltm["patterns"].append(entry)
         self.ltm["patterns"] = self.ltm["patterns"][-200:]
+        self._db_upsert("pattern", entry["id"], entry["ts"], content, entry)
         self.save()
 
     def add_skill(self, name: str, description: str):
-        self.ltm["skills"].append(
-            {
-                "id": self._short_id(name),
-                "name": name,
-                "description": description,
-                "ts": datetime.now().isoformat(),
-            }
-        )
+        entry = {
+            "id": self._short_id(name),
+            "name": name,
+            "description": description,
+            "ts": datetime.now().isoformat(),
+        }
+        self.ltm["skills"].append(entry)
         self.ltm["skills"] = self.ltm["skills"][-120:]
+        self._db_upsert("skill", entry["id"], entry["ts"], f"{name} {description}", entry)
         self.save()
 
     def add_project_memory(self, goal: str, payload: Dict[str, Any]):
-        self.ltm["project_memories"].append(
-            {
-                "id": self._short_id(goal),
-                "goal": goal,
-                "payload": payload,
-                "ts": datetime.now().isoformat(),
-            }
-        )
+        entry = {
+            "id": self._short_id(goal),
+            "goal": goal,
+            "payload": payload,
+            "ts": datetime.now().isoformat(),
+        }
+        self.ltm["project_memories"].append(entry)
         self.ltm["project_memories"] = self.ltm["project_memories"][-200:]
+        self._db_upsert("project", entry["id"], entry["ts"], goal, entry)
         self.save()
 
     def log_failure(self, task: Task, error: str, run_id: str):
-        self.failures.append(
-            {
-                "id": self._short_id(task.name + error),
-                "run_id": run_id,
-                "task_name": task.name,
-                "tool_name": task.tool_name,
-                "error": error,
-                "args": task.tool_args,
-                "ts": datetime.now().isoformat(),
-            }
-        )
+        entry = {
+            "id": self._short_id(task.name + error),
+            "run_id": run_id,
+            "task_name": task.name,
+            "tool_name": task.tool_name,
+            "error": error,
+            "args": task.tool_args,
+            "ts": datetime.now().isoformat(),
+        }
+        self.failures.append(entry)
+        self._db_upsert("failure", entry["id"], entry["ts"], f"{task.name} {error}", entry)
         self.save()
 
     def remember_run(self, run: RunState):
@@ -267,6 +306,22 @@ class MemorySystem:
 
     def search(self, query: str, limit: int = 8) -> List[Dict[str, Any]]:
         tokens = [t for t in re.split(r"\W+", query.lower()) if t]
+        if tokens:
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    rows = conn.execute(
+                        """
+                        SELECT payload FROM memory_entries
+                        WHERE lower(content) LIKE ?
+                        ORDER BY ts DESC
+                        LIMIT ?
+                        """,
+                        (f"%{' '.join(tokens[:3])}%", limit),
+                    ).fetchall()
+                if rows:
+                    return [json.loads(row[0]) for row in rows]
+            except Exception:
+                pass
         pool = self.ltm.get("facts", []) + self.ltm.get("patterns", []) + self.ltm.get("project_memories", [])
         scored: List[Tuple[int, Dict[str, Any]]] = []
         for item in pool:
@@ -792,6 +847,13 @@ class SafetyManager:
         "browser_login",
         "run_workflow",
         "run_helper",
+        "deploy_website",
+        "send_email",
+        "gmail_send_email",
+        "telegram_send_message",
+        "whatsapp_web_send",
+        "trade_alpaca",
+        "trade_binance",
     }
     DANGEROUS_SHELL_PATTERNS = [
         r"\brm\s+-rf\b",
@@ -807,12 +869,18 @@ class SafetyManager:
         self.confirm_callback = confirm_callback
 
     def needs_confirmation(self, task: Task) -> bool:
+        if task.requires_confirmation:
+            return True
         if task.tool_name not in self.DANGEROUS_TOOLS:
             return False
         if task.tool_name == "file_operations":
             return task.tool_args.get("operation") in {"delete", "move"}
         if task.tool_name == "manage_processes":
             return task.tool_args.get("action") == "kill"
+        if task.tool_name in {"send_email", "gmail_send_email", "telegram_send_message", "whatsapp_web_send"}:
+            return True
+        if task.tool_name in {"trade_alpaca", "trade_binance", "deploy_website"}:
+            return True
         if task.tool_name == "run_shell_command":
             cmd = str(task.tool_args.get("command", ""))
             return any(re.search(p, cmd, flags=re.IGNORECASE) for p in self.DANGEROUS_SHELL_PATTERNS)
@@ -827,6 +895,7 @@ class SafetyManager:
             return self.confirm_callback(task)
         prompt = (
             f"\n[Safety] Confirm dangerous action?\n"
+            f"Stage: {task.stage or 'general'}\n"
             f"Tool: {task.tool_name}\nArgs: {json.dumps(task.tool_args, ensure_ascii=True)}\n"
             f"Type 'yes' to continue: "
         )
@@ -883,6 +952,8 @@ Environment snapshot:
 {environment}
 World state:
 {world_state}
+Expanded build specification:
+{self._expanded_goal_spec(goal)}
 
 Return ONLY JSON array. Each item:
 {{
@@ -892,7 +963,10 @@ Return ONLY JSON array. Each item:
   "tool_name": "...",
   "tool_args": {{}},
   "dependencies": [0, 1],
-  "verification": "file_exists:path OR output_contains:text OR done"
+  "verification": "file_exists:path OR file_min_chars:path:min OR output_contains:text OR done",
+  "stage": "plan|scaffold|build|preview|deploy",
+  "requires_confirmation": true/false,
+  "min_output_chars": 0
 }}
 
 Rules:
@@ -906,7 +980,55 @@ Rules:
 - If no direct tool fits, prefer execute_python to synthesize a targeted solution instead of giving up.
 - For multi-step reusable work, you may generate a workflow first and then run it.
 - If a capability is missing, synthesize a helper tool first, then use it.
+- For software build goals, lock the process into stages: plan -> scaffold -> build -> preview -> deploy.
+- The plan stage must define concrete files, sections, stack, and verification gates before scaffold/build starts.
+- Scaffold files must be non-empty placeholders.
+- Build tasks must verify the written file content length or actual file size, not just existence.
+- Deploy tasks should require confirmation.
 """
+
+    def _expanded_goal_spec(self, goal: str) -> str:
+        lowered = goal.lower()
+        if not any(token in lowered for token in ["build", "create", "website", "app", "dashboard", "landing page"]):
+            return "(not a build-heavy goal)"
+        prompt = f"""
+Expand the goal into a concrete implementation brief.
+Goal: {goal}
+
+Return strict JSON:
+{{
+  "stack": ["..."],
+  "files": ["..."],
+  "sections": ["..."],
+  "styling": ["..."],
+  "verification": ["..."]
+}}
+"""
+        try:
+            response = self.ai.chat(
+                [
+                    {"role": "system", "content": "Expand build goals into concrete implementation specs. Return JSON only."},
+                    {"role": "user", "content": prompt},
+                ]
+            )
+            content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
+            match = re.search(r"\{[\s\S]*\}", content)
+            if match:
+                parsed = json.loads(match.group(0))
+                return json.dumps(parsed, indent=2, ensure_ascii=True)
+        except Exception:
+            pass
+        return json.dumps(
+            {
+                "stack": ["html/css/js" if "website" in lowered or "landing page" in lowered else "python"],
+                "files": ["index.html", "styles.css", "about.html", "contact.html"] if "website" in lowered or "landing page" in lowered else ["main.py"],
+                "sections": ["hero", "proof", "features", "cta"] if "website" in lowered or "landing page" in lowered else ["cli entrypoint", "main workflow"],
+                "styling": ["responsive", "design tokens", "non-placeholder content"],
+                "verification": ["non-empty files", "preview opened", "real command executed"],
+            },
+            indent=2,
+            ensure_ascii=True,
+        )
 
     def _environment_context(self) -> str:
         root = Path.cwd()
@@ -1070,6 +1192,24 @@ Rules:
                         "tool_args": {"path": ".", "depth": 2} if "observe_environment" in tool_names else {"path": "."},
                         "dependencies": [],
                         "verification": "output_contains:",
+                        "stage": "plan",
+                    },
+                    {
+                        "name": "Expand implementation brief",
+                        "description": "Write a concrete implementation plan that defines files, sections, and stack before touching the site.",
+                        "rationale": "A locked plan prevents shallow prompt drift and establishes a review checkpoint.",
+                        "tool_name": "execute_python" if "execute_python" in tool_names else ("observe_environment" if "observe_environment" in tool_names else tool_names[0]),
+                        "tool_args": {
+                            "code": (
+                                "plan = '''FILES\\n- index.html\\n- about.html\\n- contact.html\\n- styles.css\\n"
+                                "SECTIONS\\n- hero\\n- proof\\n- feature grid\\n- CTA\\n"
+                                "STACK\\n- static html/css\\n"
+                                "VERIFICATION\\n- files stay non-empty\\n- preview opens\\n'''\nprint(plan)\n"
+                            )
+                        } if "execute_python" in tool_names else ({"path": ".", "depth": 1} if "observe_environment" in tool_names else {}),
+                        "dependencies": [0],
+                        "verification": "output_contains:FILES",
+                        "stage": "plan",
                     },
                     {
                         "name": "Create website folder",
@@ -1077,56 +1217,114 @@ Rules:
                         "rationale": "Establish a concrete workspace for generated assets.",
                         "tool_name": "create_directory" if "create_directory" in tool_names else tool_names[0],
                         "tool_args": {"path": site_name},
-                        "dependencies": [0],
+                        "dependencies": [1],
                         "verification": f"dir_exists:{site_name}",
+                        "stage": "scaffold",
+                        "requires_confirmation": True,
                     },
                     {
-                        "name": "Write shared stylesheet",
-                        "description": "Create a shared design system stylesheet for all pages.",
-                        "rationale": "A coherent site needs one visual system instead of isolated page styling.",
+                        "name": "Scaffold shared stylesheet",
+                        "description": "Create a non-empty placeholder stylesheet before writing the real design system.",
+                        "rationale": "Scaffold first so file creation and file population are verified separately.",
+                        "tool_name": "write_file" if "write_file" in tool_names else tool_names[0],
+                        "tool_args": {
+                            "path": f"{site_name}/styles.css",
+                            "content": "/* scaffold placeholder: shared design system */\n:root {\n  --scaffold: 1;\n}\n",
+                        },
+                        "dependencies": [2],
+                        "verification": f"file_min_chars:{site_name}/styles.css:20",
+                        "stage": "scaffold",
+                    },
+                    {
+                        "name": "Scaffold landing page",
+                        "description": "Create a non-empty placeholder HTML file for the landing page.",
+                        "rationale": "Separate placeholder creation from final content generation to prevent silent empty-file failures.",
+                        "tool_name": "write_file" if "write_file" in tool_names else tool_names[0],
+                        "tool_args": {
+                            "path": f"{site_name}/index.html",
+                            "content": "<!doctype html>\n<html><head><title>Scaffold</title></head><body><!-- scaffold placeholder --></body></html>\n",
+                        },
+                        "dependencies": [2],
+                        "verification": f"file_min_chars:{site_name}/index.html:40",
+                        "stage": "scaffold",
+                    },
+                    {
+                        "name": "Scaffold about page",
+                        "description": "Create a non-empty placeholder file for the about page.",
+                        "rationale": "Explicit scaffold verification stops empty page creation loops early.",
+                        "tool_name": "write_file" if "write_file" in tool_names else tool_names[0],
+                        "tool_args": {
+                            "path": f"{site_name}/about.html",
+                            "content": "<!doctype html>\n<html><head><title>About Scaffold</title></head><body><!-- scaffold placeholder --></body></html>\n",
+                        },
+                        "dependencies": [2],
+                        "verification": f"file_min_chars:{site_name}/about.html:40",
+                        "stage": "scaffold",
+                    },
+                    {
+                        "name": "Scaffold contact page",
+                        "description": "Create a non-empty placeholder file for the contact page.",
+                        "rationale": "This stage verifies every required file exists before the build stage starts.",
+                        "tool_name": "write_file" if "write_file" in tool_names else tool_names[0],
+                        "tool_args": {
+                            "path": f"{site_name}/contact.html",
+                            "content": "<!doctype html>\n<html><head><title>Contact Scaffold</title></head><body><!-- scaffold placeholder --></body></html>\n",
+                        },
+                        "dependencies": [2],
+                        "verification": f"file_min_chars:{site_name}/contact.html:40",
+                        "stage": "scaffold",
+                    },
+                    {
+                        "name": "Build shared stylesheet",
+                        "description": "Replace the scaffold stylesheet with the final design system.",
+                        "rationale": "Build one file at a time and verify actual content length after writing.",
                         "tool_name": "write_file" if "write_file" in tool_names else tool_names[0],
                         "tool_args": {
                             "path": f"{site_name}/styles.css",
                             "content": self._website_stylesheet(brief),
                         },
-                        "dependencies": [1],
-                        "verification": f"file_exists:{site_name}/styles.css",
+                        "dependencies": [3, 4, 5, 6],
+                        "verification": f"file_min_chars:{site_name}/styles.css:400",
+                        "stage": "build",
                     },
                     {
-                        "name": "Write landing page",
-                        "description": "Create the main landing page with hero, proof, feature grid, and calls to action.",
-                        "rationale": "The home page should express the product story, not just exist as a placeholder file.",
+                        "name": "Build landing page",
+                        "description": "Write the final landing page with real sections and non-placeholder copy.",
+                        "rationale": "The home page should express the product story with enough content to verify quality.",
                         "tool_name": "write_file" if "write_file" in tool_names else tool_names[0],
                         "tool_args": {
                             "path": f"{site_name}/index.html",
                             "content": self._website_index_html(brief),
                         },
-                        "dependencies": [2],
-                        "verification": f"file_exists:{site_name}/index.html",
+                        "dependencies": [7],
+                        "verification": f"file_min_chars:{site_name}/index.html:1200",
+                        "stage": "build",
                     },
                     {
-                        "name": "Write about page",
-                        "description": "Create a supporting page that explains the company and links back into the site.",
-                        "rationale": "Supporting pages should share navigation and reinforce the brand system.",
+                        "name": "Build about page",
+                        "description": "Write the final about page with shared navigation and coherent brand copy.",
+                        "rationale": "Build files individually so retries are isolated to the failing file only.",
                         "tool_name": "write_file" if "write_file" in tool_names else tool_names[0],
                         "tool_args": {
                             "path": f"{site_name}/about.html",
                             "content": self._website_about_html(brief),
                         },
-                        "dependencies": [2],
-                        "verification": f"file_exists:{site_name}/about.html",
+                        "dependencies": [7],
+                        "verification": f"file_min_chars:{site_name}/about.html:900",
+                        "stage": "build",
                     },
                     {
-                        "name": "Write contact page",
-                        "description": "Create a conversion-oriented contact page with the same navigation and styling.",
-                        "rationale": "A real site needs connected pathways for visitors to take action.",
+                        "name": "Build contact page",
+                        "description": "Write the final contact page with shared styling and conversion-focused content.",
+                        "rationale": "This isolates verification and retries to the contact page instead of the whole project.",
                         "tool_name": "write_file" if "write_file" in tool_names else tool_names[0],
                         "tool_args": {
                             "path": f"{site_name}/contact.html",
                             "content": self._website_contact_html(brief),
                         },
-                        "dependencies": [2],
-                        "verification": f"file_exists:{site_name}/contact.html",
+                        "dependencies": [7],
+                        "verification": f"file_min_chars:{site_name}/contact.html:900",
+                        "stage": "build",
                     },
                 ]
             )
@@ -1139,8 +1337,10 @@ Rules:
                         "rationale": "Observe the real output and keep the loop grounded in execution.",
                         "tool_name": browser_open_tool,
                         "tool_args": {"url": str((Path.cwd() / site_name / "index.html").resolve().as_uri())},
-                        "dependencies": [3, 4, 5],
+                        "dependencies": [8, 9, 10],
                         "verification": "output_contains:Opened",
+                        "stage": "preview",
+                        "requires_confirmation": True,
                     }
                 )
                 if "browser_snapshot" in tool_names:
@@ -1151,10 +1351,25 @@ Rules:
                             "rationale": "Use DOM and error context, not just a file path, to judge the result.",
                             "tool_name": "browser_snapshot",
                             "tool_args": {"include_screenshot": True},
-                            "dependencies": [6],
+                            "dependencies": [11],
                             "verification": "output_contains:title",
+                            "stage": "preview",
                         }
                     )
+            if "deploy_website" in tool_names:
+                tasks.append(
+                    {
+                        "name": "Deploy website",
+                        "description": "Deploy the built site after preview approval.",
+                        "rationale": "Deployment should only happen after the preview stage is complete and explicitly approved.",
+                        "tool_name": "deploy_website",
+                        "tool_args": {"directory": site_name, "platform": "netlify"},
+                        "dependencies": [12] if "browser_snapshot" in tool_names and browser_open_tool else ([11] if browser_open_tool else [10]),
+                        "verification": "output_contains:https://",
+                        "stage": "deploy",
+                        "requires_confirmation": True,
+                    }
+                )
 
         if "script" in g or "python" in g:
             tasks = [
@@ -1615,6 +1830,9 @@ Rules:
                     tool_args=args,
                     dependencies=deps,
                     verification=str(row.get("verification", "done")),
+                    stage=str(row.get("stage", "")),
+                    requires_confirmation=bool(row.get("requires_confirmation", False)),
+                    min_output_chars=int(row.get("min_output_chars", 0) or 0),
                 )
             )
         return normalized
@@ -1638,6 +1856,31 @@ class Verifier:
             path = Path(rule.split(":", 1)[1].strip())
             return path.exists(), f"file exists={path.exists()}"
 
+        if rule.startswith("file_nonempty:"):
+            path = Path(rule.split(":", 1)[1].strip())
+            if not path.exists() or not path.is_file():
+                return False, f"file missing={path}"
+            try:
+                size = len(path.read_text(encoding="utf-8", errors="ignore"))
+            except Exception:
+                size = path.stat().st_size
+            return size > 0, f"file chars={size}"
+
+        if rule.startswith("file_min_chars:"):
+            try:
+                _, raw_path, raw_min = rule.split(":", 2)
+                path = Path(raw_path.strip())
+                min_chars = int(raw_min.strip())
+            except Exception:
+                return False, "invalid file_min_chars rule"
+            if not path.exists() or not path.is_file():
+                return False, f"file missing={path}"
+            try:
+                size = len(path.read_text(encoding="utf-8", errors="ignore"))
+            except Exception:
+                size = path.stat().st_size
+            return size >= min_chars, f"file chars={size}"
+
         if rule.startswith("dir_exists:"):
             path = Path(rule.split(":", 1)[1].strip())
             return (path.exists() and path.is_dir()), f"dir exists={path.exists() and path.is_dir()}"
@@ -1645,7 +1888,7 @@ class Verifier:
         if rule.startswith("output_contains:"):
             text = rule.split(":", 1)[1].strip().lower()
             if not text:
-                return bool(result.strip()), "non-empty output"
+                return bool(result.strip()) and (len(result.strip()) >= max(1, int(task.min_output_chars or 0))), "non-empty output"
             return text in result.lower(), f"output contains={text in result.lower()}"
 
         if rule == "shell_success":
@@ -1811,6 +2054,8 @@ class Executor:
         return run, None
 
     def _execute_with_retries(self, task: Task, run_id: str, goal: str) -> bool:
+        stagnant_write_attempts = 0
+        previous_size = self._file_size_hint(task)
         while task.retry_count < AgentConfig.MAX_RETRIES_PER_TASK:
             task.retry_count += 1
             self.audit.log(run_id, "task_attempt", task, {"attempt": task.retry_count})
@@ -1821,6 +2066,20 @@ class Executor:
                 task.result = ""
                 task.error = f"exception: {exc}"
                 self.audit.log(run_id, "task_exception", task, {"error": str(exc), "attempt": task.retry_count})
+
+            current_size = self._file_size_hint(task)
+            if task.tool_name == "write_file" and current_size is not None:
+                task.attempt_sizes.append(current_size)
+                if previous_size is not None and current_size <= previous_size:
+                    stagnant_write_attempts += 1
+                else:
+                    stagnant_write_attempts = 0
+                previous_size = current_size
+                if stagnant_write_attempts >= 2:
+                    task.error = f"file size did not increase after repeated write attempts for {task.tool_args.get('path', '')}"
+                    self.audit.log(run_id, "task_stagnant_write", task, {"attempt_sizes": task.attempt_sizes})
+                    self.world_state.record_action(goal, run_id, task.tool_name, task.tool_args, task.result, "failed", {"reason": task.error, "task_name": task.name})
+                    return False
 
             ok, reason = self.verifier.verify(task, task.result)
             if ok:
@@ -1840,6 +2099,23 @@ class Executor:
             self.audit.log(run_id, "task_correction", task, {"reason": reason, "suggested": correction})
             self.world_state.record_action(goal, run_id, task.tool_name, task.tool_args, task.result, "failed", {"reason": reason, "task_name": task.name})
         return False
+
+    def _file_size_hint(self, task: Task) -> Optional[int]:
+        if task.tool_name != "write_file":
+            return None
+        path = str(task.tool_args.get("path", "")).strip()
+        if not path:
+            return None
+        candidate = Path(path)
+        try:
+            if candidate.exists() and candidate.is_file():
+                try:
+                    return len(candidate.read_text(encoding="utf-8", errors="ignore"))
+                except Exception:
+                    return candidate.stat().st_size
+        except Exception:
+            return None
+        return None
 
     def _repair_invalid_tool_call(self, task: Task, error: str) -> Tuple[bool, str]:
         deterministic_args, notes = self.registry.repair_args(task.tool_name, task.tool_args)

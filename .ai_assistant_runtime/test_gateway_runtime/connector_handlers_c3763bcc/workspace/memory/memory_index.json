@@ -1,0 +1,12 @@
+[
+  {
+    "ts": "2026-04-29T18:51:10.411456",
+    "kind": "assistant",
+    "session_id": "1394f0fa3292",
+    "content": "done",
+    "metadata": {
+      "role": "assistant",
+      "route": "chat"
+    }
+  }
+]

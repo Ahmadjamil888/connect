@@ -8,7 +8,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 import requests
 
-from ai_assistant import AIModel, AdvancedTools
+from ai_assistant import AIModel, AdvancedTools, RequestRouter, UserDataStore
+from autonomous_agent import AutonomousAgent, AutonomousToolsWrapper, MemorySystem
 from gateway_runtime.auth import ClerkAuthManager
 from gateway_runtime.catalog import ToolCatalog
 from gateway_runtime.canvas_store import CanvasStore
@@ -50,6 +51,15 @@ class AgentRuntime:
         self.memory = MemoryStore(self.workspace.memory_dir)
         self.catalog = ToolCatalog()
         self.ai = ai_model or AIModel()
+        self.router = RequestRouter()
+        self.data_store = UserDataStore()
+        self.agent_memory = MemorySystem()
+        self.agent = AutonomousAgent(
+            ai_model=self.ai,
+            tools=AutonomousToolsWrapper(AdvancedTools, self.data_store, self.ai),
+            memory=self.agent_memory,
+            emit_callback=None,
+        )
         self.cron_path = self.workspace.cron_dir / "jobs.json"
         self.canvas = CanvasStore(self.workspace.canvas_dir / "state.json")
         self.nodes = NodePairingStore(self.workspace.nodes_dir / "nodes.json")
@@ -120,47 +130,41 @@ class AgentRuntime:
         self.sessions.append_message(session.id, "user", user_text)
         self.sessions.set_status(session.id, "running")
         self.memory.remember("user", session.id, user_text, {"role": "user"})
-        messages: List[Dict[str, Any]] = [{"role": "system", "content": self._agent_system_prompt()}]
-        messages.extend({"role": row["role"], "content": row["content"]} for row in self.sessions.history(session.id, limit=20))
-        allowed = self.allowed_tools_for_session(session.id)
-        tool_defs = self.catalog.definitions(allowed)
+        history = [
+            {"role": row["role"], "content": row["content"]}
+            for row in self.sessions.history(session.id, limit=20)
+            if row.get("role") in {"user", "assistant"}
+        ]
+        route = self.router.route(user_text, self.ai, history[-6:])
 
-        for _ in range(max_rounds):
-            response = self.ai.chat(messages, tools=tool_defs)
-            if response.get("error"):
-                self.sessions.set_status(session.id, "error")
-                return {"ok": False, "error": response["error"], "session_id": session.id}
-            message = response.get("choices", [{}])[0].get("message", {})
-            tool_calls = message.get("tool_calls") or []
-            if not tool_calls:
-                content = self._finalize_assistant_content(messages, message, on_chunk=on_chunk)
-                self.sessions.append_message(session.id, "assistant", content)
-                self.sessions.set_status(session.id, "idle")
-                self.memory.remember("assistant", session.id, content, {"role": "assistant"})
-                return {"ok": True, "session_id": session.id, "content": content}
+        try:
+            if route.mode == "tool":
+                result = self.execute_tool(session.id, route.tool_name, route.tool_args)
+                if not result.ok:
+                    self.sessions.set_status(session.id, "error")
+                    return {"ok": False, "error": str(result.output), "tool_name": route.tool_name, "session_id": session.id}
+                content = str(result.output)
+                self.memory.remember("tool", session.id, f"{route.tool_name}: {content}", {"tool_name": route.tool_name, "ok": True})
+            elif route.mode == "agent":
+                content = self.agent.execute_goal(user_text)
+            else:
+                messages: List[Dict[str, Any]] = [{"role": "system", "content": AIModel.SYSTEM_PROMPT}]
+                messages.extend(history[-10:])
+                content = self.ai.stream_chat(messages, on_chunk=on_chunk) if hasattr(self.ai, "stream_chat") else ""
+                if not content or not content.strip():
+                    response = self.ai.chat(messages)
+                    if response.get("error"):
+                        self.sessions.set_status(session.id, "error")
+                        return {"ok": False, "error": response["error"], "session_id": session.id}
+                    content = str(response.get("choices", [{}])[0].get("message", {}).get("content", "") or "").strip()
 
-            tool_call = tool_calls[0]
-            tool_name = tool_call.get("function", {}).get("name", "")
-            if tool_name not in allowed:
-                error = f"Tool not allowed for session profile: {tool_name}"
-                self.sessions.append_message(session.id, "assistant", error)
-                self.sessions.set_status(session.id, "blocked")
-                return {"ok": False, "error": error, "session_id": session.id}
-            raw_args = tool_call.get("function", {}).get("arguments", "{}")
-            try:
-                tool_args = json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
-            except Exception:
-                tool_args = {}
-            result = self.execute_tool(session.id, tool_name, tool_args)
-            messages.append({"role": "assistant", "content": message.get("content", "") or f"Calling tool: {tool_name}"})
-            messages.append({"role": "tool", "tool_call_id": tool_call.get("id", ""), "name": tool_name, "content": str(result.output)})
-            self.memory.remember("tool", session.id, f"{tool_name}: {result.output}", {"tool_name": tool_name, "ok": result.ok})
-            if not result.ok:
-                self.sessions.set_status(session.id, "error")
-                return {"ok": False, "error": str(result.output), "tool_name": tool_name, "session_id": session.id}
-
-        self.sessions.set_status(session.id, "idle")
-        return {"ok": False, "error": "Max tool rounds reached", "session_id": session.id}
+            self.sessions.append_message(session.id, "assistant", content)
+            self.sessions.set_status(session.id, "idle")
+            self.memory.remember("assistant", session.id, content, {"role": "assistant", "route": route.mode})
+            return {"ok": True, "session_id": session.id, "content": content, "mode": route.mode}
+        except Exception as exc:
+            self.sessions.set_status(session.id, "error")
+            return {"ok": False, "error": str(exc), "session_id": session.id, "mode": route.mode}
 
     def run_turn_stream(
         self,
@@ -378,12 +382,57 @@ class AgentRuntime:
             if not updated:
                 output.append(f"GITHUB_TOKEN={token}")
             env_path.write_text("\n".join(output).rstrip() + "\n", encoding="utf-8")
+            os.environ["GITHUB_TOKEN"] = token
             return {"ok": True, "kind": kind, "saved": True}
         else:
             raise RuntimeError(f"unsupported integration kind: {kind}")
 
         self.config.config_path.write_text(json.dumps(config_data, indent=2), encoding="utf-8")
+        self._refresh_integration_runtime(config_data)
         return {"ok": True, "kind": kind, "saved": True}
+
+    def _refresh_integration_runtime(self, config_data: Dict[str, Any]):
+        messaging = config_data.get("messaging", {}) if isinstance(config_data.get("messaging"), dict) else {}
+        self.config.telegram_bot_token = str(messaging.get("telegram_bot_token", "")).strip()
+        self.config.telegram_default_chat_id = str(messaging.get("telegram_default_chat_id", "")).strip()
+        self.config.discord_webhooks = {
+            str(key): str(value)
+            for key, value in (messaging.get("discord_webhooks", {}) or {}).items()
+            if str(key).strip() and str(value).strip()
+        }
+        self.config.slack_webhooks = {
+            str(key): str(value)
+            for key, value in (messaging.get("slack_webhooks", {}) or {}).items()
+            if str(key).strip() and str(value).strip()
+        }
+        self.config.slack_bot_token = str(messaging.get("slack_bot_token", "")).strip()
+        self.config.slack_signing_secret = str(messaging.get("slack_signing_secret", "")).strip()
+        self.config.whatsapp_account_sid = str(messaging.get("whatsapp_account_sid", "")).strip()
+        self.config.whatsapp_auth_token = str(messaging.get("whatsapp_auth_token", "")).strip()
+        self.config.whatsapp_from_number = str(messaging.get("whatsapp_from_number", "")).strip()
+        if self.telegram:
+            self.telegram.stop()
+        self.telegram = None
+        self.discord = DiscordWebhookConnector(self.config.discord_webhooks) if self.config.discord_webhooks else None
+        self.slack = SlackWebhookConnector(self.config.slack_webhooks) if self.config.slack_webhooks else None
+        self.slack_bot = (
+            SlackBotConnector(self.config.slack_bot_token, self.config.slack_signing_secret, self._handle_connector_message)
+            if self.config.slack_bot_token and self.config.slack_signing_secret
+            else None
+        )
+        self.whatsapp = (
+            WhatsAppTwilioConnector(
+                self.config.whatsapp_account_sid,
+                self.config.whatsapp_auth_token,
+                self.config.whatsapp_from_number,
+                self._handle_connector_message,
+            )
+            if self.config.whatsapp_account_sid and self.config.whatsapp_auth_token and self.config.whatsapp_from_number
+            else None
+        )
+        if self.config.telegram_bot_token:
+            self.telegram = TelegramConnector(self.config.telegram_bot_token, self._handle_connector_message)
+            self.telegram.start()
 
     def config_lookup(self, path: str) -> Any:
         schema = {

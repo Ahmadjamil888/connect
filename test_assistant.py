@@ -79,10 +79,34 @@ def test_agent_tool_surface():
     assert "synthesize_helper" in names
     assert "run_helper" in names
     assert "generate_workflow" in names
+    assert "list_windows" in names
+    assert "focus_window" in names
+    assert "deploy_website" in names
+    assert "trade_alpaca" in names
+    assert "transcribe_audio" in names
     assert "create_website" not in names
     assert "generate_content" not in names
-    assert "deploy_website" not in names
     print("   Primitive action surface: OK")
+    return True
+
+def test_shell_welcome_does_not_replay_intro():
+    """Test shell welcome renders once without replaying the intro animation."""
+    print("\n=== Testing Shell Welcome Render Path ===")
+    from ai_assistant import AdvancedAIPlatform
+
+    obj = AdvancedAIPlatform.__new__(AdvancedAIPlatform)
+    obj.console = None
+    obj.ai = type("AI", (), {"provider": "fake", "model_name": "demo"})()
+    obj.launch_profile = {"default_mode": "shell"}
+    calls = []
+    obj._play_reference_logo_intro = lambda: calls.append("intro")
+    obj._style = lambda text, code: text
+    obj._muted = lambda text: text
+    obj._reference_title_lines = lambda: ["CONNECT"]
+    obj._welcome_lines = lambda: ["Provider: fake (demo)"]
+    AdvancedAIPlatform._print_welcome(obj)
+    assert calls == []
+    print("   Shell welcome render: OK")
     return True
 
 def test_observe_environment():
@@ -726,6 +750,30 @@ def test_nextjs_repo_planning():
     print("   Next.js repo planning: OK")
     return True
 
+def test_website_planning_uses_locked_stages():
+    """Test website goals produce stage-locked plan/build/preview flow."""
+    print("\n=== Testing Stage-Locked Website Planning ===")
+    from autonomous_agent import Planner, MemorySystem, WorldStateStore
+
+    class StubAI:
+        def chat(self, messages, tools=None):
+            return {"choices": [{"message": {"content": "{\"stack\":[\"html\",\"css\"],\"files\":[\"index.html\"],\"sections\":[\"hero\"],\"styling\":[\"responsive\"],\"verification\":[\"file lengths\"]}"}}]}
+
+    planner = Planner(ai_model=StubAI(), memory=MemorySystem(), world_state=WorldStateStore())
+    tasks = planner._heuristic_plan(
+        "Build a marketing website for my startup",
+        ["observe_environment", "execute_python", "create_directory", "write_file", "browser_open", "browser_snapshot", "deploy_website"],
+    )
+    stages = [task.get("stage", "") for task in tasks]
+    assert "plan" in stages
+    assert "scaffold" in stages
+    assert "build" in stages
+    assert "preview" in stages
+    assert "deploy" in stages
+    assert any(task.get("requires_confirmation") for task in tasks if task.get("stage") in {"scaffold", "preview", "deploy"})
+    print("   Stage-locked website planning: OK")
+    return True
+
 def test_executor_repairs_invalid_tool_args():
     """Test that executor repairs invalid tool args before failing the task."""
     print("\n=== Testing Executor Validation Repair ===")
@@ -832,6 +880,43 @@ def test_executor_repairs_invalid_tool_args():
     print("   Executor validation repair: OK")
     return True
 
+def test_verifier_supports_file_min_chars():
+    """Test verifier enforces minimum file content length."""
+    print("\n=== Testing File Length Verification ===")
+    from autonomous_agent import Verifier, Task
+
+    target = Path("temp_min_chars_test.txt")
+    target.write_text("hello world", encoding="utf-8")
+    verifier = Verifier(ai_model=None)
+    task = Task(
+        id="verify_file",
+        name="Verify file",
+        description="",
+        tool_name="write_file",
+        tool_args={"path": str(target)},
+        verification=f"file_min_chars:{target}:10",
+    )
+    ok, reason = verifier.verify(task, "done")
+    assert ok, reason
+    target.unlink(missing_ok=True)
+    print("   File length verification: OK")
+    return True
+
+def test_safety_manager_confirms_external_actions():
+    """Test message/trading/deploy actions are treated as confirmation-required."""
+    print("\n=== Testing External Action Confirmation ===")
+    from autonomous_agent import SafetyManager, Task
+
+    safety = SafetyManager(confirm_callback=lambda task: True)
+    tasks = [
+        Task(id="m1", name="Send telegram", description="", tool_name="telegram_send_message", tool_args={"chat_id": "1", "content": "hi"}),
+        Task(id="m2", name="Trade stock", description="", tool_name="trade_alpaca", tool_args={"action": "order", "symbol": "AAPL", "qty": 1}),
+        Task(id="m3", name="Deploy site", description="", tool_name="deploy_website", tool_args={"directory": "project_site", "platform": "netlify"}),
+    ]
+    assert all(safety.needs_confirmation(task) for task in tasks)
+    print("   External action confirmation: OK")
+    return True
+
 def test_workflow_roundtrip():
     """Test saving and running a workflow."""
     print("\n=== Testing Workflow Roundtrip ===")
@@ -926,7 +1011,10 @@ def test_website_goal_generates_coherent_site():
         ["observe_environment", "create_directory", "write_file", "browser_open", "browser_snapshot"],
     )
     paths = [task.get("tool_args", {}).get("path", "") for task in tasks if task.get("tool_name") == "write_file"]
-    index_task = next(task for task in tasks if task.get("tool_args", {}).get("path") == "project_site/index.html")
+    index_task = next(
+        task for task in reversed(tasks)
+        if task.get("tool_args", {}).get("path") == "project_site/index.html" and task.get("stage") == "build"
+    )
     index_html = index_task["tool_args"]["content"]
     print(f"   Files planned: {paths}")
     assert "project_site/index.html" in paths

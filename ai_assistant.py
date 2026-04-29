@@ -1275,8 +1275,26 @@ class AdvancedTools:
         "web_scrape",
         "download_file",
         "install_package",
+        "deploy_website",
+        "get_system_info",
+        "manage_processes",
+        "file_operations",
+        "get_disk_usage",
+        "network_operations",
+        "registry_operations",
+        "schedule_task",
+        "control_media",
         "take_screenshot",
         "execute_python",
+        "list_windows",
+        "focus_window",
+        "gmail_send_email",
+        "telegram_send_message",
+        "whatsapp_web_send",
+        "trade_alpaca",
+        "trade_binance",
+        "transcribe_audio",
+        "speak_text",
     }
 
     @staticmethod
@@ -1754,6 +1772,144 @@ class AdvancedTools:
                             "y": {"type": "integer"}
                         },
                         "required": ["x", "y"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "list_windows",
+                    "description": "List visible desktop windows using pygetwindow when available",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {}
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "focus_window",
+                    "description": "Activate a desktop window by partial title match",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"}
+                        },
+                        "required": ["title"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "gmail_send_email",
+                    "description": "Send email through the Gmail API using configured OAuth credentials",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "to": {"type": "string"},
+                            "subject": {"type": "string"},
+                            "body": {"type": "string"}
+                        },
+                        "required": ["to", "subject", "body"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "telegram_send_message",
+                    "description": "Send a Telegram message using bot credentials",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "chat_id": {"type": "string"},
+                            "content": {"type": "string"},
+                            "bot_token": {"type": "string"}
+                        },
+                        "required": ["chat_id", "content"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "whatsapp_web_send",
+                    "description": "Send a WhatsApp Web message through a Playwright-controlled browser session",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "phone_number": {"type": "string"},
+                            "message": {"type": "string"}
+                        },
+                        "required": ["phone_number", "message"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "trade_alpaca",
+                    "description": "Check prices or place Alpaca paper/live stock orders",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "action": {"type": "string"},
+                            "symbol": {"type": "string"},
+                            "qty": {"type": "number"},
+                            "side": {"type": "string"},
+                            "paper": {"type": "boolean"}
+                        },
+                        "required": ["action", "symbol"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "trade_binance",
+                    "description": "Check crypto prices or place Binance orders through ccxt",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "action": {"type": "string"},
+                            "symbol": {"type": "string"},
+                            "amount": {"type": "number"},
+                            "side": {"type": "string"}
+                        },
+                        "required": ["action", "symbol"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "transcribe_audio",
+                    "description": "Transcribe local audio with offline Whisper",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string"},
+                            "model": {"type": "string"}
+                        },
+                        "required": ["path"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "speak_text",
+                    "description": "Speak text using pyttsx3 offline or ElevenLabs when configured",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "text": {"type": "string"},
+                            "voice": {"type": "string"},
+                            "output_path": {"type": "string"}
+                        },
+                        "required": ["text"]
                     }
                 }
             },
@@ -2365,6 +2521,35 @@ class AdvancedTools:
                 return AdvancedTools._fill_form_field(args["text"])
             elif name == "click_element":
                 return AdvancedTools._click_element(args["x"], args["y"])
+            elif name == "list_windows":
+                return AdvancedTools._list_windows()
+            elif name == "focus_window":
+                return AdvancedTools._focus_window(args["title"])
+            elif name == "gmail_send_email":
+                return AdvancedTools._gmail_send_email(args["to"], args["subject"], args["body"])
+            elif name == "telegram_send_message":
+                return AdvancedTools._telegram_send_message(args["chat_id"], args["content"], args.get("bot_token"))
+            elif name == "whatsapp_web_send":
+                return AdvancedTools._whatsapp_web_send(args["phone_number"], args["message"])
+            elif name == "trade_alpaca":
+                return AdvancedTools._trade_alpaca(
+                    args["action"],
+                    args["symbol"],
+                    args.get("qty"),
+                    args.get("side", "buy"),
+                    args.get("paper", True),
+                )
+            elif name == "trade_binance":
+                return AdvancedTools._trade_binance(
+                    args["action"],
+                    args["symbol"],
+                    args.get("amount"),
+                    args.get("side", "buy"),
+                )
+            elif name == "transcribe_audio":
+                return AdvancedTools._transcribe_audio(args["path"], args.get("model", "base"))
+            elif name == "speak_text":
+                return AdvancedTools._speak_text(args["text"], args.get("voice", "offline"), args.get("output_path"))
             elif name == "guide_account_setup":
                 return AdvancedTools._guide_account_setup(args["service"], args.get("step"))
             elif name == "request_otp":
@@ -3675,6 +3860,208 @@ if __name__ == "__main__":
             return click_at(x, y)
         except Exception as e:
             return f"Error: {e}"
+
+    @staticmethod
+    def _list_windows() -> str:
+        try:
+            import pygetwindow as gw
+
+            titles = [str(title).strip() for title in gw.getAllTitles() if str(title).strip()]
+            return "\n".join(titles[:50]) if titles else "No visible windows found"
+        except Exception as e:
+            return f"Error: {e}"
+
+    @staticmethod
+    def _focus_window(title: str) -> str:
+        try:
+            import pygetwindow as gw
+
+            query = str(title or "").strip().lower()
+            if not query:
+                return "Error: window title is required"
+            for window_title in gw.getAllTitles():
+                candidate = str(window_title).strip()
+                if candidate and query in candidate.lower():
+                    matches = gw.getWindowsWithTitle(candidate)
+                    if not matches:
+                        continue
+                    window = matches[0]
+                    try:
+                        if getattr(window, "isMinimized", False):
+                            window.restore()
+                    except Exception:
+                        pass
+                    window.activate()
+                    return f"Focused window: {candidate}"
+            return f"No window found matching: {title}"
+        except Exception as e:
+            return f"Error: {e}"
+
+    @staticmethod
+    def _gmail_send_email(to: str, subject: str, body: str) -> str:
+        try:
+            import base64
+            from email.mime.text import MIMEText
+            from google.oauth2.credentials import Credentials
+            from googleapiclient.discovery import build
+
+            token_path = os.getenv("GMAIL_TOKEN_FILE", "").strip()
+            if not token_path or not Path(token_path).exists():
+                return "Error: set GMAIL_TOKEN_FILE to a Gmail OAuth token JSON file."
+            creds = Credentials.from_authorized_user_file(token_path, ["https://www.googleapis.com/auth/gmail.send"])
+            service = build("gmail", "v1", credentials=creds)
+            message = MIMEText(body)
+            message["to"] = to
+            message["subject"] = subject
+            raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+            payload = service.users().messages().send(userId="me", body={"raw": raw}).execute()
+            return f"Gmail message sent: {payload.get('id', '')}"
+        except Exception as e:
+            return f"Gmail error: {e}"
+
+    @staticmethod
+    def _telegram_send_message(chat_id: str, content: str, bot_token: str = None) -> str:
+        try:
+            token = str(bot_token or os.getenv("TELEGRAM_BOT_TOKEN", "")).strip()
+            if not token:
+                return "Error: TELEGRAM_BOT_TOKEN is not configured."
+            response = requests.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": chat_id, "text": content},
+                timeout=20,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            return f"Telegram message sent: ok={payload.get('ok', False)}"
+        except Exception as e:
+            return f"Telegram error: {e}"
+
+    @staticmethod
+    def _whatsapp_web_send(phone_number: str, message: str) -> str:
+        try:
+            page = AdvancedTools._ensure_playwright(headless=False)
+            normalized = re.sub(r"\D+", "", phone_number or "")
+            if not normalized:
+                return "Error: invalid phone number"
+            encoded = requests.utils.quote(message)
+            page.goto(f"https://web.whatsapp.com/send?phone={normalized}&text={encoded}", wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_timeout(6000)
+            try:
+                page.locator("div[contenteditable='true']").last.press("Enter")
+            except Exception:
+                page.keyboard.press("Enter")
+            return f"WhatsApp Web message flow opened for {normalized}. Ensure WhatsApp Web is logged in."
+        except Exception as e:
+            return f"WhatsApp Web error: {e}"
+
+    @staticmethod
+    def _trade_alpaca(action: str, symbol: str, qty: Any = None, side: str = "buy", paper: bool = True) -> str:
+        try:
+            from alpaca.trading.client import TradingClient
+            from alpaca.trading.requests import MarketOrderRequest
+            from alpaca.trading.enums import OrderSide, TimeInForce
+            from alpaca.data.historical.stock import StockHistoricalDataClient
+            from alpaca.data.requests import StockLatestQuoteRequest
+
+            api_key = os.getenv("ALPACA_API_KEY", "").strip()
+            secret_key = os.getenv("ALPACA_SECRET_KEY", "").strip()
+            if not api_key or not secret_key:
+                return "Error: ALPACA_API_KEY and ALPACA_SECRET_KEY are required."
+            if action == "quote":
+                data_client = StockHistoricalDataClient(api_key, secret_key)
+                quote = data_client.get_stock_latest_quote(StockLatestQuoteRequest(symbol_or_symbols=symbol)).get(symbol)
+                if not quote:
+                    return f"No quote found for {symbol}"
+                return f"{symbol} bid={quote.bid_price} ask={quote.ask_price}"
+            trading = TradingClient(api_key, secret_key, paper=bool(paper))
+            if action == "position":
+                position = trading.get_open_position(symbol)
+                return f"{symbol} qty={position.qty} market_value={position.market_value}"
+            if action == "order":
+                if qty is None:
+                    return "Error: qty is required for Alpaca orders."
+                order = trading.submit_order(
+                    order_data=MarketOrderRequest(
+                        symbol=symbol,
+                        qty=float(qty),
+                        side=OrderSide.BUY if str(side).lower() == "buy" else OrderSide.SELL,
+                        time_in_force=TimeInForce.DAY,
+                    )
+                )
+                return f"Alpaca order submitted: id={order.id} symbol={order.symbol} side={order.side}"
+            return "Error: supported Alpaca actions are quote, position, order"
+        except Exception as e:
+            return f"Alpaca error: {e}"
+
+    @staticmethod
+    def _trade_binance(action: str, symbol: str, amount: Any = None, side: str = "buy") -> str:
+        try:
+            import ccxt
+
+            exchange = ccxt.binance(
+                {
+                    "apiKey": os.getenv("BINANCE_API_KEY", "").strip(),
+                    "secret": os.getenv("BINANCE_SECRET_KEY", "").strip(),
+                    "enableRateLimit": True,
+                }
+            )
+            if action == "ticker":
+                ticker = exchange.fetch_ticker(symbol)
+                return f"{symbol} last={ticker.get('last')} bid={ticker.get('bid')} ask={ticker.get('ask')}"
+            if action == "balance":
+                balance = exchange.fetch_balance()
+                asset = symbol.split("/")[0]
+                total = (balance.get("total") or {}).get(asset)
+                return f"{asset} balance={total}"
+            if action == "order":
+                if amount is None:
+                    return "Error: amount is required for Binance orders."
+                order = exchange.create_order(symbol, "market", str(side).lower(), float(amount))
+                return json.dumps(order, indent=2, ensure_ascii=True)[:1200]
+            return "Error: supported Binance actions are ticker, balance, order"
+        except Exception as e:
+            return f"Binance error: {e}"
+
+    @staticmethod
+    def _transcribe_audio(path: str, model: str = "base") -> str:
+        try:
+            import whisper
+
+            audio_path = Path(path)
+            if not audio_path.exists():
+                return f"Error: audio file not found: {path}"
+            whisper_model = whisper.load_model(model)
+            result = whisper_model.transcribe(str(audio_path))
+            return str(result.get("text", "")).strip() or "(empty transcription)"
+        except Exception as e:
+            return f"Whisper error: {e}"
+
+    @staticmethod
+    def _speak_text(text: str, voice: str = "offline", output_path: str = None) -> str:
+        try:
+            if str(voice).lower() == "elevenlabs":
+                api_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
+                voice_id = os.getenv("ELEVENLABS_VOICE_ID", "").strip()
+                if not api_key or not voice_id:
+                    return "Error: ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID are required."
+                response = requests.post(
+                    f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+                    headers={"xi-api-key": api_key, "Content-Type": "application/json"},
+                    json={"text": text, "model_id": "eleven_multilingual_v2"},
+                    timeout=60,
+                )
+                response.raise_for_status()
+                target = Path(output_path or "elevenlabs_output.mp3")
+                target.write_bytes(response.content)
+                return f"Saved ElevenLabs audio to {target}"
+            import pyttsx3
+
+            engine = pyttsx3.init()
+            engine.say(text)
+            engine.runAndWait()
+            return "Spoken with offline TTS"
+        except Exception as e:
+            return f"TTS error: {e}"
 
     @staticmethod
     def _guide_account_setup(service: str, step: str = None) -> str:
@@ -5043,7 +5430,6 @@ class AdvancedAIPlatform:
         return streamed
 
     def _print_welcome(self):
-        self._play_reference_logo_intro()
         if self.console and Panel and Text:
             self._print_welcome_rich(
                 f"{Config.APP_NAME} | {Config.APP_TAGLINE}",
@@ -5338,42 +5724,7 @@ class AdvancedAIPlatform:
         return self._reference_title_frames()[-1]
 
     def _play_reference_logo_intro(self):
-        if not sys.stdout.isatty():
-            return
-        frames = self._reference_title_frames()
-        if self.console and Panel and Text:
-            for frame in frames:
-                self.console.clear()
-                title_text = Text("\u25a3 Welcome to CONNECT shell\n\n", style="bold #f5d6c7")
-                title_text.append("\n".join(frame), style="bold #f08a61")
-                body_text = Text("\n".join(self._welcome_lines()), style="#d8c0b3")
-                content = Text()
-                content.append_text(title_text)
-                content.append("\n\n")
-                content.append_text(Text("Operator Console", style="bold #ffd8c4"))
-                content.append("\n")
-                content.append_text(body_text)
-                self.console.print(
-                    Panel(
-                        content,
-                        border_style="#7d4b38",
-                        box=box.SQUARE if box else None,
-                        padding=(1, 2),
-                        style="on #14100e",
-                        title="CONNECT",
-                        title_align="left",
-                    )
-                )
-                time.sleep(0.08)
-            return
-        for frame in frames:
-            print("\033[2J\033[H", end="")
-            print(self._style("Welcome to CONNECT shell", "38;5;217"))
-            print("")
-            for line in frame:
-                print(self._style(line, "38;5;216"))
-            print("")
-            time.sleep(0.08)
+        return
 
     def _welcome_lines(self) -> List[str]:
         provider = self.ai.provider or "none"

@@ -1,0 +1,22 @@
+{
+  "id": "1394f0fa3292",
+  "name": "slack_C123",
+  "created_at": "2026-04-29T18:51:10.316285",
+  "updated_at": "2026-04-29T18:51:10.409566",
+  "status": "idle",
+  "profile": "messaging",
+  "parent_id": "",
+  "target": "slack:C123",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hello slack",
+      "ts": "2026-04-29T18:51:10.347278"
+    },
+    {
+      "role": "assistant",
+      "content": "done",
+      "ts": "2026-04-29T18:51:10.395517"
+    }
+  ]
+}
