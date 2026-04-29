@@ -5043,6 +5043,7 @@ class AdvancedAIPlatform:
         return streamed
 
     def _print_welcome(self):
+        self._play_reference_logo_intro()
         if self.console and Panel and Text:
             self._print_welcome_rich(
                 f"{Config.APP_NAME} | {Config.APP_TAGLINE}",
@@ -5285,18 +5286,94 @@ class AdvancedAIPlatform:
         except Exception as exc:
             return json.dumps({"ok": False, "error": str(exc)}, indent=2)
 
-    def _reference_title_lines(self) -> List[str]:
+    def _reference_title_frames(self) -> List[List[str]]:
         return [
-            "        o                 o        ",
-            "     o--'-.           .-'--o     ",
-            "   o'      '--.   .--'      'o   ",
-            "              '--∞--'            ",
-            "   o.      .--'   '--.      .o   ",
-            "     o--.-'           '-.--o     ",
-            "        o                 o        ",
-            "",
-            "              CONNECT              ",
+            [
+                "        o                 o        ",
+                "     o--'-.           .-'--o     ",
+                "   o'      '--.   .--'      'o   ",
+                "              '--\u221e--'            ",
+                "   o.      .--'   '--.      .o   ",
+                "     o--.-'           '-.--o     ",
+                "        o                 o        ",
+                "",
+                "              CONNECT              ",
+            ],
+            [
+                "         .o               o.       ",
+                "     .--'  o.         .o  '--.    ",
+                "   .'        '--. .--'        '.  ",
+                "              '--\u221e--'            ",
+                "   '.        .--' '--.        .'  ",
+                "     '--.  o'         'o  .--'    ",
+                "        o'               'o       ",
+                "",
+                "              CONNECT              ",
+            ],
+            [
+                "          .o             o.        ",
+                "      .--'  '--.     .--'  '--.   ",
+                "    .'          '---'          '. ",
+                "              '--\u221e--'            ",
+                "    '.          .---.          .' ",
+                "      '--.  .--'     '--.  .--'   ",
+                "          'o             o'       ",
+                "",
+                "              CONNECT              ",
+            ],
+            [
+                "         o                 o       ",
+                "      o-'--.           .--'-o     ",
+                "    o'      '--.   .--'      'o   ",
+                "              '--\u221e--'            ",
+                "    o.      .--'   '--.      .o   ",
+                "      o--.-'           '-.--o     ",
+                "         o                 o       ",
+                "",
+                "              CONNECT              ",
+            ],
         ]
+
+    def _reference_title_lines(self) -> List[str]:
+        return self._reference_title_frames()[-1]
+
+    def _play_reference_logo_intro(self):
+        if not sys.stdout.isatty():
+            return
+        frames = self._reference_title_frames()
+        if self.console and Panel and Text:
+            for frame in frames:
+                self.console.clear()
+                title_text = Text("\u25a3 Welcome to CONNECT shell\n\n", style="bold #f5d6c7")
+                title_text.append("\n".join(frame), style="bold #f08a61")
+                body_text = Text("\n".join(self._welcome_lines()), style="#d8c0b3")
+                content = Text()
+                content.append_text(title_text)
+                content.append("\n\n")
+                content.append_text(Text("Operator Console", style="bold #ffd8c4"))
+                content.append("\n")
+                content.append_text(body_text)
+                self.console.print(
+                    Panel(
+                        content,
+                        border_style="#7d4b38",
+                        box=box.SQUARE if box else None,
+                        padding=(1, 2),
+                        style="on #14100e",
+                        title="CONNECT",
+                        title_align="left",
+                    )
+                )
+                time.sleep(0.08)
+            return
+        for frame in frames:
+            print("\033[2J\033[H", end="")
+            print(self._style("Welcome to CONNECT shell", "38;5;217"))
+            print("")
+            for line in frame:
+                print(self._style(line, "38;5;216"))
+            print("")
+            time.sleep(0.08)
 
     def _welcome_lines(self) -> List[str]:
         provider = self.ai.provider or "none"
