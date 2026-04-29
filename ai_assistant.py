@@ -4631,11 +4631,15 @@ class AdvancedAIPlatform:
 
     def _reference_title_lines(self) -> List[str]:
         return [
-            "   C----o====A",
-            "        \\",
-            "         o",
+            "        o                 o        ",
+            "     o--'-.           .-'--o     ",
+            "   o'      '--.   .--'      'o   ",
+            "              '--∞--'            ",
+            "   o.      .--'   '--.      .o   ",
+            "     o--.-'           '-.--o     ",
+            "        o                 o        ",
             "",
-            "      CONNECT",
+            "              CONNECT              ",
         ]
         return [
             " ██████╗ ██████╗ ███╗   ██╗███╗   ██╗███████╗ ██████╗████████╗",
@@ -4656,18 +4660,18 @@ class AdvancedAIPlatform:
         provider = self.ai.provider or "none"
         model = self.ai.model_name or "unavailable"
         return [
-            "CONNECT is ready with your configured model provider.",
+            "CONNECT shell is ready with your configured model provider.",
             "",
-            "Select login method:",
-            f"  1. Active provider: {provider} ({model})",
-            "  2. Use /provider [name] or /llm [name] to switch",
+            f"Active provider: {provider} ({model})",
+            "Switch anytime with /provider [name] or /llm [name].",
             "",
-            "Use /help for help.",
+            "Use /help to inspect commands and workflows.",
         ]
 
     def _print_welcome_rich(self, title: str, subtitle: str, feature_lines: List[str]):
-        title_text = Text("\n".join(self._reference_title_lines()), style="bold #f3f3f3")
-        body_text = Text("\n".join(self._welcome_lines()), style="#d2d2d2")
+        title_text = Text("▣ Welcome to CONNECT shell\n\n", style="bold #f5d6c7")
+        title_text.append("\n".join(self._reference_title_lines()), style="bold #f08a61")
+        body_text = Text("\n".join(self._welcome_lines()), style="#d8c0b3")
         content = Text()
         content.append_text(title_text)
         content.append("\n\n")
@@ -4675,10 +4679,10 @@ class AdvancedAIPlatform:
         self.console.print(
             Panel(
                 content,
-                border_style="#d0d0d0",
+                border_style="#7d4b38",
                 box=box.SQUARE if box else None,
                 padding=(1, 2),
-                style="on #0f0f0f",
+                style="on #14100e",
                 title="CONNECT",
                 title_align="left",
             )
@@ -5052,10 +5056,10 @@ class AdvancedAIPlatform:
             )
             return
         print("")
-        print(self._muted("Welcome to CONNECT"))
+        print(self._style("Welcome to CONNECT shell", "38;5;217"))
         print("")
         for line in self._reference_title_lines():
-            print(self._style(line, "38;5;111"))
+            print(self._style(line, "38;5;216"))
         print("")
         for line in self._welcome_lines():
             print(self._muted(line))
@@ -5283,11 +5287,15 @@ class AdvancedAIPlatform:
 
     def _reference_title_lines(self) -> List[str]:
         return [
-            "   C----o====A",
-            "        \\",
-            "         o",
+            "        o                 o        ",
+            "     o--'-.           .-'--o     ",
+            "   o'      '--.   .--'      'o   ",
+            "              '--∞--'            ",
+            "   o.      .--'   '--.      .o   ",
+            "     o--.-'           '-.--o     ",
+            "        o                 o        ",
             "",
-            "      CONNECT",
+            "              CONNECT              ",
         ]
 
     def _welcome_lines(self) -> List[str]:
@@ -5301,21 +5309,22 @@ class AdvancedAIPlatform:
         ]
 
     def _print_welcome_rich(self, title: str, subtitle: str, feature_lines: List[str]):
-        title_text = Text("\n".join(self._reference_title_lines()), style="bold #f3f3f3")
-        body_text = Text("\n".join(self._welcome_lines()), style="#d2d2d2")
+        title_text = Text("▣ Welcome to CONNECT shell\n\n", style="bold #f5d6c7")
+        title_text.append("\n".join(self._reference_title_lines()), style="bold #f08a61")
+        body_text = Text("\n".join(self._welcome_lines()), style="#d8c0b3")
         content = Text()
         content.append_text(title_text)
         content.append("\n\n")
-        content.append_text(Text("Operator Console", style="bold #ffffff"))
+        content.append_text(Text("Operator Console", style="bold #ffd8c4"))
         content.append("\n")
         content.append_text(body_text)
         self.console.print(
             Panel(
                 content,
-                border_style="#d0d0d0",
+                border_style="#7d4b38",
                 box=box.SQUARE if box else None,
                 padding=(1, 2),
-                style="on #0f0f0f",
+                style="on #14100e",
                 title="CONNECT",
                 title_align="left",
             )

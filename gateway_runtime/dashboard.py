@@ -24,19 +24,20 @@ def render_dashboard_html() -> str:
 --bg2:#0b0b0b;
 --bg3:#111111;
 --bg4:#181818;
+--bg5:#1f1612;
 --border:#ffffff12;
---border2:#ffffff20;
+--border2:#ffffff24;
 --text:#f1f1f1;
---text2:#b2b2b2;
---text3:#6f6f6f;
---accent:#ffffff;
---accent2:#d9d9d9;
---accent3:#f4f4f4;
---green:#f4f4f4;
---amber:#f59e0b;
---red:#ef4444;
---blue:#d2d2d2;
---pink:#bdbdbd;
+--text2:#d0c7c2;
+--text3:#8b7f78;
+--accent:#f08a61;
+--accent2:#ffb48e;
+--accent3:#ffd8c4;
+--green:#8fe26a;
+--amber:#f4b44e;
+--red:#ef6b6b;
+--blue:#99b7ff;
+--pink:#f2b8d2;
 --font-head:'Syne',sans-serif;
 --font-body:'DM Sans',sans-serif;
 --font-mono:'DM Mono',monospace;
@@ -44,19 +45,19 @@ def render_dashboard_html() -> str:
 --rad:12px;
 --rad2:18px;
 }
-body{background:radial-gradient(circle at top left,rgba(255,255,255,.05),transparent 24%),radial-gradient(circle at top right,rgba(190,190,190,.04),transparent 20%),var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;display:flex;height:100vh;overflow:hidden}
+body{background:radial-gradient(circle at top left,rgba(240,138,97,.12),transparent 24%),radial-gradient(circle at top right,rgba(255,180,142,.08),transparent 20%),var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;display:flex;height:100vh;overflow:hidden}
 button,input,select,textarea{font:inherit}
 button{cursor:pointer}
 .sidebar{width:var(--sidebar);min-width:var(--sidebar);background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:10;transition:transform .25s ease}
-.sidebar-logo{padding:20px 18px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
-.logo-mark{width:108px;height:auto;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.logo-mark svg{width:108px;height:auto;display:block}
+.sidebar-logo{padding:20px 18px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)}
+.logo-mark{min-width:104px;height:52px;padding:0 14px;border-radius:16px;background:linear-gradient(180deg,rgba(240,138,97,.16),rgba(240,138,97,.04));border:1px solid rgba(240,138,97,.22);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo-mark svg{width:76px;height:auto;display:block}
 .logo-text{font-family:"Helvetica World","Helvetica Neue",Helvetica,Arial,sans-serif;font-size:17px;font-weight:700;color:var(--text);letter-spacing:-0.3px}
-.logo-badge{font-size:9px;background:#ffffff0a;color:var(--text2);padding:2px 6px;border-radius:12px;font-family:var(--font-mono);border:1px solid var(--border2)}
+.logo-badge{font-size:9px;background:rgba(240,138,97,.08);color:var(--accent3);padding:2px 6px;border-radius:12px;font-family:var(--font-mono);border:1px solid rgba(240,138,97,.18)}
 .sidebar-section{padding:10px 10px 4px;font-size:10px;font-weight:600;letter-spacing:1.2px;color:var(--text3);text-transform:uppercase;font-family:var(--font-head)}
 .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--rad);margin:1px 8px;cursor:pointer;color:var(--text2);font-size:13.5px;font-weight:400;transition:all .15s;position:relative}
 .nav-item:hover{background:var(--bg3);color:var(--text)}
-.nav-item.active{background:linear-gradient(90deg,#ffffff10,#ffffff05);color:var(--text);border-left:2px solid var(--accent)}
+.nav-item.active{background:linear-gradient(90deg,rgba(240,138,97,.16),rgba(240,138,97,.04));color:var(--text);border-left:2px solid var(--accent)}
 .nav-item.active .nav-icon{color:var(--accent)}
 .nav-icon{width:16px;height:16px;flex-shrink:0;opacity:.8;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-family:var(--font-mono)}
 .nav-badge{margin-left:auto;background:var(--accent);color:#050505;font-size:10px;padding:1px 6px;border-radius:12px;font-family:var(--font-mono)}
@@ -71,7 +72,7 @@ button{cursor:pointer}
 .user-name{font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .user-plan{font-size:11px;color:var(--text3)}
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
-.topbar{height:52px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;background:var(--bg);flex-shrink:0}
+.topbar{min-height:60px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:12px 20px;gap:12px;background:rgba(5,5,5,.92);flex-shrink:0;position:sticky;top:0;z-index:4}
 .topbar-title{font-family:var(--font-head);font-size:16px;font-weight:600;color:var(--text)}
 .topbar-sub{font-size:13px;color:var(--text3);margin-left:2px}
 .topbar-spacer{flex:1}
@@ -151,6 +152,12 @@ button{cursor:pointer}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.hero-panel{padding:24px}
+.hero-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;gap:12px;flex-wrap:wrap}
+.hero-status{display:flex;align-items:center;gap:8px;background:var(--bg3);padding:8px 14px;border-radius:var(--rad);border:1px solid var(--border)}
+.stat-card{background:linear-gradient(180deg,rgba(240,138,97,.08),rgba(255,255,255,.02));}
+.table-wrap{overflow-x:auto}
+.stack-list{display:grid;gap:10px}
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rad2);padding:18px;transition:border-color .15s}
 .card:hover{border-color:var(--border2)}
 .card-sm{padding:14px}
@@ -161,11 +168,11 @@ button{cursor:pointer}
 .trend-up{color:var(--green)}
 .trend-down{color:var(--red)}
 .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500}
-.badge-green{background:#ffffff14;color:var(--green);border:1px solid #ffffff24}
+.badge-green{background:rgba(143,226,106,.12);color:var(--green);border:1px solid rgba(143,226,106,.26)}
 .badge-amber{background:#f59e0b18;color:var(--amber);border:1px solid #f59e0b30}
 .badge-red{background:#ef444418;color:var(--red);border:1px solid #ef444430}
 .badge-blue{background:#3b82f618;color:var(--blue);border:1px solid #3b82f630}
-.badge-purple{background:#ffffff10;color:var(--accent3);border:1px solid #ffffff20}
+.badge-purple{background:rgba(240,138,97,.10);color:var(--accent3);border:1px solid rgba(240,138,97,.20)}
 .badge-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
 .model-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rad2);padding:16px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
 .model-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));opacity:0;transition:opacity .2s}
@@ -227,7 +234,7 @@ select.input{cursor:pointer}
 .tab.active{background:var(--bg2);color:var(--text);border:1px solid var(--border)}
 .sec-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px}
 .sec-title{font-family:var(--font-head);font-size:15px;font-weight:600;color:var(--text)}
-.notif{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:var(--rad);border:1px solid var(--border);background:var(--bg2);margin-bottom:8px}
+.notif{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--rad);border:1px solid var(--border);background:var(--bg2)}
 .notif-icon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;font-family:var(--font-mono)}
 .modal-overlay{display:none;position:fixed;inset:0;background:#00000080;z-index:100;align-items:center;justify-content:center}
 .modal-overlay.open{display:flex}
@@ -238,7 +245,7 @@ select.input{cursor:pointer}
 .btn{padding:8px 16px;border-radius:8px;font-size:13.5px;font-family:var(--font-body);cursor:pointer;border:1px solid var(--border2);transition:all .15s;font-weight:500}
 .btn-ghost{background:transparent;color:var(--text2)}
 .btn-ghost:hover{background:var(--bg3);color:var(--text)}
-.btn-primary{background:var(--accent);border-color:var(--accent);color:white}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#050505}
 .btn-primary:hover{background:var(--accent2)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .pulse{animation:pulse 2s infinite}
@@ -260,6 +267,8 @@ select.input{cursor:pointer}
   .view{padding:14px}
   .grid-4,.grid-3,.grid-2{grid-template-columns:1fr}
   .cmd-hint{display:none}
+  .hero-panel{padding:16px}
+  .hero-panel-header{align-items:flex-start}
 }
 </style>
 </head>
@@ -268,20 +277,49 @@ select.input{cursor:pointer}
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
     <div class="logo-mark">
-      <svg viewBox="0 0 420 140" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path d="M120 28H214L194 60H126C101 60 81 81 81 106C81 131 101 152 126 152H214L194 184H120C78 184 44 150 44 108C44 66 78 28 120 28Z" fill="url(#dashLogo)" transform="translate(0 -22) scale(1 0.86)"/>
-        <path d="M216 121L261 68H291L277 91H295L305 75H337L309 121H278L291 99H274L260 121H216Z" fill="url(#dashLogo)"/>
-        <path d="M281 121L339 28H373L420 121H385L355 61L322 121H281Z" fill="url(#dashLogo)"/>
-        <path d="M86 96L248 35" stroke="url(#dashLogo)" stroke-width="12" stroke-linecap="round"/>
-        <path d="M193 69L238 101" stroke="url(#dashLogo)" stroke-width="12" stroke-linecap="round"/>
-        <circle cx="84" cy="96" r="17" fill="url(#dashLogo)"/>
-        <circle cx="192" cy="69" r="17" fill="url(#dashLogo)"/>
-        <circle cx="249" cy="36" r="17" fill="url(#dashLogo)"/>
-        <defs><linearGradient id="dashLogo" x1="36" y1="16" x2="387" y2="138" gradientUnits="userSpaceOnUse"><stop stop-color="#F7F7F7"/><stop offset="0.5" stop-color="#FFFFFF"/><stop offset="1" stop-color="#D8D8D8"/></linearGradient></defs>
+      <svg viewBox="0 0 240 120" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+        <g filter="url(#dashGlow)">
+          <path d="M38 60C53 24 83 24 101 60C119 96 149 96 164 60C149 24 119 24 101 60C83 96 53 96 38 60Z" stroke="url(#dashCore)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M24 60C24 37 40 18 64 18C80 18 94 26 102 39" stroke="url(#dashOrbitLeft)" stroke-width="2.75" stroke-linecap="round"/>
+          <path d="M24 60C24 83 40 102 64 102C80 102 94 94 102 81" stroke="url(#dashOrbitLeft)" stroke-width="2.75" stroke-linecap="round"/>
+          <path d="M138 39C146 26 160 18 176 18C200 18 216 37 216 60" stroke="url(#dashOrbitRight)" stroke-width="2.75" stroke-linecap="round"/>
+          <path d="M138 81C146 94 160 102 176 102C200 102 216 83 216 60" stroke="url(#dashOrbitRight)" stroke-width="2.75" stroke-linecap="round"/>
+          <circle cx="24" cy="60" r="4" fill="#FFFFFF"/>
+          <circle cx="63" cy="18" r="4.8" fill="#FFFFFF"/>
+          <circle cx="63" cy="102" r="4.8" fill="#FFFFFF"/>
+          <circle cx="216" cy="60" r="4" fill="#FFFFFF"/>
+          <circle cx="177" cy="18" r="4.8" fill="#FFFFFF"/>
+          <circle cx="177" cy="102" r="4.8" fill="#FFFFFF"/>
+          <circle cx="120" cy="60" r="4.4" fill="#FFFFFF"/>
+        </g>
+        <defs>
+          <filter id="dashGlow" x="0" y="0" width="240" height="120" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+            <feGaussianBlur stdDeviation="1.8" result="blur"/>
+            <feMerge>
+              <feMergeNode in="blur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+          <linearGradient id="dashCore" x1="38" y1="60" x2="164" y2="60" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#FFFFFF"/>
+            <stop offset="0.55" stop-color="#FFF8F4"/>
+            <stop offset="1" stop-color="#FFFFFF"/>
+          </linearGradient>
+          <linearGradient id="dashOrbitLeft" x1="24" y1="18" x2="102" y2="102" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#FFFFFF"/>
+            <stop offset="1" stop-color="#DADADA"/>
+          </linearGradient>
+          <linearGradient id="dashOrbitRight" x1="138" y1="18" x2="216" y2="102" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#FFFFFF"/>
+            <stop offset="1" stop-color="#DADADA"/>
+          </linearGradient>
+        </defs>
       </svg>
     </div>
-    <span class="logo-text">CONNECT</span>
-    <span class="logo-badge">shell + dashboard</span>
+    <div>
+      <div class="logo-text">CONNECT</div>
+      <span class="logo-badge">shell + dashboard</span>
+    </div>
   </div>
   <div style="flex:1;overflow-y:auto;padding:8px 0">
     <div class="sidebar-section">Main</div>
@@ -314,29 +352,29 @@ select.input{cursor:pointer}
     <div class="topbar">
       <button class="tb-btn" id="sidebar-toggle">Menu</button>
       <span class="topbar-title">CONNECT</span>
-      <span class="topbar-sub">Overview</span>
+      <span class="topbar-sub">Operator dashboard</span>
       <div class="topbar-spacer"></div>
       <div class="cmd-hint"><span class="kbd">Ctrl</span><span class="kbd">K</span><span style="margin-left:2px">Command</span></div>
       <button class="tb-btn" id="goto-chat-btn">New Chat</button>
       <button class="tb-btn primary" id="goto-models-btn">Models</button>
     </div>
     <div class="content">
-      <div style="padding:24px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;gap:12px;flex-wrap:wrap">
+      <div class="hero-panel">
+        <div class="hero-panel-header">
           <div>
             <div style="font-family:var(--font-head);font-size:22px;font-weight:700;color:var(--text);letter-spacing:-0.5px" id="welcome-title">CONNECT is ready</div>
             <div style="font-size:14px;color:var(--text3);margin-top:3px" id="welcome-sub">Your runtime is live and ready for operator input.</div>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;background:var(--bg3);padding:8px 14px;border-radius:var(--rad);border:1px solid var(--border)">
+          <div class="hero-status">
             <div class="status-dot" id="system-status-dot"></div>
             <span style="font-size:13px;color:var(--text2)" id="system-status-text">Loading runtime</span>
           </div>
         </div>
         <div class="grid-4" style="margin-bottom:20px">
-          <div class="card card-sm"><div class="card-sub">Sessions</div><div class="stat-num" id="dash-stat-sessions">0</div><div class="stat-trend trend-up" id="dash-stat-sessions-sub">Real session threads</div></div>
-          <div class="card card-sm"><div class="card-sub">Memory Entries</div><div class="stat-num" id="dash-stat-memory">0</div><div class="stat-trend trend-up" id="dash-stat-memory-sub">Runtime memory records</div></div>
-          <div class="card card-sm"><div class="card-sub">Live Services</div><div class="stat-num" id="dash-stat-services">0</div><div class="stat-trend trend-up" id="dash-stat-services-sub">Gateway and dashboard state</div></div>
-          <div class="card card-sm"><div class="card-sub">Active Workflows</div><div class="stat-num" id="dash-stat-workflows">0</div><div class="stat-trend" style="color:var(--text3)" id="dash-stat-workflows-sub">Runnable workflow files</div></div>
+          <div class="card card-sm stat-card"><div class="card-sub">Sessions</div><div class="stat-num" id="dash-stat-sessions">0</div><div class="stat-trend trend-up" id="dash-stat-sessions-sub">Real session threads</div></div>
+          <div class="card card-sm stat-card"><div class="card-sub">Memory Entries</div><div class="stat-num" id="dash-stat-memory">0</div><div class="stat-trend trend-up" id="dash-stat-memory-sub">Runtime memory records</div></div>
+          <div class="card card-sm stat-card"><div class="card-sub">Live Services</div><div class="stat-num" id="dash-stat-services">0</div><div class="stat-trend trend-up" id="dash-stat-services-sub">Gateway and dashboard state</div></div>
+          <div class="card card-sm stat-card"><div class="card-sub">Active Workflows</div><div class="stat-num" id="dash-stat-workflows">0</div><div class="stat-trend" style="color:var(--text3)" id="dash-stat-workflows-sub">Runnable workflow files</div></div>
         </div>
         <div class="grid-2" style="margin-bottom:20px">
           <div class="card">
@@ -344,17 +382,19 @@ select.input{cursor:pointer}
               <div class="sec-title">Active Models</div>
               <button class="tb-btn" style="padding:4px 10px;font-size:12px" data-open-view="models">View all</button>
             </div>
-            <table class="data-table">
-              <thead><tr><th>Model</th><th>Status</th><th>Provider</th></tr></thead>
-              <tbody id="dashboard-model-table"></tbody>
-            </table>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead><tr><th>Model</th><th>Status</th><th>Provider</th></tr></thead>
+                <tbody id="dashboard-model-table"></tbody>
+              </table>
+            </div>
           </div>
           <div class="card">
             <div class="sec-header">
               <div class="sec-title">Recent Activity</div>
               <span class="badge badge-purple">Live</span>
             </div>
-            <div id="dashboard-activity-list"></div>
+            <div id="dashboard-activity-list" class="stack-list"></div>
           </div>
         </div>
         <div class="grid-2">
@@ -431,7 +471,7 @@ select.input{cursor:pointer}
       <button class="tb-btn primary" id="open-model-modal-btn">+ Add Model</button>
     </div>
     <div class="content">
-      <div style="padding:24px">
+        <div class="hero-panel">
         <div style="margin-bottom:18px">
           <div class="tabs">
             <div class="tab active">All Models</div>
@@ -452,7 +492,7 @@ select.input{cursor:pointer}
       <button class="tb-btn primary" data-open-view="settings">Configure</button>
     </div>
     <div class="content">
-      <div style="padding:24px">
+        <div class="hero-panel">
         <div class="page-header">
           <div class="page-sub">Connect runtime messaging, repository, and delivery services to CONNECT.</div>
         </div>
@@ -486,14 +526,14 @@ select.input{cursor:pointer}
       <button class="tb-btn" id="open-node-client-btn">Node client</button>
     </div>
     <div class="content">
-      <div style="padding:24px">
-        <div class="page-sub" style="margin-bottom:20px;color:var(--text3)">Local runtime visibility comes from the current CONNECT provider state, node pairing, and workspace services.</div>
-        <div class="grid-4" style="margin-bottom:22px">
-          <div class="card card-sm"><div class="card-sub">Selected Provider</div><div class="stat-num" style="font-size:20px" id="local-selected-provider">-</div><div class="progress-bar"><div class="progress-fill" id="local-provider-fill" style="width:0%"></div></div></div>
-          <div class="card card-sm"><div class="card-sub">Node Count</div><div class="stat-num" style="font-size:20px" id="local-node-count">0</div><div class="progress-bar"><div class="progress-fill" style="width:40%;background:linear-gradient(90deg,var(--green),rgba(255,255,255,.35))"></div></div></div>
-          <div class="card card-sm"><div class="card-sub">Canvas Cards</div><div class="stat-num" style="font-size:20px" id="local-canvas-count">0</div><div class="progress-bar"><div class="progress-fill" style="width:50%;background:linear-gradient(90deg,var(--amber),#f59e0b80)"></div></div></div>
-          <div class="card card-sm"><div class="card-sub">Gateway Status</div><div style="margin:10px 0 4px;display:flex;align-items:center;gap:8px"><div class="status-dot"></div><span style="font-family:var(--font-head);font-size:16px;font-weight:700;color:var(--text)" id="local-gateway-status">Running</span></div><div style="font-size:12px;color:var(--text3)" id="local-gateway-meta">dashboard and gateway state</div></div>
-        </div>
+        <div class="hero-panel">
+          <div class="page-sub" style="margin-bottom:20px;color:var(--text3)">Local runtime visibility comes from the current CONNECT provider state, node pairing, and workspace services.</div>
+          <div class="grid-4" style="margin-bottom:22px">
+          <div class="card card-sm stat-card"><div class="card-sub">Selected Provider</div><div class="stat-num" style="font-size:20px" id="local-selected-provider">-</div><div class="progress-bar"><div class="progress-fill" id="local-provider-fill" style="width:0%"></div></div></div>
+          <div class="card card-sm stat-card"><div class="card-sub">Node Count</div><div class="stat-num" style="font-size:20px" id="local-node-count">0</div><div class="progress-bar"><div class="progress-fill" style="width:40%;background:linear-gradient(90deg,var(--green),rgba(255,255,255,.35))"></div></div></div>
+          <div class="card card-sm stat-card"><div class="card-sub">Canvas Cards</div><div class="stat-num" style="font-size:20px" id="local-canvas-count">0</div><div class="progress-bar"><div class="progress-fill" style="width:50%;background:linear-gradient(90deg,var(--amber),#f59e0b80)"></div></div></div>
+          <div class="card card-sm stat-card"><div class="card-sub">Gateway Status</div><div style="margin:10px 0 4px;display:flex;align-items:center;gap:8px"><div class="status-dot"></div><span style="font-family:var(--font-head);font-size:16px;font-weight:700;color:var(--text)" id="local-gateway-status">Running</span></div><div style="font-size:12px;color:var(--text3)" id="local-gateway-meta">dashboard and gateway state</div></div>
+          </div>
         <div class="sec-header"><div class="sec-title">Installed / Available Local Providers</div></div>
         <div style="display:flex;flex-direction:column;gap:10px" id="local-provider-list"></div>
       </div>
@@ -503,7 +543,7 @@ select.input{cursor:pointer}
   <div id="view-settings" class="view" style="display:none">
     <div class="topbar"><button class="tb-btn" id="sidebar-toggle-settings">Menu</button><span class="topbar-title">CONNECT</span><div class="topbar-spacer"></div></div>
     <div class="content">
-      <div style="padding:24px;max-width:620px">
+      <div class="hero-panel" style="max-width:620px">
         <div style="margin-bottom:24px">
           <div class="sec-title" style="margin-bottom:14px">Provider</div>
           <div class="field"><label>Default Provider</label><select class="input" id="settings-provider-select"></select></div>
@@ -526,19 +566,21 @@ select.input{cursor:pointer}
   <div id="view-analytics" class="view" style="display:none">
     <div class="topbar"><button class="tb-btn" id="sidebar-toggle-analytics">Menu</button><span class="topbar-title">CONNECT</span><div class="topbar-spacer"></div><button class="tb-btn" id="refresh-analytics-btn">Refresh</button></div>
     <div class="content">
-      <div style="padding:24px">
+      <div class="hero-panel">
         <div class="grid-4" style="margin-bottom:20px">
-          <div class="card card-sm"><div class="card-sub">Tools</div><div class="stat-num" id="analytics-tools">0</div><div class="stat-trend trend-up">Available to runtime</div></div>
-          <div class="card card-sm"><div class="card-sub">Implemented</div><div class="stat-num" id="analytics-implemented">0</div><div class="stat-trend trend-down">Backed by real actions</div></div>
-          <div class="card card-sm"><div class="card-sub">Stubbed</div><div class="stat-num" id="analytics-stubbed">0</div><div class="stat-trend trend-up">Need external wiring</div></div>
-          <div class="card card-sm"><div class="card-sub">Cron Jobs</div><div class="stat-num" id="analytics-cron">0</div><div class="stat-trend trend-up">Scheduled items</div></div>
+          <div class="card card-sm stat-card"><div class="card-sub">Tools</div><div class="stat-num" id="analytics-tools">0</div><div class="stat-trend trend-up">Available to runtime</div></div>
+          <div class="card card-sm stat-card"><div class="card-sub">Implemented</div><div class="stat-num" id="analytics-implemented">0</div><div class="stat-trend trend-down">Backed by real actions</div></div>
+          <div class="card card-sm stat-card"><div class="card-sub">Stubbed</div><div class="stat-num" id="analytics-stubbed">0</div><div class="stat-trend trend-up">Need external wiring</div></div>
+          <div class="card card-sm stat-card"><div class="card-sub">Cron Jobs</div><div class="stat-num" id="analytics-cron">0</div><div class="stat-trend trend-up">Scheduled items</div></div>
         </div>
         <div class="card" style="margin-bottom:16px">
           <div class="sec-header"><div class="sec-title">Provider Status</div></div>
-          <table class="data-table">
-            <thead><tr><th>Provider</th><th>Configured</th><th>Ready</th><th>Model</th><th>Selected</th></tr></thead>
-            <tbody id="analytics-provider-table"></tbody>
-          </table>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Provider</th><th>Configured</th><th>Ready</th><th>Model</th><th>Selected</th></tr></thead>
+              <tbody id="analytics-provider-table"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -641,9 +683,12 @@ function renderDashboard(){
   const currentUser = state.status.current_user || {};
   const provider = state.status.provider || 'none';
   const currentModel = state.status.provider_model || state.providers.find(item => item.selected === 'yes')?.model || provider;
+  const runtimeHealthy = serviceCount() > 0 && !state.status.provider_error;
   byId('welcome-title').textContent = currentUser.email ? `Welcome back, ${currentUser.email}` : 'CONNECT is ready';
   byId('welcome-sub').textContent = `Provider ${provider} is ${state.status.provider_error ? 'reporting an issue' : 'available'} and the runtime is serving real sessions, workflows, and integrations.`;
   byId('system-status-text').textContent = serviceCount() ? `${serviceCount()} services live` : 'runtime idle';
+  byId('system-status-dot').style.background = runtimeHealthy ? 'var(--green)' : (state.status.provider_error ? 'var(--red)' : 'var(--amber)');
+  byId('system-status-dot').style.boxShadow = runtimeHealthy ? '0 0 10px rgba(143,226,106,.45)' : (state.status.provider_error ? '0 0 10px rgba(239,107,107,.35)' : '0 0 10px rgba(244,180,78,.35)');
   byId('dash-stat-sessions').textContent = String(state.sessions.length);
   byId('dash-stat-memory').textContent = String(state.status.memory_entries || 0);
   byId('dash-stat-services').textContent = String(serviceCount());
@@ -659,7 +704,7 @@ function renderDashboard(){
     </tr>`).join('') : '<tr><td colspan="3">No providers configured.</td></tr>';
 
   const activity = [];
-  if(state.sessions[0]) activity.push({kind:'session', title:`Session updated: ${state.sessions[0].name}`, meta:`${state.sessions[0].status}  ${formatTime(state.sessions[0].updated_at)}`});
+  if(state.sessions[0]) activity.push({kind:'session', title:`Session updated: ${state.sessions[0].name}`, meta:`${state.sessions[0].status} | ${formatTime(state.sessions[0].updated_at)}`});
   if(state.workflows[0]) activity.push({kind:'workflow', title:`Workflow available: ${state.workflows[0].name}`, meta:`${state.workflows[0].step_count || 0} steps`});
   if(connectedIntegrationCount()) activity.push({kind:'integration', title:`${connectedIntegrationCount()} integrations connected`, meta:'Messaging and repository connectors live'});
   if(state.status.provider_error) activity.push({kind:'provider', title:`Provider issue`, meta:state.status.provider_error});
@@ -671,20 +716,20 @@ function renderDashboard(){
     </div>`).join('') : '<div class="empty-state"><div class="empty-title">No recent activity</div><div class="empty-sub">Runtime activity will appear here once sessions, workflows, or integrations change.</div></div>';
 
   const providerBars = byId('provider-bars');
-  providerBars.innerHTML = state.providers.map((item, index) => `
+  providerBars.innerHTML = state.providers.length ? state.providers.map((item, index) => `
     <div style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:4px">
         <span style="font-size:12px;color:var(--text2)">${escapeHtml(item.name)}</span>
         <span style="font-size:12px;color:var(--text3)">${escapeHtml(item.model || '')}</span>
       </div>
       <div class="progress-bar"><div class="progress-fill" style="width:${item.ready === 'yes' ? '100' : item.configured === 'yes' ? '60' : '18'}%"></div></div>
-    </div>`).join('');
+    </div>`).join('') : '<div class="empty-state"><div class="empty-title">No providers configured</div><div class="empty-sub">Add at least one model provider to expose runtime readiness here.</div></div>';
 
   const workflowRows = byId('dashboard-workflow-list');
   workflowRows.innerHTML = state.workflows.length ? state.workflows.slice(0, 3).map(item => `
     <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg3);border-radius:var(--rad);border:1px solid var(--border)">
       <span style="font-size:14px;font-family:var(--font-mono);color:var(--accent3)">WF</span>
-      <div style="flex:1"><div style="font-size:13px;font-weight:500;color:var(--text)">${escapeHtml(item.name)}</div><div style="font-size:11px;color:var(--text3)">${escapeHtml((item.step_count || 0) + ' steps')}  ${escapeHtml(item.trigger ? 'webhook: ' + item.trigger : 'manual run')}</div></div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:500;color:var(--text)">${escapeHtml(item.name)}</div><div style="font-size:11px;color:var(--text3)">${escapeHtml((item.step_count || 0) + ' steps')} | ${escapeHtml(item.trigger ? 'webhook: ' + item.trigger : 'manual run')}</div></div>
       <span class="badge badge-green pulse"><span class="badge-dot"></span>Ready</span>
     </div>`).join('') : '<div class="empty-state"><div class="empty-title">No workflows found</div><div class="empty-sub">Add YAML workflow files to the workspace and they will appear here.</div></div>';
 
@@ -842,14 +887,14 @@ function renderLocals(){
   byId('local-node-count').textContent = String(state.nodes.length);
   byId('local-canvas-count').textContent = String((state.canvas.cards || []).length);
   byId('local-gateway-status').textContent = serviceCount() ? 'Running' : 'Idle';
-  byId('local-gateway-meta').textContent = `${serviceCount()} services  ${state.status.workspace_root || ''}`;
+  byId('local-gateway-meta').textContent = `${serviceCount()} services | ${state.status.workspace_root || ''}`;
   const list = byId('local-provider-list');
   const rows = state.providers.filter(item => item.name === 'ollama' || item.ready === 'yes');
   list.innerHTML = rows.length ? rows.map(item => `
     <div class="local-card">
       <div class="local-header">
         <div class="local-icon">${escapeHtml(item.name.slice(0,2).toUpperCase())}</div>
-        <div style="flex:1"><div class="local-title">${escapeHtml(item.name)}</div><div class="local-val">${escapeHtml(item.model || '')}  ${escapeHtml(item.note || '')}</div></div>
+        <div style="flex:1"><div class="local-title">${escapeHtml(item.name)}</div><div class="local-val">${escapeHtml(item.model || '')}${item.note ? ' | ' + escapeHtml(item.note) : ''}</div></div>
         ${item.name === state.status.provider ? '<span class="badge badge-blue">Active</span>' : item.ready === 'yes' ? '<span class="badge badge-green pulse">Ready</span>' : '<span class="badge badge-amber">Standby</span>'}
         <div class="toggle ${item.name === state.status.provider ? 'on' : ''}"></div>
       </div>
@@ -883,10 +928,7 @@ function syncProviderFields(fromModal){
   modelLabel.textContent = isOllama ? 'Local Model Name' : (fromModal ? 'Model ID' : 'Model Name');
   modelInput.placeholder = isOllama ? 'e.g. llama3.2 or mistral:7b' : 'e.g. gpt-4.1-mini';
   keyField.style.display = isOllama ? 'none' : 'block';
-  ollamaNote.style.display = isOllama ? 'block' : 'block';
-  if (!isOllama) {
-    ollamaNote.style.display = 'none';
-  }
+  ollamaNote.style.display = isOllama ? 'block' : 'none';
   keyLabel.textContent = 'API Key';
   if (isOllama) {
     keyInput.value = '';
