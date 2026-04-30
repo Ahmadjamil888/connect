@@ -5,7 +5,7 @@ set "REPO_URL=https://github.com/Ahmadjamil888/connect.git"
 set "ZIP_URL=https://github.com/Ahmadjamil888/connect/archive/refs/heads/main.zip"
 set "INSTALL_DIR=%CONNECT_INSTALL_DIR%"
 if not defined INSTALL_DIR set "INSTALL_DIR=%USERPROFILE%\connect"
-set "DATA_DIR=%USERPROFILE%\.ai_assistant"
+set "DATA_DIR=%USERPROFILE%\.connectai"
 set "SCRIPT_DIR=%~dp0"
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
@@ -110,35 +110,12 @@ echo [*] Installing Python dependencies
 exit /b 0
 
 :ensure_env
-if exist "%REPO_DIR%\.env" exit /b 0
-if exist "%REPO_DIR%\.env.example" (
-    echo [*] Creating .env from .env.example
-    copy /Y "%REPO_DIR%\.env.example" "%REPO_DIR%\.env" >nul || exit /b 1
-) else (
-    echo [*] Creating minimal .env
-    > "%REPO_DIR%\.env" (
-        echo AI_PROVIDER=groq
-        echo GROQ_API_KEY=
-        echo.
-        echo ANTHROPIC_API_KEY=
-        echo OPENAI_API_KEY=
-        echo OPENROUTER_API_KEY=
-        echo GOOGLE_GEMINI_API_KEY=
-        echo HUGGINGFACE_API_KEY=
-        echo.
-        echo AI_ASSISTANT_DEBUG=false
-    )
-)
 exit /b 0
 
 :ensure_data_dir
 echo [*] Preparing local data directory
 if not exist "%DATA_DIR%" mkdir "%DATA_DIR%" || exit /b 1
-type nul > "%DATA_DIR%\user_data.json"
-type nul > "%DATA_DIR%\history.json"
-type nul > "%DATA_DIR%\projects.json"
-type nul > "%DATA_DIR%\analytics.json"
-type nul > "%DATA_DIR%\credentials.enc.json"
+type nul > "%DATA_DIR%\.keep"
 exit /b 0
 
 :install_launcher
@@ -182,9 +159,9 @@ echo Repo: %REPO_DIR%
 echo Launcher: %USERPROFILE%\connect-bin\connect.cmd
 echo.
 echo Next steps:
-echo   1. Add an API key to %REPO_DIR%\.env
-echo   2. Open a new terminal if PATH was updated
-echo   3. Run: connect --doctor
-echo   4. Run: connect
+echo   1. Run: connect
+echo   2. Complete the first-run setup wizard
+echo   3. Open a new terminal if PATH was updated
+echo   4. Config will be saved to %USERPROFILE%\.connectai\config.json
 echo.
 exit /b 0

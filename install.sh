@@ -6,7 +6,7 @@ REPO_URL="https://github.com/Ahmadjamil888/connect.git"
 ARCHIVE_URL="https://github.com/Ahmadjamil888/connect/archive/refs/heads/main.tar.gz"
 INSTALL_DIR="${CONNECT_INSTALL_DIR:-$HOME/connect}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DATA_DIR="$HOME/.ai_assistant"
+DATA_DIR="$HOME/.connectai"
 
 log() {
   printf '[*] %s\n' "$1"
@@ -96,37 +96,14 @@ install_requirements() {
 }
 
 ensure_env_file() {
-  if [[ ! -f "$REPO_DIR/.env" ]]; then
-    if [[ -f "$REPO_DIR/.env.example" ]]; then
-      log "Creating .env from .env.example"
-      cp "$REPO_DIR/.env.example" "$REPO_DIR/.env"
-    else
-      log "Creating minimal .env"
-      cat > "$REPO_DIR/.env" <<'EOF'
-AI_PROVIDER=groq
-GROQ_API_KEY=
-
-ANTHROPIC_API_KEY=
-OPENAI_API_KEY=
-OPENROUTER_API_KEY=
-GOOGLE_GEMINI_API_KEY=
-HUGGINGFACE_API_KEY=
-
-AI_ASSISTANT_DEBUG=false
-EOF
-    fi
-  fi
+  :
 }
 
 ensure_data_dir() {
   log "Preparing local data directory"
   mkdir -p "$DATA_DIR"
   touch \
-    "$DATA_DIR/user_data.json" \
-    "$DATA_DIR/history.json" \
-    "$DATA_DIR/projects.json" \
-    "$DATA_DIR/analytics.json" \
-    "$DATA_DIR/credentials.enc.json"
+    "$DATA_DIR/.keep"
 }
 
 install_launcher() {
@@ -169,10 +146,10 @@ Repo: $REPO_DIR
 Launcher: $HOME/.local/bin/connect
 
 Next steps:
-  1. Add an API key to $REPO_DIR/.env
+  1. Run: connect
+  2. Complete the first-run setup wizard
   2. Open a new shell if PATH was updated
-  3. Run: connect --doctor
-  4. Run: connect
+  3. Config will be saved to $HOME/.connectai/config.json
 EOF
 }
 

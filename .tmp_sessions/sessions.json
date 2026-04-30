@@ -1,0 +1,13 @@
+{
+  "cli:test": {
+    "session_id": "8d2ddbef22714634",
+    "session_key": "cli:test",
+    "channel": "cli",
+    "user_id": "test",
+    "title": "main",
+    "created_at": "2026-04-30T13:43:43.608514",
+    "updated_at": "2026-04-30T13:43:43.608546",
+    "message_count": 0,
+    "metadata": {}
+  }
+}

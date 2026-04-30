@@ -1,0 +1,33 @@
+from setuptools import setup, find_packages
+
+setup(
+    name="connectai",
+    version="1.0.0",
+    packages=find_packages(),
+    py_modules=["ai_assistant"],
+    install_requires=[
+        "anthropic>=0.40.0",
+        "openai>=1.30.0",
+        "groq>=0.11.0",
+        "huggingface_hub>=0.30.0",
+        "rich>=13.7.0",
+        "prompt_toolkit>=3.0.43",
+        "InquirerPy>=0.3.4",
+        "httpx>=0.27.0",
+        "playwright>=1.44.0",
+        "GitPython>=3.1.43",
+        "mss>=10.0.0",
+        "Pillow>=10.4.0",
+        "psutil>=6.0.0",
+        "boto3>=1.34.0",
+        "PyJWT[crypto]>=2.10.1",
+        "PyYAML>=6.0.2",
+        "python-dotenv>=1.0.0",
+    ],
+    entry_points={
+        "console_scripts": [
+            "connect=ai_assistant:main",
+            "connectai=ai_assistant:main",
+        ],
+    },
+)

@@ -1,0 +1,13 @@
+name: inspect_workspace
+steps:
+  - name: list_root
+    type: tool
+    tool: list_dir
+    args:
+      path: .
+  - name: remember_summary
+    type: tool
+    tool: remember
+    args:
+      note: "Workflow inspect_workspace ran successfully."
+      kind: workflow
