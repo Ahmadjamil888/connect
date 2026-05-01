@@ -24,23 +24,18 @@ class IMOSTTSEngine:
         self._engine = None
         self._available = False
         self._error = ""
+        self._voice_mode = "jarvis"
+        self._rate = 175
         self._thread.start()
 
     def _worker(self):
         try:
             import pyttsx3
             engine = pyttsx3.init()
-            engine.setProperty("rate", 175)
-            # Try to set Windows DAVID voice (male)
-            voices = engine.getProperty("voices") or []
-            for voice in voices:
-                vid = (voice.id or "").lower()
-                vname = (voice.name or "").lower()
-                if "david" in vid or "david" in vname:
-                    engine.setProperty("voice", voice.id)
-                    break
+            engine.setProperty("rate", self._rate)
             self._engine = engine
             self._available = True
+            self.set_voice(self._voice_mode)
         except Exception as exc:
             self._error = str(exc)
             return
@@ -58,6 +53,40 @@ class IMOSTTSEngine:
     def speak(self, text: str):
         if self._available:
             self._queue.put(text)
+
+    def set_voice(self, mode: str) -> str:
+        chosen = "friday" if str(mode).strip().lower() == "friday" else "jarvis"
+        self._voice_mode = chosen
+        if not self._engine:
+            return chosen
+        voices = self._engine.getProperty("voices") or []
+        selected = None
+        for voice in voices:
+            vid = (voice.id or "").lower()
+            vname = (voice.name or "").lower()
+            if chosen == "friday" and ("zira" in vid or "zira" in vname):
+                selected = voice.id
+                break
+            if chosen == "jarvis" and ("david" in vid or "david" in vname):
+                selected = voice.id
+                break
+        if selected:
+            self._engine.setProperty("voice", selected)
+        return chosen
+
+    def set_rate(self, rate: int) -> int:
+        self._rate = max(100, min(int(rate or 175), 260))
+        if self._engine:
+            self._engine.setProperty("rate", self._rate)
+        return self._rate
+
+    def status(self) -> dict:
+        return {
+            "available": self._available,
+            "voice": self._voice_mode,
+            "rate": self._rate,
+            "error": self._error,
+        }
 
     def speak_sync(self, text: str, timeout: float = 15.0):
         """Speak and wait for completion (approximate)."""
@@ -100,6 +129,29 @@ def speak(text: str):
 def speak_sync(text: str):
     """Speak text and wait for it to finish."""
     get_tts().speak_sync(text)
+
+
+def configure_tts(*, voice: str | None = None, rate: int | None = None) -> dict:
+    tts = get_tts()
+    if voice is not None:
+        tts.set_voice(voice)
+    if rate is not None:
+        tts.set_rate(rate)
+    return tts.status()
+
+
+def get_voice_status() -> dict:
+    tts = get_tts()
+    mic_available = False
+    try:
+        import speech_recognition as sr
+        with sr.Microphone():
+            mic_available = True
+    except Exception:
+        mic_available = False
+    data = tts.status()
+    data["mic_available"] = mic_available
+    return data
 
 
 # ---------------------------------------------------------------------------

@@ -16,8 +16,12 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import jwt
 
 
-CLI_SIGNIN_ORIGIN = "https://connect-ai-pi.vercel.app"
+CLI_SIGNIN_ORIGIN = "https://imos-ai.vercel.app"
 CLI_SIGNIN_PATH = "/auth/cli"
+
+
+def _cli_signin_origin() -> str:
+    return os.getenv("IMOS_FRONTEND_URL", "").strip().rstrip("/") or CLI_SIGNIN_ORIGIN
 
 
 def _auth_domain_from_key(publishable_key: str) -> str:
@@ -258,7 +262,7 @@ class ClerkAuthManager:
 
     def build_cli_signin_url(self, callback_url: str) -> str:
         query = urlencode({"callback": callback_url, "origin": "cli"})
-        return f"{CLI_SIGNIN_ORIGIN}{CLI_SIGNIN_PATH}?{query}"
+        return f"{_cli_signin_origin()}{CLI_SIGNIN_PATH}?{query}"
 
     def start_cli_login(self, timeout_seconds: int = 300) -> Tuple[bool, str]:
         if not self.is_configured():
@@ -270,7 +274,7 @@ class ClerkAuthManager:
         class Handler(BaseHTTPRequestHandler):
             def _cors_headers(self):
                 origin = self.headers.get("Origin", "")
-                if origin == CLI_SIGNIN_ORIGIN:
+                if origin == _cli_signin_origin():
                     self.send_header("Access-Control-Allow-Origin", origin)
                     self.send_header("Vary", "Origin")
                 self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")

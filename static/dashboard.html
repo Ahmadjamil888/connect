@@ -25,6 +25,13 @@
   --green:#22c55e;
   --red:#ef4444;
   --blue:#3b82f6;
+  --shell-bg:#000;
+  --shell-bg-2:#000;
+  --shell-text:#e2e8f0;
+  --shell-muted:#444;
+  --shell-accent:#ff6b00;
+  --shell-ok:#22c55e;
+  --shell-err:#ef4444;
   --sidebar-w:220px;
   --topbar-h:52px;
 }
@@ -122,23 +129,23 @@ input,textarea,select{font-family:inherit}
 
 /* ── SHELL PANEL ── */
 .shell-wrap{display:flex;flex:1;overflow:hidden;min-height:0}
-.shell-main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#000}
+.shell-main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--shell-bg)}
 .shell-toolbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:10px}
 .shell-toolbar-title{font-size:13px;font-weight:600;color:var(--text)}
 .shell-cwd{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .btn-sm{background:var(--bg3);border:1px solid var(--border2);color:var(--text2);border-radius:6px;padding:5px 10px;font-size:12px;transition:all .15s}
 .btn-sm:hover{border-color:var(--orange);color:var(--orange)}
 .btn-sm.danger:hover{border-color:var(--red);color:var(--red)}
-.shell-output{flex:1;overflow-y:auto;padding:16px;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.6;color:#e2e8f0;background:#000}
+.shell-output{flex:1;overflow-y:auto;padding:16px;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.6;color:var(--shell-text);background:var(--shell-bg)}
 .shell-line{margin-bottom:2px;white-space:pre-wrap;word-break:break-all}
-.shell-line.cmd{color:var(--orange)}
-.shell-line.err{color:var(--red)}
-.shell-line.ok{color:var(--green)}
-.shell-line.info{color:var(--text3)}
-.shell-input-row{border-top:1px solid var(--border2);padding:10px 16px;display:flex;align-items:center;gap:8px;background:#000}
-.shell-prompt{color:var(--orange);font-family:'JetBrains Mono',monospace;font-size:13px;white-space:nowrap}
-.shell-input{flex:1;background:transparent;border:none;color:#e2e8f0;font-family:'JetBrains Mono',monospace;font-size:13px;outline:none}
-.shell-input::placeholder{color:#444}
+.shell-line.cmd{color:var(--shell-accent)}
+.shell-line.err{color:var(--shell-err)}
+.shell-line.ok{color:var(--shell-ok)}
+.shell-line.info{color:var(--shell-muted)}
+.shell-input-row{border-top:1px solid var(--border2);padding:10px 16px;display:flex;align-items:center;gap:8px;background:var(--shell-bg-2)}
+.shell-prompt{color:var(--shell-accent);font-family:'JetBrains Mono',monospace;font-size:13px;white-space:nowrap}
+.shell-input{flex:1;background:transparent;border:none;color:var(--shell-text);font-family:'JetBrains Mono',monospace;font-size:13px;outline:none}
+.shell-input::placeholder{color:var(--shell-muted)}
 .shell-sidebar{width:260px;min-width:260px;border-left:1px solid var(--border);background:var(--bg2);display:flex;flex-direction:column;overflow-y:auto;padding:16px}
 .shell-sidebar-title{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:10px}
 .cmd-chip{display:inline-block;background:var(--bg3);border:1px solid var(--border2);color:var(--text2);border-radius:5px;padding:4px 8px;font-size:11px;font-family:'JetBrains Mono',monospace;margin:3px 3px 3px 0;cursor:pointer;transition:all .15s}
@@ -417,7 +424,7 @@ input,textarea,select{font-family:inherit}
       <div class="voice-wrap">
         <div>
           <h2 style="font-size:20px;font-weight:600;text-align:center;margin-bottom:6px">Voice Control</h2>
-          <p style="font-size:13px;color:var(--text3);text-align:center">Say "IMOS" or "Hey IMOS" to activate, or click the mic</p>
+          <p style="font-size:13px;color:var(--text3);text-align:center">Use browser speech when available, or fall back to server-side microphone capture.</p>
         </div>
         <div class="voice-orb" id="voice-orb" onclick="toggleVoice()">
           <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
@@ -425,17 +432,32 @@ input,textarea,select{font-family:inherit}
         <div class="voice-status" id="voice-status-text">Click mic or say "Hey IMOS" to start</div>
         <div class="voice-transcript" id="voice-transcript">Transcript will appear here...</div>
         <div class="voice-controls">
+          <button class="btn-voice secondary" onclick="listenVoiceOnce()">Listen Once</button>
+          <button class="btn-voice secondary" onclick="sendVoiceTranscript()">Send To Chat</button>
           <button class="btn-voice" onclick="speakText()">Speak Response</button>
           <button class="btn-voice secondary" onclick="stopVoice()">Stop</button>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;max-width:500px;width:100%">
-          <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">TTS Settings</div>
+          <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">Voice Settings</div>
+          <div class="stat-row"><span class="k">TTS engine</span><span class="v" id="voice-tts-status">--</span></div>
+          <div class="stat-row"><span class="k">Microphone</span><span class="v" id="voice-mic-status">--</span></div>
+          <div class="form-group">
+            <label class="form-label">Enabled</label>
+            <select class="form-select" id="voice-enabled">
+              <option value="true">Enabled</option>
+              <option value="false">Disabled</option>
+            </select>
+          </div>
           <div class="form-group">
             <label class="form-label">Voice</label>
             <select class="form-select" id="voice-select">
               <option value="jarvis">DAVID (Male)</option>
               <option value="friday">ZIRA (Female)</option>
             </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Rate</label>
+            <input class="form-input" id="voice-rate" type="number" min="100" max="260" value="175"/>
           </div>
           <button class="btn-primary" onclick="saveVoiceSettings()">Save</button>
         </div>
@@ -619,6 +641,19 @@ input,textarea,select{font-family:inherit}
             <div class="stat-row"><span class="k">Processes</span><span class="v" id="st-procs">--</span></div>
           </div>
           <div class="card">
+            <div class="card-title">Appearance</div>
+            <div class="card-desc">Choose separate palettes for the dashboard UI and the shell UI.</div>
+            <div class="form-group">
+              <label class="form-label">Dashboard palette</label>
+              <select class="form-select" id="ui-dashboard-palette"></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Shell palette</label>
+              <select class="form-select" id="ui-shell-palette"></select>
+            </div>
+            <button class="btn-primary" onclick="saveUiSettings()">Save Appearance</button>
+          </div>
+          <div class="card">
             <div class="card-title">Voice</div>
             <div class="card-desc">Wake word and TTS settings</div>
             <div class="stat-row"><span class="k">Wake word</span><span class="v">"IMOS" / "Hey IMOS"</span></div>
@@ -651,6 +686,10 @@ let shellHistory = [];
 let shellHistoryIdx = -1;
 let isListening = false;
 let statsInterval = null;
+let connectionCatalog = [];
+let savedConnections = [];
+let savedWorkflows = [];
+let modelCatalog = [];
 
 const PROVIDER_MODELS = {
   anthropic: ['claude-opus-4-5','claude-sonnet-4-5','claude-haiku-4-5'],
@@ -664,6 +703,20 @@ const PROVIDER_MODELS = {
   bedrock: ['anthropic.claude-opus-4-5-20251101-v1:0','anthropic.claude-sonnet-4-5-20251101-v1:0'],
   nvidia: ['meta/llama-3.1-405b-instruct','meta/llama-3.1-70b-instruct'],
   gcp: ['claude-opus-4-5@20251101','claude-sonnet-4-5@20251101'],
+};
+
+const DASHBOARD_PALETTES = {
+  ember: {'--bg':'#000000','--bg2':'#0a0a0a','--bg3':'#111111','--bg4':'#1a1a1a','--border':'#222222','--border2':'#2a2a2a','--orange':'#ff6b00','--orange-dim':'#cc5500','--orange-glow':'rgba(255,107,0,0.15)','--orange-subtle':'rgba(255,107,0,0.08)','--text':'#ffffff','--text2':'#aaaaaa','--text3':'#666666','--green':'#22c55e','--red':'#ef4444','--blue':'#3b82f6'},
+  ocean: {'--bg':'#071019','--bg2':'#0c1723','--bg3':'#122233','--bg4':'#173048','--border':'#1e3448','--border2':'#2b4a66','--orange':'#57c7ff','--orange-dim':'#249bd4','--orange-glow':'rgba(87,199,255,0.18)','--orange-subtle':'rgba(87,199,255,0.09)','--text':'#eef7ff','--text2':'#9eb5c7','--text3':'#688198','--green':'#2dd4bf','--red':'#ff6b6b','--blue':'#7dd3fc'},
+  forest: {'--bg':'#08110b','--bg2':'#0d1710','--bg3':'#142119','--bg4':'#1c2b22','--border':'#25372b','--border2':'#314735','--orange':'#8bd450','--orange-dim':'#6cab37','--orange-glow':'rgba(139,212,80,0.16)','--orange-subtle':'rgba(139,212,80,0.08)','--text':'#f3f8ef','--text2':'#afbaa6','--text3':'#72806b','--green':'#4ade80','--red':'#fb7185','--blue':'#60a5fa'},
+  rose: {'--bg':'#140a10','--bg2':'#1b0f17','--bg3':'#261520','--bg4':'#311c2a','--border':'#442635','--border2':'#5a3448','--orange':'#ff7aa2','--orange-dim':'#e15f87','--orange-glow':'rgba(255,122,162,0.18)','--orange-subtle':'rgba(255,122,162,0.08)','--text':'#fff4f8','--text2':'#d7afbc','--text3':'#9b7480','--green':'#34d399','--red':'#fb7185','--blue':'#93c5fd'}
+};
+
+const SHELL_PALETTES = {
+  ember: {'--shell-bg':'#000000','--shell-bg-2':'#0b0b0b','--shell-text':'#e2e8f0','--shell-muted':'#666666','--shell-accent':'#ff6b00','--shell-ok':'#22c55e','--shell-err':'#ef4444'},
+  matrix: {'--shell-bg':'#020b02','--shell-bg-2':'#041204','--shell-text':'#b7ffbf','--shell-muted':'#4f7a57','--shell-accent':'#7dff86','--shell-ok':'#5efc8d','--shell-err':'#ff6b81'},
+  ice: {'--shell-bg':'#06111a','--shell-bg-2':'#0c1824','--shell-text':'#d8f3ff','--shell-muted':'#7090a8','--shell-accent':'#63d3ff','--shell-ok':'#5eead4','--shell-err':'#ff7b93'},
+  paper: {'--shell-bg':'#f6f2e8','--shell-bg-2':'#ebe4d4','--shell-text':'#1f2937','--shell-muted':'#8a7f6a','--shell-accent':'#2563eb','--shell-ok':'#15803d','--shell-err':'#b91c1c'}
 };
 
 // ── UTILS ──
@@ -694,6 +747,84 @@ function fmtTime(ts) {
   return new Date(ts).toLocaleTimeString();
 }
 
+function applyCssVars(vars) {
+  Object.entries(vars || {}).forEach(([key, value]) => {
+    document.documentElement.style.setProperty(key, value);
+  });
+}
+
+function applyUiPalettes(dashboardPalette, shellPalette) {
+  applyCssVars(DASHBOARD_PALETTES[dashboardPalette] || DASHBOARD_PALETTES.ember);
+  applyCssVars(SHELL_PALETTES[shellPalette] || SHELL_PALETTES.ember);
+}
+
+function fillPaletteSelect(selectId, palettes) {
+  const el = document.getElementById(selectId);
+  if (!el) return;
+  el.innerHTML = Object.keys(palettes).map(name =>
+    `<option value="${name}">${name.charAt(0).toUpperCase() + name.slice(1)}</option>`
+  ).join('');
+}
+
+async function loadUiSettings() {
+  fillPaletteSelect('ui-dashboard-palette', DASHBOARD_PALETTES);
+  fillPaletteSelect('ui-shell-palette', SHELL_PALETTES);
+  try {
+    const cfg = await api('/api/config/ui');
+    const dashboardPalette = cfg.dashboard_palette || 'ember';
+    const shellPalette = cfg.shell_palette || 'ember';
+    document.getElementById('ui-dashboard-palette').value = dashboardPalette;
+    document.getElementById('ui-shell-palette').value = shellPalette;
+    applyUiPalettes(dashboardPalette, shellPalette);
+  } catch (e) {
+    applyUiPalettes('ember', 'ember');
+  }
+}
+
+async function saveUiSettings() {
+  const dashboard_palette = document.getElementById('ui-dashboard-palette').value;
+  const shell_palette = document.getElementById('ui-shell-palette').value;
+  try {
+    await api('/api/config/ui', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({dashboard_palette, shell_palette})
+    });
+    applyUiPalettes(dashboard_palette, shell_palette);
+    toast('Appearance saved');
+  } catch (e) {
+    toast('Appearance error: ' + e.message, 'error');
+  }
+}
+
+async function ensureModelCatalog() {
+  if (modelCatalog.length) return modelCatalog;
+  try {
+    const r = await api('/api/catalog/models');
+    modelCatalog = r.items || [];
+  } catch (e) {
+    modelCatalog = [];
+  }
+  return modelCatalog;
+}
+
+async function ensureConnectionData() {
+  if (!connectionCatalog.length) {
+    try {
+      const r = await api('/api/catalog/connections');
+      connectionCatalog = r.items || [];
+    } catch (e) {
+      connectionCatalog = [];
+    }
+  }
+  try {
+    const r = await api('/api/connections');
+    savedConnections = r.items || [];
+  } catch (e) {
+    savedConnections = [];
+  }
+}
+
 // ── CLOCK ──
 function updateClock() {
   const now = new Date();
@@ -715,9 +846,11 @@ function switchPanel(name, el) {
   document.getElementById('panel-' + name).classList.add('active');
   if (el) el.classList.add('active');
   activePanel = name;
+  if (name === 'voice') loadVoiceSettings();
   if (name === 'skills') loadSkills();
   if (name === 'activity') loadAudit();
   if (name === 'apikeys') loadApiKeys();
+  if (name === 'integrations') loadConnectionsPanel();
   if (name === 'models') loadModelStatus();
   if (name === 'workflows') loadWorkflows();
   if (name === 'settings') loadSettings();
@@ -880,6 +1013,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (si) {
     si.addEventListener('keydown', handleShellKey);
   }
+  loadUiSettings();
   loadStats();
   statsInterval = setInterval(loadStats, 5000);
   loadModelStatus();
@@ -1046,9 +1180,7 @@ function toggleVoice() {
       rec.onerror = () => { isListening = false; orb.classList.remove('listening'); };
       rec.start();
     } else {
-      document.getElementById('voice-status-text').textContent = 'Browser speech not supported. Use the server voice loop.';
-      isListening = false;
-      orb.classList.remove('listening');
+      listenVoiceOnce();
     }
   }
 }
@@ -1063,18 +1195,84 @@ async function speakText() {
   const text = document.getElementById('voice-transcript').textContent;
   if (!text || text === 'Transcript will appear here...') return;
   try {
-    await api('/api/speak', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+    await api('/api/voice/speak', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
     toast('Speaking...');
   } catch(e) { toast('TTS error: ' + e.message, 'error'); }
 }
 
-function saveVoiceSettings() { toast('Voice settings saved'); }
+async function loadVoiceSettings() {
+  try {
+    const r = await api('/api/voice/status');
+    const settings = r.settings || {};
+    const status = r.status || {};
+    document.getElementById('voice-enabled').value = String(settings.enabled !== false);
+    document.getElementById('voice-select').value = settings.voice || 'jarvis';
+    document.getElementById('voice-rate').value = settings.rate || 175;
+    document.getElementById('voice-tts-status').textContent = status.available ? `Ready (${status.voice || 'jarvis'})` : `Unavailable${status.error ? ': ' + status.error : ''}`;
+    document.getElementById('voice-mic-status').textContent = status.mic_available ? 'Ready' : 'Unavailable';
+  } catch (e) {
+    document.getElementById('voice-tts-status').textContent = 'Unavailable';
+    document.getElementById('voice-mic-status').textContent = 'Unavailable';
+  }
+}
+
+async function saveVoiceSettings() {
+  const enabled = document.getElementById('voice-enabled').value === 'true';
+  const voice = document.getElementById('voice-select').value;
+  const rate = Number(document.getElementById('voice-rate').value || 175);
+  try {
+    await api('/api/voice/config', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({enabled, voice, rate})
+    });
+    toast('Voice settings saved');
+    loadVoiceSettings();
+  } catch (e) {
+    toast('Voice settings error: ' + e.message, 'error');
+  }
+}
+
+async function listenVoiceOnce() {
+  const orb = document.getElementById('voice-orb');
+  orb.classList.add('listening');
+  document.getElementById('voice-status-text').textContent = 'Listening from server microphone...';
+  try {
+    const r = await api('/api/voice/listen', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({timeout: 6, phrase_time_limit: 15})
+    });
+    if (r.ok && r.text) {
+      document.getElementById('voice-transcript').textContent = r.text;
+      document.getElementById('voice-status-text').textContent = 'Captured';
+    } else {
+      document.getElementById('voice-status-text').textContent = r.error || 'No speech detected';
+    }
+  } catch (e) {
+    document.getElementById('voice-status-text').textContent = 'Voice input error';
+    toast('Voice listen error: ' + e.message, 'error');
+  } finally {
+    isListening = false;
+    orb.classList.remove('listening');
+  }
+}
+
+function sendVoiceTranscript() {
+  const text = document.getElementById('voice-transcript').textContent.trim();
+  if (!text || text === 'Transcript will appear here...') return;
+  switchPanel('chat', document.querySelector('[data-panel="chat"]'));
+  sendChatText(text);
+}
 
 // ── MODELS ──
-function updateModelList() {
+async function updateModelList() {
+  await ensureModelCatalog();
   const prov = document.getElementById('model-provider').value;
   const sel = document.getElementById('model-name-select');
-  const models = PROVIDER_MODELS[prov] || [];
+  const catalogEntry = modelCatalog.find(item => item.provider === prov);
+  const fieldModel = (catalogEntry?.fields || []).find(f => f.key === 'model');
+  const models = PROVIDER_MODELS[prov] || (fieldModel?.default ? [fieldModel.default] : []);
   sel.innerHTML = models.map(m=>`<option value="${m}">${m}</option>`).join('');
   if (models[0]) document.getElementById('model-name-input').value = models[0];
 }
@@ -1086,6 +1284,11 @@ function syncModelInput() {
 
 async function loadModelStatus() {
   try {
+    await ensureModelCatalog();
+    const providerSelect = document.getElementById('model-provider');
+    if (modelCatalog.length) {
+      providerSelect.innerHTML = modelCatalog.map(item => `<option value="${item.provider}">${item.name}</option>`).join('');
+    }
     const [status, cost] = await Promise.all([api('/api/status'), api('/api/cost')]);
     document.getElementById('m-provider').textContent = status.provider||'--';
     document.getElementById('m-model').textContent = status.model||'--';
@@ -1093,7 +1296,7 @@ async function loadModelStatus() {
     document.getElementById('m-cost').textContent = '$' + Number(cost.session_cost_usd||0).toFixed(4);
     // Pre-select current provider
     const pSel = document.getElementById('model-provider');
-    if (status.provider) { pSel.value = status.provider; updateModelList(); }
+    if (status.provider) { pSel.value = status.provider; await updateModelList(); }
     const mSel = document.getElementById('model-name-select');
     if (status.model) {
       for (const opt of mSel.options) { if (opt.value === status.model) { mSel.value = status.model; break; } }
@@ -1214,6 +1417,147 @@ async function loadWorkflows() {
   } catch(e) { grid.innerHTML = '<div class="empty"><p>'+e.message+'</p></div>'; }
 }
 
+function renderConnectionCard(item, savedMap) {
+  const saved = savedMap.get(item.provider);
+  const fields = (item.fields || []).map(field => {
+    const value = saved?.values?.[field.key] || field.default || '';
+    const type = field.secret ? 'password' : 'text';
+    return `<div class="form-group">
+      <label class="form-label">${field.label}</label>
+      <input class="form-input" id="conn-${item.provider}-${field.key}" type="${type}" placeholder="${field.default || ''}" value="${value}">
+    </div>`;
+  }).join('');
+  return `<div class="card">
+    <div class="card-title">${item.name}</div>
+    <div class="card-desc">${item.description}</div>
+    <div style="margin-bottom:10px"><span class="tag ${saved?.configured ? 'green' : ''}">${item.category}</span>${saved?.configured ? '<span class="tag green">Configured</span>' : '<span class="tag red">Not ready</span>'}</div>
+    ${fields}
+    <div style="display:flex;gap:8px">
+      <button class="btn-primary" onclick="saveConnection('${item.provider}')">Save</button>
+      ${saved ? `<button class="btn-danger" onclick="deleteConnection('${saved.id}')">Delete</button>` : ''}
+    </div>
+  </div>`;
+}
+
+async function loadConnectionsPanel() {
+  await ensureConnectionData();
+  const heading = document.querySelector('#panel-integrations .settings-header h2');
+  const sub = document.querySelector('#panel-integrations .settings-header p');
+  if (heading) heading.textContent = 'Connections';
+  if (sub) sub.textContent = 'Prepare reusable connections for apps, social platforms, automation tools, custom APIs, and model providers.';
+  const grid = document.getElementById('connections-grid') || document.querySelector('#panel-integrations .settings-grid');
+  if (!grid) return;
+  const savedMap = new Map(savedConnections.map(item => [item.provider, item]));
+  grid.innerHTML = connectionCatalog.map(item => renderConnectionCard(item, savedMap)).join('');
+}
+
+async function saveConnection(provider) {
+  const item = connectionCatalog.find(entry => entry.provider === provider);
+  if (!item) return;
+  const existing = savedConnections.find(entry => entry.provider === provider);
+  const values = {};
+  (item.fields || []).forEach(field => {
+    values[field.key] = (document.getElementById(`conn-${provider}-${field.key}`)?.value || '').trim();
+  });
+  try {
+    await api('/api/connections', {method:'POST',headers:{'Content-Type':'application/json'},body: JSON.stringify({id: existing?.id, provider, values})});
+    toast(item.name + ' saved');
+    await loadConnectionsPanel();
+    await loadWorkflows();
+  } catch (e) {
+    toast('Connection error: ' + e.message, 'error');
+  }
+}
+
+async function deleteConnection(id) {
+  try {
+    const r = await fetch('/api/connections/' + id, {method:'DELETE'});
+    if (!r.ok) throw new Error(await r.text());
+    toast('Connection removed');
+    await loadConnectionsPanel();
+    await loadWorkflows();
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+function fillWorkflowSelect(id, items, allowEmpty=false, emptyLabel='None') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let html = allowEmpty ? `<option value="">${emptyLabel}</option>` : '';
+  html += items.map(item => `<option value="${item.id}">${item.name}</option>`).join('');
+  el.innerHTML = html;
+}
+
+async function loadWorkflows() {
+  await ensureConnectionData();
+  let response = {items: []};
+  try {
+    response = await api('/api/workflows');
+    savedWorkflows = response.items || [];
+  } catch (e) {
+    savedWorkflows = [];
+  }
+  const wrap = document.querySelector('#panel-workflows .list-wrap') || document.querySelector('#panel-workflows .settings-wrap');
+  const heading = wrap?.querySelector('.list-header p');
+  if (heading) heading.textContent = 'Build reusable app -> model -> app automations from your saved connections.';
+  if (wrap && !document.getElementById('workflow-builder')) {
+    const builder = document.createElement('div');
+    builder.id = 'workflow-builder';
+    builder.className = 'card';
+    builder.style.marginBottom = '20px';
+    builder.innerHTML = `
+      <div class="card-title">Workflow Builder</div>
+      <div class="card-desc">Create a route between source app, optional model, and destination app.</div>
+      <div class="form-group"><label class="form-label">Title</label><input class="form-input" id="wf-title" placeholder="e.g. Telegram support triage"></div>
+      <div class="form-group"><label class="form-label">Source connection</label><select class="form-select" id="wf-source"></select></div>
+      <div class="form-group"><label class="form-label">Model connection</label><select class="form-select" id="wf-model"></select></div>
+      <div class="form-group"><label class="form-label">Destination connection</label><select class="form-select" id="wf-destination"></select></div>
+      <div class="form-group"><label class="form-label">Mode</label><select class="form-select" id="wf-mode"><option value="route">Route</option><option value="summarize">Summarize</option><option value="reply">Reply</option><option value="classify">Classify</option><option value="publish">Publish</option></select></div>
+      <div class="form-group"><label class="form-label">Prompt template</label><textarea class="form-input" id="wf-prompt" style="min-height:110px" placeholder="Transform incoming content, add policy rules, or shape a post before sending onward."></textarea></div>
+      <button class="btn-primary" onclick="saveWorkflow()">Save Workflow</button>`;
+    wrap.insertBefore(builder, document.getElementById('workflows-grid'));
+  }
+  const models = savedConnections.filter(item => String(item.category || '').startsWith('model'));
+  const apps = savedConnections.filter(item => !String(item.category || '').startsWith('model'));
+  fillWorkflowSelect('wf-source', apps);
+  fillWorkflowSelect('wf-model', models, true, 'No model');
+  fillWorkflowSelect('wf-destination', apps);
+  const grid = document.getElementById('workflows-grid');
+  if (!grid) return;
+  const nameFor = id => savedConnections.find(item => item.id === id)?.name || 'Unassigned';
+  if (!savedWorkflows.length) {
+    grid.innerHTML = '<div class="empty"><svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><p>No saved workflows yet. Save some connections, then build an app-to-app route.</p></div>';
+    return;
+  }
+  grid.innerHTML = savedWorkflows.map(item=>`
+    <div class="item-card">
+      <div class="item-card-header">
+        <div class="item-card-name">${item.title}</div>
+        <span class="tag ${item.enabled ? 'green' : 'red'}">${item.enabled ? 'enabled' : 'disabled'}</span>
+      </div>
+      <div class="item-card-desc">${nameFor(item.source_connection_id)} -> ${item.model_connection_id ? nameFor(item.model_connection_id) + ' -> ' : ''}${nameFor(item.destination_connection_id)}</div>
+      <div class="item-card-footer"><span class="tag">${item.mode}</span></div>
+    </div>`).join('');
+}
+
+async function saveWorkflow() {
+  const payload = {
+    title: document.getElementById('wf-title')?.value?.trim() || '',
+    source_connection_id: document.getElementById('wf-source')?.value || '',
+    model_connection_id: document.getElementById('wf-model')?.value || '',
+    destination_connection_id: document.getElementById('wf-destination')?.value || '',
+    mode: document.getElementById('wf-mode')?.value || 'route',
+    prompt_template: document.getElementById('wf-prompt')?.value?.trim() || '',
+    enabled: true,
+  };
+  try {
+    await api('/api/workflows', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    toast('Workflow saved');
+    loadWorkflows();
+  } catch(e) { toast('Workflow error: ' + e.message, 'error'); }
+}
+
 // ── AUDIT ──
 async function loadAudit() {
   try {
@@ -1232,6 +1576,7 @@ async function loadAudit() {
 // ── SETTINGS ──
 async function loadSettings() {
   loadStats();
+  loadUiSettings();
   try {
     const r = await api('/api/skills');
     document.getElementById('st-skills').textContent = (r.items||[]).length;

@@ -40,8 +40,22 @@ from connectai.ops import (
 )
 from connectai.sessions import ConnectSessionManager
 from connectai.skills import SkillRegistry
+from imos.hub import (
+    get_voice_settings,
+    list_connection_catalog,
+    list_connections,
+    list_model_catalog,
+    list_workflows,
+    save_voice_settings,
+    upsert_connection,
+    upsert_workflow,
+    delete_connection,
+)
 from imos.runtime import IMOSRuntime
-from imos.voice_loop import speak, start_voice_loop
+from imos.ui import get_ui_config, save_ui_config, setup_terminal_io
+from imos.voice_loop import configure_tts, get_voice_status, speak, start_voice_loop
+
+setup_terminal_io()
 
 # ---------------------------------------------------------------------------
 # Paths & config
@@ -307,6 +321,21 @@ def api_tasks():
     return jsonify({"ok": True, "items": items})
 
 
+@app.route("/api/workflows", methods=["GET"])
+def api_workflows():
+    return jsonify({"ok": True, "items": list_workflows()})
+
+
+@app.route("/api/workflows", methods=["POST"])
+def api_workflows_upsert():
+    body = request.get_json(force=True, silent=True) or {}
+    try:
+        item = upsert_workflow(body)
+        return jsonify({"ok": True, "item": item})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)})
+
+
 # ---------------------------------------------------------------------------
 # API — cost
 # ---------------------------------------------------------------------------
@@ -330,6 +359,40 @@ def api_skills():
             for s in skills
         ],
     })
+
+
+@app.route("/api/catalog/models")
+def api_catalog_models():
+    return jsonify({"ok": True, "items": list_model_catalog()})
+
+
+@app.route("/api/catalog/connections")
+def api_catalog_connections():
+    return jsonify({"ok": True, "items": list_connection_catalog()})
+
+
+@app.route("/api/connections", methods=["GET"])
+def api_connections():
+    return jsonify({"ok": True, "items": list_connections()})
+
+
+@app.route("/api/connections", methods=["POST"])
+def api_connections_upsert():
+    body = request.get_json(force=True, silent=True) or {}
+    try:
+        item = upsert_connection(body)
+        return jsonify({"ok": True, "item": item})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)})
+
+
+@app.route("/api/connections/<connection_id>", methods=["DELETE"])
+def api_connections_delete(connection_id: str):
+    try:
+        delete_connection(connection_id)
+        return jsonify({"ok": True})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)})
 
 
 # ---------------------------------------------------------------------------
@@ -566,6 +629,26 @@ def api_config_model_get():
     return jsonify(get_model_config())
 
 
+@app.route("/api/config/ui", methods=["GET"])
+def api_config_ui_get():
+    return jsonify({"ok": True, **get_ui_config()})
+
+
+@app.route("/api/config/ui", methods=["POST"])
+def api_config_ui_set():
+    body = request.get_json(force=True, silent=True) or {}
+    dashboard_palette = str(body.get("dashboard_palette", "")).strip().lower() or None
+    shell_palette = str(body.get("shell_palette", "")).strip().lower() or None
+    try:
+        data = save_ui_config(
+            dashboard_palette=dashboard_palette,
+            shell_palette=shell_palette,
+        )
+        return jsonify({"ok": True, **data})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)})
+
+
 @app.route("/api/config/model", methods=["POST"])
 def api_config_model_set():
     from config.config import save_model_config
@@ -642,14 +725,49 @@ def api_config_env_get():
 # API — speak (TTS)
 # ---------------------------------------------------------------------------
 
+@app.route("/api/voice/status", methods=["GET"])
+def api_voice_status():
+    settings = get_voice_settings()
+    status = get_voice_status()
+    return jsonify({"ok": True, "settings": settings, "status": status})
+
+
+@app.route("/api/voice/config", methods=["POST"])
+def api_voice_config():
+    body = request.get_json(force=True, silent=True) or {}
+    enabled = bool(body.get("enabled", True))
+    voice = str(body.get("voice", "jarvis")).strip() or "jarvis"
+    rate = int(body.get("rate", 175) or 175)
+    wake_words = body.get("wake_words") or ["imos", "hey imos"]
+    settings = save_voice_settings(enabled=enabled, voice=voice, rate=rate, wake_words=wake_words)
+    configure_tts(voice=voice, rate=rate)
+    return jsonify({"ok": True, "settings": settings, "status": get_voice_status()})
+
+
+@app.route("/api/voice/listen", methods=["POST"])
+def api_voice_listen():
+    body = request.get_json(force=True, silent=True) or {}
+    timeout = int(body.get("timeout", 5) or 5)
+    phrase_time_limit = int(body.get("phrase_time_limit", 10) or 10)
+    try:
+        from connectai.voice import SpeechEngine
+        result = SpeechEngine().listen(timeout=timeout, phrase_time_limit=phrase_time_limit)
+        return jsonify(result)
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)})
+
+
+@app.route("/api/voice/speak", methods=["POST"])
 @app.route("/api/speak", methods=["POST"])
 def api_speak():
     body = request.get_json(force=True, silent=True) or {}
     text = str(body.get("text", "")).strip()
     if not text:
         return jsonify({"ok": False, "error": "text is required"})
+    settings = get_voice_settings()
+    configure_tts(voice=settings["voice"], rate=settings["rate"])
     speak(text)
-    return jsonify({"ok": True, "spoken": text})
+    return jsonify({"ok": True, "spoken": text, "voice": settings["voice"], "rate": settings["rate"]})
 
 
 # ---------------------------------------------------------------------------
@@ -819,10 +937,12 @@ def _get_greeting() -> str:
         return "Good evening"
 
 
-def startup(open_browser: bool = True):
+def startup(open_browser: bool = True, port: int = 5000):
     print(IMOS_ASCII)
     print(f"[IMOS] Starting up — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"[IMOS] Workspace: {WORKSPACE}")
+    voice_settings = get_voice_settings()
+    configure_tts(voice=voice_settings["voice"], rate=voice_settings["rate"])
 
     skills = _skill_registry.load_all()
     print(f"[IMOS] Loaded {len(skills)} skills: {', '.join(s.name for s in skills)}")
@@ -841,25 +961,29 @@ def startup(open_browser: bool = True):
         print(f"[IMOS] Voice engine: FAILED — {exc}")
 
     try:
-        start_voice_loop(_voice_command_handler)
-        print("[IMOS] Voice loop: started (listening for 'IMOS' or 'Hey IMOS')")
+        if voice_settings.get("enabled", True):
+            start_voice_loop(_voice_command_handler)
+            print("[IMOS] Voice loop: started (listening for 'IMOS' or 'Hey IMOS')")
+        else:
+            print("[IMOS] Voice loop: disabled in settings")
     except Exception as exc:
         print(f"[IMOS] Voice loop: FAILED — {exc}")
 
-    print("\n[IMOS] Starting Flask server on http://localhost:5000")
-    print("[IMOS] Dashboard: http://localhost:5000\n")
+    print(f"\n[IMOS] Starting Flask server on http://localhost:{port}")
+    print(f"[IMOS] Dashboard: http://localhost:{port}\n")
 
     def _speak_startup():
         time.sleep(2)
         greeting = _get_greeting()
         speak(f"IMOS online. All systems operational. {greeting}, sir.")
 
-    threading.Thread(target=_speak_startup, daemon=True).start()
+    if voice_settings.get("enabled", True):
+        threading.Thread(target=_speak_startup, daemon=True).start()
 
     if open_browser:
         def _open_browser():
             time.sleep(1.5)
-            webbrowser.open("http://localhost:5000")
+            webbrowser.open(f"http://localhost:{port}")
         threading.Thread(target=_open_browser, daemon=True).start()
 
 
@@ -869,5 +993,6 @@ def startup(open_browser: bool = True):
 
 if __name__ == "__main__":
     no_browser = "--no-browser" in sys.argv
-    startup(open_browser=not no_browser)
-    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
+    port = int(load_config().get("dashboard", {}).get("port", 5000))
+    startup(open_browser=not no_browser, port=port)
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

@@ -24,36 +24,49 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from imos.ui import get_cli_palette, get_ui_config, setup_terminal_io
+
 VERSION = "1.0.0"
 
-O = "\033[38;5;208m"
-W = "\033[1;37m"
-G = "\033[32m"
-R = "\033[31m"
-D = "\033[90m"
-X = "\033[0m"
+setup_terminal_io()
+_palette = get_cli_palette()
+O = _palette["O"]
+W = _palette["W"]
+G = _palette["G"]
+R = _palette["R"]
+D = _palette["D"]
+X = _palette["X"]
 
-BANNER = f"""{O}
+def _banner_text(port: int) -> str:
+    ui_cfg = get_ui_config()
+    try:
+        heading = f"""{O}
   ██╗███╗   ███╗ ██████╗ ███████╗
   ██║████╗ ████║██╔═══██╗██╔════╝
   ██║██╔████╔██║██║   ██║███████╗
   ██║██║╚██╔╝██║██║   ██║╚════██║
   ██║██║ ╚═╝ ██║╚██████╔╝███████║
-  ╚═╝╚═╝     ╚═╝ ╚═════╝ ╚══════╝{X}
+  ╚═╝╚═╝     ╚═╝ ╚═════╝ ╚══════╝{X}"""
+        heading.encode(sys.stdout.encoding or "utf-8", errors="strict")
+    except Exception:
+        heading = f"{O}IMOS{X}"
+    return f"""{heading}
   {W}Intelligent Machine Operating System{X} {D}v{VERSION}{X}
-  {D}Dashboard → http://localhost:5000{X}
+  {D}Dashboard -> http://localhost:{port}{X}
+  {D}Shell palette: {ui_cfg['shell_palette']}  Dashboard palette: {ui_cfg['dashboard_palette']}{X}
 """
 
 HELP_TEXT = f"""
-{O}IMOS — Intelligent Machine Operating System  v{VERSION}{X}
+{O}IMOS - Intelligent Machine Operating System  v{VERSION}{X}
 
 {W}Commands:{X}
   {O}imos{X}                   Ask what to start (shell or dashboard)
   {O}imos shell{X}             Interactive AI shell
   {O}imos dashboard{X}         Start server and open dashboard in browser
+  {O}imos both{X}              Open dashboard and keep the shell in this terminal
   {O}imos server{X}            Start server only (no browser, no shell)
   {O}imos setup{X}             Run the setup wizard
-  {O}imos status{X}            System status (model, CPU, RAM, GitHub…)
+  {O}imos status{X}            System status (model, CPU, RAM, GitHub...)
   {O}imos skills{X}            List all 38 loaded skills
   {O}imos model{X}             Show active AI model
   {O}imos setmodel{X}          Change AI model interactively
@@ -91,6 +104,7 @@ HELP_TEXT = f"""
 {W}Examples:{X}
   {D}${X} imos shell
   {D}${X} imos dashboard
+  {D}${X} imos both
   {D}${X} imos setup
   {D}${X} imos login
   {D}imos>{X} clean my pc
@@ -418,7 +432,9 @@ def main():
         return
 
     # ── banner ────────────────────────────────────────────────────────────
-    print(BANNER)
+    from config.config import load_config
+    port = load_config().get("dashboard", {}).get("port", 5000)
+    print(_banner_text(port))
     _load_env()
 
     # ── authentication — required before anything else ────────────────────
@@ -461,6 +477,21 @@ def main():
 
     if "dashboard" in all_tokens:
         _cmd_dashboard(port)
+        return
+
+    if "both" in all_tokens:
+        if _check_port_free(port):
+            print(f"\n{D}  Starting IMOS server...{X}", end="", flush=True)
+            ok = _start_server_background(port)
+            if ok:
+                print(f"\r{G}  Server online -> http://localhost:{port}          {X}")
+            else:
+                print(f"\r{D}  Server starting...{X}")
+        import webbrowser
+        webbrowser.open(f"http://localhost:{port}")
+        print(f"{G}  Dashboard opened in browser.{X}")
+        print(f"{D}  Dropping into shell. Type {X}{O}/help{X}{D} for commands.{X}\n")
+        _interactive_shell()
         return
 
     if "server" in all_tokens:
@@ -577,68 +608,80 @@ def _handle_shell_builtin(cmd: str, runtime_ctx: dict) -> bool:
     model_config = runtime_ctx["model_config"]
     cost = runtime_ctx["cost"]
 
-    low = cmd.lower().strip()
+    raw = cmd.strip()
+    low = raw.lower()
+    builtin_names = {
+        "exit", "quit", "clear", "help", "model", "setmodel", "skills",
+        "status", "dashboard", "setup", "login", "logout", "whoami",
+        "workspace", "github", "deploy", "memory", "tasks", "audit", "history",
+    }
+    if low.startswith("/"):
+        canonical = low
+    elif low in builtin_names or low.startswith("voice "):
+        canonical = "/" + low
+    else:
+        canonical = low
 
-    if low in ("/exit", "/quit"):
+    if canonical in ("/exit", "/quit"):
         print(f"\n{D}IMOS shutting down. Goodbye.{X}")
         sys.exit(0)
 
-    if low == "/clear":
+    if canonical == "/clear":
         os.system("cls" if os.name == "nt" else "clear")
         return True
 
-    if low == "/help":
+    if canonical == "/help":
         print(HELP_TEXT)
         return True
 
-    if low == "/model":
+    if canonical == "/model":
         print(f"\n  {D}Provider:{X} {model_config.get('provider','?')} / {model_config.get('model','?')}\n")
         return True
 
-    if low == "/setmodel":
+    if canonical == "/setmodel":
         _set_model_interactive()
         runtime_ctx["model_config"] = __import__("config.config", fromlist=["get_model_config"]).get_model_config()
         return True
 
-    if low == "/skills":
+    if canonical == "/skills":
         loaded = skills_reg.load_all()
         print(f"\n{O}  {len(loaded)} skills:{X} {', '.join(s.name for s in loaded)}\n")
         return True
 
-    if low == "/status":
+    if canonical == "/status":
         _show_status()
         return True
 
-    if low == "/dashboard":
-        import webbrowser
-        webbrowser.open("http://localhost:5000")
-        print(f"  {G}Opening dashboard...{X}")
+    if canonical == "/dashboard":
+        from config.config import load_config
+        port = load_config().get("dashboard", {}).get("port", 5000)
+        _cmd_dashboard(port)
         return True
 
-    if low == "/setup":
+    if canonical == "/setup":
         from imos_setup import run_setup
         run_setup(force=True)
         return True
 
-    if low in ("/login",):
+    if canonical in ("/login",):
         from imos.auth import cmd_login
         cmd_login()
         return True
 
-    if low in ("/logout",):
+    if canonical in ("/logout",):
         from imos.auth import cmd_logout
         cmd_logout()
         return True
 
-    if low in ("/whoami",):
+    if canonical in ("/whoami",):
         _cmd_whoami()
         return True
 
-    if low == "/workspace":
+    if canonical == "/workspace":
         print(f"\n  {D}Workspace:{X} {workspace}\n")
         return True
 
-    if low == "/github":
+    if canonical == "/github":
         _load_env()
         gh = os.environ.get("GITHUB_TOKEN", "")
         if gh:
@@ -656,7 +699,7 @@ def _handle_shell_builtin(cmd: str, runtime_ctx: dict) -> bool:
             print(f"\n  {R}GitHub: not configured. Run /setup{X}\n")
         return True
 
-    if low == "/deploy":
+    if canonical == "/deploy":
         _load_env()
         vt = os.environ.get("VERCEL_TOKEN", "")
         nt = os.environ.get("NETLIFY_TOKEN", "")
@@ -664,8 +707,8 @@ def _handle_shell_builtin(cmd: str, runtime_ctx: dict) -> bool:
         print(f"  {D}Netlify:{X} {'configured' if nt else 'not set'}\n")
         return True
 
-    if low.startswith("/voice"):
-        parts = low.split()
+    if canonical.startswith("/voice"):
+        parts = canonical.split()
         if len(parts) > 1 and parts[1] == "off":
             os.environ["IMOS_VOICE_ENABLED"] = "false"
             print(f"  {D}Voice disabled{X}")
@@ -674,7 +717,7 @@ def _handle_shell_builtin(cmd: str, runtime_ctx: dict) -> bool:
             print(f"  {G}Voice enabled{X}")
         return True
 
-    if low == "/memory":
+    if canonical == "/memory":
         try:
             import requests
             r = requests.get("http://localhost:5000/api/memory", timeout=5)
@@ -684,7 +727,7 @@ def _handle_shell_builtin(cmd: str, runtime_ctx: dict) -> bool:
             print(f"\n  {D}Memory: server not running{X}\n")
         return True
 
-    if low == "/tasks":
+    if canonical == "/tasks":
         try:
             import requests
             r = requests.get("http://localhost:5000/api/tasks", timeout=5)
@@ -698,7 +741,7 @@ def _handle_shell_builtin(cmd: str, runtime_ctx: dict) -> bool:
             print(f"\n  {D}Tasks: server not running{X}\n")
         return True
 
-    if low == "/audit":
+    if canonical == "/audit":
         try:
             import requests
             r = requests.get("http://localhost:5000/api/audit?limit=10", timeout=5)
@@ -711,7 +754,7 @@ def _handle_shell_builtin(cmd: str, runtime_ctx: dict) -> bool:
             print(f"\n  {D}Audit: server not running{X}\n")
         return True
 
-    if low == "/history":
+    if canonical == "/history":
         history = runtime_ctx.get("history", [])
         user_msgs = [m["content"] for m in history if m.get("role") == "user"]
         print(f"\n{O}  Command history:{X}")
@@ -763,9 +806,7 @@ def _interactive_shell(runtime_ctx: dict = None):
         if not user_input:
             continue
 
-        # Handle /builtins
-        if user_input.startswith("/"):
-            _handle_shell_builtin(user_input, runtime_ctx)
+        if _handle_shell_builtin(user_input, runtime_ctx):
             continue
 
         # Stream response

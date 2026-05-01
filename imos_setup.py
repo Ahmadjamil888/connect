@@ -13,21 +13,25 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Optional
+
+from imos.ui import DASHBOARD_PALETTES, SHELL_PALETTES, get_cli_palette, setup_terminal_io
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 ENV_PATH = PROJECT_ROOT / ".env"
 ENV_EXAMPLE = PROJECT_ROOT / ".env.example"
 
 # ── colours ──────────────────────────────────────────────────────────────────
-O  = "\033[38;5;208m"   # orange
-W  = "\033[1;37m"       # white bold
-G  = "\033[32m"         # green
-Y  = "\033[33m"         # yellow
-R  = "\033[31m"         # red
-D  = "\033[90m"         # dim
-X  = "\033[0m"          # reset
-B  = "\033[1m"          # bold
+setup_terminal_io()
+_palette = get_cli_palette()
+O  = _palette["O"]
+W  = _palette["W"]
+G  = _palette["G"]
+Y  = O
+R  = _palette["R"]
+D  = _palette["D"]
+X  = _palette["X"]
+B  = W
 
 
 def clr(text: str, c: str) -> str:
