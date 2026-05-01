@@ -9,6 +9,9 @@ from config.config import get_client
 
 
 class ConnectAIRuntime:
+    MAX_HISTORY_MESSAGES = 20
+    MAX_HISTORY_CHARS = 24000
+
     def __init__(self, skill_registry, memory_store, *, shell_runner=None, process_manager=None, audit_logger=None, task_manager=None, cost_tracker=None, mcp_runtime=None):
         self.skill_registry = skill_registry
         self.memory_store = memory_store
@@ -63,9 +66,15 @@ class ConnectAIRuntime:
             for tool in self.mcp_runtime.list_tools():
                 skill_lines.append(f"- {tool['name']}: {tool['description']} (MCP:{tool['server']})")
         sections = [
-            "You are ConnectAI, an autonomous coding and operator agent.",
+            "You are ConnectAI JARVIS, one unified autonomous coding, operator, and desktop agent.",
+            "Address the user naturally and directly. You can sound like Jarvis, but your results must stay factual and tool-grounded.",
             "You act through local tools and skills available on this machine.",
             "If a user asks for something that can be done with an available skill, do it instead of giving generic advice.",
+            "CRITICAL RULES:",
+            "- Never print fake terminal output, fake file listings, or pretend a tool ran when it did not.",
+            "- If the request is actionable, you must use a real tool or explicitly say no tool action was completed.",
+            "- If a tool returns an error, report the real error instead of rewriting it as success.",
+            "- If no tool call was made, you did not complete the task.",
             "Do not say you are unable to access the PC when a skill exists for the task.",
             "The gateway owns sessions and command routing. Only act on natural-language tasks here.",
             "Prefer acting over explaining. Explain only when blocked, unsafe, or missing credentials.",
@@ -90,6 +99,18 @@ class ConnectAIRuntime:
                 messages.append({"role": role, "content": str(row.get("content", ""))})
         messages.append({"role": "user", "content": user_text})
         return messages
+
+    def _trim_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if len(messages) <= 2:
+            return messages
+        system_message = messages[0]
+        body = messages[1:]
+        trimmed = body[-self.MAX_HISTORY_MESSAGES :]
+        total_chars = sum(len(str(item.get("content", ""))) for item in trimmed)
+        while len(trimmed) > 1 and total_chars > self.MAX_HISTORY_CHARS:
+            removed = trimmed.pop(0)
+            total_chars -= len(str(removed.get("content", "")))
+        return [system_message] + trimmed
 
     def _find_skill(self, skills: List[Any], name: str):
         return next((skill for skill in skills if skill.name == name), None)
@@ -405,7 +426,7 @@ class ConnectAIRuntime:
         task = self.task_manager.create(user_text, session_id, plan=plan) if self.task_manager and self._is_actionable_request(user_text) else None
         memory_blocks = self.memory_store.context_blocks(session_id=session_id, query=user_text)
         system_prompt = self._system_prompt(workspace, memory_blocks, skills)
-        messages = self._serialize_messages(system_prompt, session_history, user_text)
+        messages = self._trim_messages(self._serialize_messages(system_prompt, session_history, user_text))
         client = get_client(model_config)
         provider = model_config.get("provider", "anthropic")
         model = model_config.get("model", "")
@@ -419,6 +440,7 @@ class ConnectAIRuntime:
             if task is not None:
                 task.attempts += 1
                 self.task_manager.update(task)
+            messages = self._trim_messages(messages)
             if provider in {"anthropic", "gcp"}:
                 response_text, tool_calls, usage = self._run_anthropic(client, model, system_prompt, messages, tools, on_text_delta=on_text_delta)
             else:

@@ -1,167 +1,126 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
+title IMOS Installer
 
 set "REPO_URL=https://github.com/Ahmadjamil888/connect.git"
-set "ZIP_URL=https://github.com/Ahmadjamil888/connect/archive/refs/heads/main.zip"
-set "INSTALL_DIR=%CONNECT_INSTALL_DIR%"
-if not defined INSTALL_DIR set "INSTALL_DIR=%USERPROFILE%\connect"
-set "DATA_DIR=%USERPROFILE%\.connectai"
+set "INSTALL_DIR=%USERPROFILE%\imos"
 set "SCRIPT_DIR=%~dp0"
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
-echo ========================================
-echo   CONNECT INSTALLER
-echo ========================================
+echo.
+echo  ========================================================
+echo    IMOS -- Intelligent Machine Operating System
+echo    Installer
+echo  ========================================================
+echo.
 
-call :resolve_repo_dir || exit /b 1
-call :resolve_python || exit /b 1
-call :create_venv || exit /b 1
-call :install_requirements || exit /b 1
-call :ensure_env || exit /b 1
-call :ensure_data_dir || exit /b 1
-call :install_launcher || exit /b 1
-call :print_next_steps
-exit /b 0
-
-:resolve_repo_dir
-if exist "%SCRIPT_DIR%\ai_assistant.py" (
+:: ── Step 1: Resolve repo directory ──────────────────────────────────────────
+if exist "%SCRIPT_DIR%\imos_cli.py" (
     set "REPO_DIR=%SCRIPT_DIR%"
-    echo [*] Using existing repo at %REPO_DIR%
-    exit /b 0
+    echo [1/6] Using existing repo at %REPO_DIR%
+    goto :resolve_python
 )
 
 set "REPO_DIR=%INSTALL_DIR%"
 
-if exist "%REPO_DIR%\.git" (
-    where git >nul 2>nul || (
-        echo [!] Git is required to update the existing CONNECT clone.
-        exit /b 1
-    )
-    echo [*] Updating existing clone in %REPO_DIR%
-    git -C "%REPO_DIR%" pull --ff-only || exit /b 1
-    exit /b 0
-)
-
-if exist "%REPO_DIR%\ai_assistant.py" (
-    echo [*] Reusing existing install in %REPO_DIR%
-    exit /b 0
-)
-
-if exist "%REPO_DIR%" (
-    dir /b "%REPO_DIR%" 2>nul | findstr . >nul && (
-        echo [!] %REPO_DIR% already exists and is not a CONNECT repo.
-        echo [!] Set CONNECT_INSTALL_DIR to an empty directory or run install.bat from the repo itself.
-        exit /b 1
-    )
-) else (
-    mkdir "%REPO_DIR%" || exit /b 1
+if exist "%REPO_DIR%\imos_cli.py" (
+    echo [1/6] Updating existing install at %REPO_DIR%
+    where git >nul 2>nul && git -C "%REPO_DIR%" pull --ff-only
+    goto :resolve_python
 )
 
 where git >nul 2>nul
 if %errorlevel%==0 (
-    echo [*] Cloning CONNECT into %REPO_DIR%
-    git clone "%REPO_URL%" "%REPO_DIR%" || exit /b 1
-    exit /b 0
-)
-
-echo [*] Downloading CONNECT archive into %REPO_DIR%
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$zipPath = Join-Path $env:TEMP 'connect-main.zip';" ^
-  "Invoke-WebRequest '%ZIP_URL%' -OutFile $zipPath;" ^
-  "Expand-Archive -Path $zipPath -DestinationPath $env:TEMP -Force;" ^
-  "$src = Join-Path $env:TEMP 'connect-main';" ^
-  "Copy-Item -Path (Join-Path $src '*') -Destination '%REPO_DIR%' -Recurse -Force;" ^
-  "Remove-Item $zipPath -Force;" ^
-  "Remove-Item $src -Recurse -Force;" || exit /b 1
-exit /b 0
-
-:resolve_python
-where py >nul 2>nul
-if %errorlevel%==0 (
-    set "PYTHON_CMD=py -3"
-    exit /b 0
-)
-where python >nul 2>nul
-if %errorlevel%==0 (
-    set "PYTHON_CMD=python"
-    exit /b 0
-)
-echo [!] Python 3 is required. Install Python 3.10+ and rerun the installer.
-exit /b 1
-
-:create_venv
-if not exist "%REPO_DIR%\venv\Scripts\python.exe" (
-    echo [*] Creating virtual environment
-    call %PYTHON_CMD% -m venv "%REPO_DIR%\venv" || exit /b 1
+    echo [1/6] Cloning IMOS into %REPO_DIR%
+    git clone "%REPO_URL%" "%REPO_DIR%" || goto :error
 ) else (
-    echo [*] Using existing virtual environment
+    echo [1/6] Downloading IMOS archive...
+    if not exist "%REPO_DIR%" mkdir "%REPO_DIR%"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+      "$z='%TEMP%\imos.zip';" ^
+      "Invoke-WebRequest 'https://github.com/Ahmadjamil888/connect/archive/refs/heads/main.zip' -OutFile $z;" ^
+      "Expand-Archive $z '%TEMP%\imos-src' -Force;" ^
+      "Copy-Item '%TEMP%\imos-src\connect-main\*' '%REPO_DIR%' -Recurse -Force;" ^
+      "Remove-Item $z,'%TEMP%\imos-src' -Recurse -Force" || goto :error
 )
-set "VENV_PYTHON=%REPO_DIR%\venv\Scripts\python.exe"
-if not exist "%VENV_PYTHON%" (
-    echo [!] Virtual environment creation failed.
-    exit /b 1
+
+:: ── Step 2: Resolve Python ───────────────────────────────────────────────────
+:resolve_python
+echo [2/6] Checking Python...
+where py >nul 2>nul && set "PY=py -3" && goto :create_venv
+where python >nul 2>nul && set "PY=python" && goto :create_venv
+echo [!] Python 3.10+ is required. Download from https://python.org
+goto :error
+
+:: ── Step 3: Create venv ──────────────────────────────────────────────────────
+:create_venv
+echo [3/6] Creating virtual environment...
+if not exist "%REPO_DIR%\venv\Scripts\python.exe" (
+    %PY% -m venv "%REPO_DIR%\venv" || goto :error
 )
-exit /b 0
+set "VENV=%REPO_DIR%\venv\Scripts\python.exe"
 
-:install_requirements
-echo [*] Installing Python dependencies
-"%VENV_PYTHON%" -m pip install --upgrade pip || exit /b 1
-"%VENV_PYTHON%" -m pip install -r "%REPO_DIR%\requirements.txt" || exit /b 1
-exit /b 0
+:: ── Step 4: Install requirements ─────────────────────────────────────────────
+echo [4/6] Installing requirements...
+"%VENV%" -m pip install --upgrade pip -q
+"%VENV%" -m pip install -r "%REPO_DIR%\requirements.txt" -q || goto :error
+echo       Done.
 
-:ensure_env
-exit /b 0
+:: ── Step 5: Copy .env.example to .env ────────────────────────────────────────
+echo [5/6] Setting up environment file...
+if not exist "%REPO_DIR%\.env" (
+    if exist "%REPO_DIR%\.env.example" (
+        copy "%REPO_DIR%\.env.example" "%REPO_DIR%\.env" >nul
+        echo       Created .env from .env.example
+    ) else (
+        type nul > "%REPO_DIR%\.env"
+        echo       Created empty .env
+    )
+) else (
+    echo       .env already exists, skipping.
+)
 
-:ensure_data_dir
-echo [*] Preparing local data directory
-if not exist "%DATA_DIR%" mkdir "%DATA_DIR%" || exit /b 1
-type nul > "%DATA_DIR%\.keep"
-exit /b 0
-
-:install_launcher
-set "BIN_DIR=%USERPROFILE%\connect-bin"
-if not exist "%BIN_DIR%" mkdir "%BIN_DIR%" || exit /b 1
-set "LAUNCHER=%BIN_DIR%\connect.cmd"
+:: ── Step 6: Install imos command ─────────────────────────────────────────────
+echo [6/6] Installing 'imos' command...
+set "BIN_DIR=%USERPROFILE%\imos-bin"
+if not exist "%BIN_DIR%" mkdir "%BIN_DIR%"
 
 (
 echo @echo off
-echo setlocal
-echo set "REPO_DIR=%REPO_DIR%"
-echo set "VENV_PYTHON=%%REPO_DIR%%\venv\Scripts\python.exe"
-echo if exist "%%VENV_PYTHON%%" ^(
-echo     "%%VENV_PYTHON%%" "%%REPO_DIR%%\ai_assistant.py" %%*
-echo ^) else if exist "%%LocalAppData%%\Programs\Python\Launcher\py.exe" ^(
-echo     py -3 "%%REPO_DIR%%\ai_assistant.py" %%*
-echo ^) else ^(
-echo     python "%%REPO_DIR%%\ai_assistant.py" %%*
-echo ^)
-echo endlocal
-) > "%LAUNCHER%"
+echo "%VENV%" "%REPO_DIR%\imos_cli.py" %%*
+) > "%BIN_DIR%\imos.cmd"
 
-echo [*] Installed launcher at "%LAUNCHER%"
-
+:: Add to PATH if not already there
 echo %PATH% | find /I "%BIN_DIR%" >nul
 if errorlevel 1 (
     setx PATH "%PATH%;%BIN_DIR%" >nul
-    echo [*] Added "%BIN_DIR%" to your user PATH
-    echo [*] Open a new terminal before running connect
+    echo       Added %BIN_DIR% to PATH
+    echo       Open a NEW terminal for PATH to take effect.
 ) else (
-    echo [*] "%BIN_DIR%" is already in PATH
+    echo       %BIN_DIR% already in PATH
 )
+
+:: Also copy to Python Scripts (usually already on PATH)
+if exist "%REPO_DIR%\venv\Scripts\" (
+    copy "%REPO_DIR%\imos.bat" "%REPO_DIR%\venv\Scripts\imos.bat" >nul 2>nul
+)
+
+echo.
+echo  ========================================================
+echo    IMOS installed successfully!
+echo  ========================================================
+echo.
+echo    Open a NEW terminal and type:  imos
+echo    The setup wizard will run on first launch.
+echo.
+echo    Repo:      %REPO_DIR%
+echo    Dashboard: http://localhost:5000
+echo.
+pause
 exit /b 0
 
-:print_next_steps
+:error
 echo.
-echo ========================================
-echo   CONNECT INSTALL COMPLETE
-echo ========================================
-echo Repo: %REPO_DIR%
-echo Launcher: %USERPROFILE%\connect-bin\connect.cmd
-echo.
-echo Next steps:
-echo   1. Run: connect
-echo   2. Complete the first-run setup wizard
-echo   3. Open a new terminal if PATH was updated
-echo   4. Config will be saved to %USERPROFILE%\.connectai\config.json
-echo.
-exit /b 0
+echo [!] Installation failed. Check the error above.
+pause
+exit /b 1

@@ -6,6 +6,7 @@ TOOL_SCHEMA = {
     "type": "object",
     "properties": {
         "command": {"type": "string"},
+        "timeout_seconds": {"type": "integer"},
     },
     "required": ["command"],
 }
@@ -14,8 +15,9 @@ TOOL_SCHEMA = {
 def run(inputs, *, workspace: str, **_kwargs):
     shell_runner = _kwargs.get("shell_runner")
     command = str(inputs["command"])
+    timeout_seconds = int(inputs.get("timeout_seconds", 120) or 120)
     if shell_runner is not None:
-        result = shell_runner.run(command, cwd=workspace, timeout=int(inputs.get("timeout_seconds", 120) or 120))
+        result = shell_runner.run(command, cwd=workspace, timeout=timeout_seconds)
         return {
             "ok": result.ok,
             "command": result.command,
@@ -32,7 +34,7 @@ def run(inputs, *, workspace: str, **_kwargs):
         capture_output=True,
         text=True,
         cwd=workspace,
-        timeout=120,
+        timeout=timeout_seconds,
     )
     return {
         "ok": result.returncode == 0,

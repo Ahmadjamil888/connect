@@ -189,6 +189,7 @@ HELP = """
   [green]/workspace[/green]          show workspace path
   [green]/cd[/green] [dim]<path>[/dim]            change workspace
   [green]/dashboard[/green]         launch local dashboard
+  [green]connect voice[/green]      launch the Jarvis voice loop
   [green]/login[/green]             run Clerk login flow
   [green]/logout[/green]            clear Clerk session
   [green]/clear[/green]             clear screen
@@ -210,7 +211,7 @@ def render_home_screen(model_config, workspace):
     welcome = Text()
     welcome.append("* ", style="bold #ff9b73")
     welcome.append("Welcome to ", style="bold white")
-    welcome.append("Connect AI", style="bold bright_cyan")
+    welcome.append("Connect AI // JARVIS", style="bold bright_cyan")
 
     console.print()
     console.print(
@@ -1169,6 +1170,10 @@ def _dashboard_app_html() -> str:
 </html>"""
 
 
+def _jarvis_dashboard_html() -> str:
+    return (PROJECT_ROOT / "dashboard" / "jarvis_dashboard.html").read_text(encoding="utf-8")
+
+
 def launch_dashboard():
     cfg = load_config()
     workspace = _workspace_root_from_cfg(cfg)
@@ -1196,6 +1201,24 @@ def launch_dashboard():
     workflow_registry = WorkflowRegistry(workspace)
 
     class Handler(BaseHTTPRequestHandler):
+        def _run_skill(self, name: str, args: dict):
+            skill = next((item for item in skill_registry.load_all() if item.name == name), None)
+            if skill is None:
+                return {"ok": False, "error": f"Unknown skill: {name}"}
+            try:
+                return skill.handler(
+                    args,
+                    workspace=str(workspace),
+                    memory_store=memory_store,
+                    session_id="dashboard",
+                    model_config=get_model_config(),
+                    shell_runner=shell_runner,
+                    process_manager=process_manager,
+                    audit_logger=audit_logger,
+                )
+            except Exception as exc:
+                return {"ok": False, "error": str(exc)}
+
         def _send_json(self, payload: dict, status: int = 200):
             raw = json.dumps(payload).encode("utf-8")
             self.send_response(status)
@@ -1305,6 +1328,12 @@ def launch_dashboard():
             if parsed.path == "/api/cost":
                 self._send_json(cost_tracker.summary())
                 return
+            if parsed.path == "/api/weather":
+                self._send_json(self._run_skill("weather", {}))
+                return
+            if parsed.path == "/api/news":
+                self._send_json(self._run_skill("news", {"limit": 4}))
+                return
             if parsed.path == "/api/stream":
                 self._send_sse_headers()
                 path = audit_logger.path
@@ -1337,7 +1366,7 @@ def launch_dashboard():
                     }
                 )
                 return
-            self._send_html(_dashboard_app_html())
+            self._send_html(_jarvis_dashboard_html())
 
         def do_POST(self):
             parsed = urlparse(self.path)
@@ -2157,6 +2186,10 @@ def main():
         top_command = sys.argv[1].strip().lower()
         if top_command == "dashboard":
             launch_dashboard()
+            return
+        if top_command == "voice":
+            from jarvis import voice_loop
+            voice_loop()
             return
         if top_command == "login":
             run_login()

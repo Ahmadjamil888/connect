@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import time
 from pathlib import Path
 
 TOOL_SCHEMA = {
@@ -28,6 +29,25 @@ def run(inputs, *, workspace: str, **_kwargs):
         text=True,
     )
     process_manager = _kwargs.get("process_manager")
+    time.sleep(2)
+    early_returncode = process.poll()
+    early_stdout = ""
+    early_stderr = ""
+    if early_returncode is not None:
+        if process.stdout is not None:
+            early_stdout = process.stdout.read()[-2000:]
+        if process.stderr is not None:
+            early_stderr = process.stderr.read()[-2000:]
+        return {
+            "ok": False,
+            "error": "Dev server exited before verification completed.",
+            "returncode": early_returncode,
+            "project_dir": str(project_dir),
+            "command": command,
+            "stdout": early_stdout,
+            "stderr": early_stderr,
+        }
+
     payload = {
         "ok": True,
         "pid": process.pid,

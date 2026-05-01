@@ -1,164 +1,124 @@
 #!/usr/bin/env bash
-
+# IMOS — Intelligent Machine Operating System — Installer
 set -euo pipefail
 
 REPO_URL="https://github.com/Ahmadjamil888/connect.git"
-ARCHIVE_URL="https://github.com/Ahmadjamil888/connect/archive/refs/heads/main.tar.gz"
-INSTALL_DIR="${CONNECT_INSTALL_DIR:-$HOME/connect}"
+INSTALL_DIR="${IMOS_INSTALL_DIR:-$HOME/imos}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DATA_DIR="$HOME/.connectai"
 
-log() {
-  printf '[*] %s\n' "$1"
-}
+O='\033[38;5;208m'; W='\033[1;37m'; G='\033[32m'; R='\033[31m'; D='\033[90m'; X='\033[0m'
 
-fail() {
-  printf '[!] %s\n' "$1" >&2
-  exit 1
-}
+log()  { printf "${O}[%s]${X} %s\n" "$1" "$2"; }
+ok()   { printf "${G}      ✓ %s${X}\n" "$1"; }
+fail() { printf "${R}[!] %s${X}\n" "$1" >&2; exit 1; }
 
-ensure_command() {
-  command -v "$1" >/dev/null 2>&1 || fail "$2"
-}
+echo ""
+echo -e "${O}  ========================================================"
+echo -e "    IMOS — Intelligent Machine Operating System"
+echo -e "    Installer"
+echo -e "  ========================================================${X}"
+echo ""
 
-resolve_repo_dir() {
-  if [[ -f "$SCRIPT_DIR/ai_assistant.py" ]]; then
+# ── Step 1: Resolve repo ──────────────────────────────────────────────────────
+log "1/6" "Resolving repository..."
+if [[ -f "$SCRIPT_DIR/imos_cli.py" ]]; then
     REPO_DIR="$SCRIPT_DIR"
-    log "Using existing repo at $REPO_DIR"
-    return
-  fi
-
-  REPO_DIR="$INSTALL_DIR"
-  mkdir -p "$REPO_DIR"
-
-  if [[ -d "$REPO_DIR/.git" ]]; then
-    ensure_command git "Git is required to update the existing CONNECT clone."
-    log "Updating existing clone in $REPO_DIR"
-    git -C "$REPO_DIR" pull --ff-only
-    return
-  fi
-
-  if [[ -f "$REPO_DIR/ai_assistant.py" ]]; then
-    log "Reusing existing install in $REPO_DIR"
-    return
-  fi
-
-  if command -v git >/dev/null 2>&1; then
-    if [[ -n "$(find "$REPO_DIR" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
-      fail "$REPO_DIR already exists and is not a CONNECT repo. Set CONNECT_INSTALL_DIR to an empty directory or run install.sh from the repo itself."
-    fi
-    log "Cloning CONNECT into $REPO_DIR"
+    ok "Using existing repo at $REPO_DIR"
+elif [[ -f "$INSTALL_DIR/imos_cli.py" ]]; then
+    REPO_DIR="$INSTALL_DIR"
+    ok "Updating existing install at $REPO_DIR"
+    command -v git >/dev/null 2>&1 && git -C "$REPO_DIR" pull --ff-only || true
+elif command -v git >/dev/null 2>&1; then
+    REPO_DIR="$INSTALL_DIR"
+    mkdir -p "$REPO_DIR"
+    log "1/6" "Cloning IMOS into $REPO_DIR"
     git clone "$REPO_URL" "$REPO_DIR"
-    return
-  fi
-
-  ensure_command curl "curl is required when git is not installed."
-  ensure_command tar "tar is required when git is not installed."
-  if [[ -n "$(find "$REPO_DIR" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" && ! -f "$REPO_DIR/ai_assistant.py" ]]; then
-    fail "$REPO_DIR already exists and is not empty. Set CONNECT_INSTALL_DIR to an empty directory or install from a repo clone."
-  fi
-
-  log "Downloading CONNECT archive into $REPO_DIR"
-  tmp_archive="$(mktemp)"
-  trap 'rm -f "$tmp_archive"' EXIT
-  curl -fsSL "$ARCHIVE_URL" -o "$tmp_archive"
-  mkdir -p "$REPO_DIR"
-  tar -xzf "$tmp_archive" --strip-components=1 -C "$REPO_DIR"
-  rm -f "$tmp_archive"
-  trap - EXIT
-}
-
-resolve_python() {
-  if command -v python3 >/dev/null 2>&1; then
-    PYTHON_BIN="python3"
-  elif command -v python >/dev/null 2>&1; then
-    PYTHON_BIN="python"
-  else
-    fail "Python 3 is required. Install Python 3.10+ and rerun the installer."
-  fi
-}
-
-create_venv() {
-  if [[ ! -d "$REPO_DIR/venv" ]]; then
-    log "Creating virtual environment"
-    "$PYTHON_BIN" -m venv "$REPO_DIR/venv"
-  else
-    log "Using existing virtual environment"
-  fi
-  VENV_PYTHON="$REPO_DIR/venv/bin/python"
-  [[ -x "$VENV_PYTHON" ]] || fail "Virtual environment creation failed."
-}
-
-install_requirements() {
-  log "Installing Python dependencies"
-  "$VENV_PYTHON" -m pip install --upgrade pip
-  "$VENV_PYTHON" -m pip install -r "$REPO_DIR/requirements.txt"
-}
-
-ensure_env_file() {
-  :
-}
-
-ensure_data_dir() {
-  log "Preparing local data directory"
-  mkdir -p "$DATA_DIR"
-  touch \
-    "$DATA_DIR/.keep"
-}
-
-install_launcher() {
-  local bin_dir="$HOME/.local/bin"
-  local launcher="$bin_dir/connect"
-  mkdir -p "$bin_dir"
-
-  cat > "$launcher" <<EOF
-#!/usr/bin/env bash
-REPO_DIR="$REPO_DIR"
-VENV_PYTHON="\$REPO_DIR/venv/bin/python"
-if [[ -x "\$VENV_PYTHON" ]]; then
-  exec "\$VENV_PYTHON" "\$REPO_DIR/ai_assistant.py" "\$@"
+    ok "Cloned"
+else
+    REPO_DIR="$INSTALL_DIR"
+    mkdir -p "$REPO_DIR"
+    log "1/6" "Downloading IMOS archive..."
+    command -v curl >/dev/null 2>&1 || fail "curl is required when git is not installed"
+    TMP="$(mktemp)"
+    curl -fsSL "https://github.com/Ahmadjamil888/connect/archive/refs/heads/main.tar.gz" -o "$TMP"
+    tar -xzf "$TMP" --strip-components=1 -C "$REPO_DIR"
+    rm -f "$TMP"
+    ok "Downloaded"
 fi
+
+# ── Step 2: Python ────────────────────────────────────────────────────────────
+log "2/6" "Checking Python..."
 if command -v python3 >/dev/null 2>&1; then
-  exec python3 "\$REPO_DIR/ai_assistant.py" "\$@"
+    PY="python3"
+elif command -v python >/dev/null 2>&1; then
+    PY="python"
+else
+    fail "Python 3.10+ is required. Install from https://python.org"
 fi
-exec python "\$REPO_DIR/ai_assistant.py" "\$@"
+ok "Found: $($PY --version)"
+
+# ── Step 3: Virtual environment ───────────────────────────────────────────────
+log "3/6" "Creating virtual environment..."
+if [[ ! -d "$REPO_DIR/venv" ]]; then
+    "$PY" -m venv "$REPO_DIR/venv"
+    ok "Created venv"
+else
+    ok "Using existing venv"
+fi
+VENV_PY="$REPO_DIR/venv/bin/python"
+[[ -x "$VENV_PY" ]] || fail "Virtual environment creation failed"
+
+# ── Step 4: Install requirements ──────────────────────────────────────────────
+log "4/6" "Installing requirements..."
+"$VENV_PY" -m pip install --upgrade pip -q
+"$VENV_PY" -m pip install -r "$REPO_DIR/requirements.txt" -q
+ok "Requirements installed"
+
+# ── Step 5: Copy .env.example → .env ─────────────────────────────────────────
+log "5/6" "Setting up environment file..."
+if [[ ! -f "$REPO_DIR/.env" ]]; then
+    if [[ -f "$REPO_DIR/.env.example" ]]; then
+        cp "$REPO_DIR/.env.example" "$REPO_DIR/.env"
+        ok "Created .env from .env.example"
+    else
+        touch "$REPO_DIR/.env"
+        ok "Created empty .env"
+    fi
+else
+    ok ".env already exists, skipping"
+fi
+
+# ── Step 6: Install imos command ──────────────────────────────────────────────
+log "6/6" "Installing 'imos' command..."
+BIN_DIR="$HOME/.local/bin"
+mkdir -p "$BIN_DIR"
+
+cat > "$BIN_DIR/imos" <<EOF
+#!/usr/bin/env bash
+exec "$VENV_PY" "$REPO_DIR/imos_cli.py" "\$@"
 EOF
+chmod +x "$BIN_DIR/imos"
+ok "Installed at $BIN_DIR/imos"
 
-  chmod +x "$launcher"
-  log "Installed launcher at $launcher"
-
-  case ":$PATH:" in
-    *":$bin_dir:"*) ;;
+# Check PATH
+case ":$PATH:" in
+    *":$BIN_DIR:"*) ok "$BIN_DIR already in PATH" ;;
     *)
-      printf '[!] %s is not in PATH. Add this line to your shell profile:\n' "$bin_dir"
-      printf '    export PATH="%s:$PATH"\n' "$bin_dir"
-      ;;
-  esac
-}
+        echo ""
+        echo -e "${O}  Add this to your shell profile (~/.bashrc or ~/.zshrc):${X}"
+        echo -e "  ${W}export PATH=\"\$HOME/.local/bin:\$PATH\"${X}"
+        echo ""
+        ;;
+esac
 
-print_next_steps() {
-  cat <<EOF
-
-========================================
- CONNECT INSTALL COMPLETE
-========================================
-Repo: $REPO_DIR
-Launcher: $HOME/.local/bin/connect
-
-Next steps:
-  1. Run: connect
-  2. Complete the first-run setup wizard
-  2. Open a new shell if PATH was updated
-  3. Config will be saved to $HOME/.connectai/config.json
-EOF
-}
-
-log "Starting CONNECT installer"
-resolve_repo_dir
-resolve_python
-create_venv
-install_requirements
-ensure_env_file
-ensure_data_dir
-install_launcher
-print_next_steps
+echo ""
+echo -e "${O}  ========================================================"
+echo -e "${G}    IMOS installed successfully!"
+echo -e "${O}  ========================================================${X}"
+echo ""
+echo -e "  Open a new terminal and type: ${O}imos${X}"
+echo -e "  The setup wizard will run on first launch."
+echo ""
+echo -e "  ${D}Repo:      $REPO_DIR${X}"
+echo -e "  ${D}Dashboard: http://localhost:5000${X}"
+echo ""

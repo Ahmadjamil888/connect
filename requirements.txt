@@ -1,3 +1,5 @@
+# IMOS — Intelligent Machine Operating System
+# Core AI providers
 anthropic>=0.40.0
 openai>=1.30.0
 groq>=0.11.0
@@ -5,14 +7,53 @@ huggingface_hub>=0.30.0
 google-generativeai>=0.7.0
 boto3>=1.34.0
 httpx>=0.27.0
-playwright>=1.44.0
-GitPython>=3.1.43
+
+# Web framework
+flask>=3.0.0
+flask-cors>=4.0.0
+flask-sock>=0.7.0
+
+# PC control
+psutil>=6.0.0
+pyautogui>=0.9.54
+keyboard>=0.13.5
 mss>=10.0.0
 Pillow>=10.4.0
-psutil>=6.0.0
+
+# Voice
+pyttsx3>=2.90
+SpeechRecognition>=3.10.4
+pyaudio>=0.2.14
+
+# Git
+GitPython>=3.1.43
+
+# Web / APIs
+requests>=2.32.3
+feedparser>=6.0.11
+
+# Knowledge
+wikipedia-api>=0.7.1
+pyjokes>=0.8.3
+
+# Geocoding
+geopy>=2.4.1
+
+# Utilities
+python-dotenv>=1.0.0
 rich>=13.7.0
 prompt_toolkit>=3.0.43
 InquirerPy>=0.3.4
-PyJWT[crypto]>=2.10.1
 PyYAML>=6.0.2
-python-dotenv>=1.0.0
+PyJWT[crypto]>=2.10.1
+
+# Media
+yt-dlp>=2025.4.30
+opencv-contrib-python>=4.10.0.84
+numpy>=2.1.1
+
+# Optional: Picovoice wake word (requires free API key)
+# pvporcupine>=3.0.0
+
+# Playwright (browser automation)
+playwright>=1.44.0

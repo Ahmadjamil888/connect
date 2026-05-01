@@ -1,0 +1,85 @@
+# ── SECRETS — NEVER COMMIT ──────────────────────────────────────────────────
+.env
+*.env
+.env.local
+.env.*.local
+secrets.json
+credentials.json
+
+# ── IMOS runtime data ────────────────────────────────────────────────────────
+logs/
+screenshots/
+.ai_assistant_agent/
+.ai_assistant_runtime/
+.tmp_memory/
+.tmp_sessions/
+.connectai/
+imos_workspace/
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── Node / Next.js ───────────────────────────────────────────────────────────
+node_modules/
+.next/
+.nuxt/
+.output/
+.vercel/
+.netlify/
+out/
+dist/
+*.tsbuildinfo
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+
+# ── IDE ──────────────────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.suo
+*.user
+
+# ── Databases ────────────────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+*.log.jsonl
+npm-debug.log*
+yarn-debug.log*
+
+# ── Test artifacts ───────────────────────────────────────────────────────────
+test_*.py
+final_test.py
+test_weather_debug.py
+patch_dashboard.py
+dashboard_gen.py
+build_dashboard.py
+write_new_dashboard.py

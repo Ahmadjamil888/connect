@@ -8,19 +8,18 @@ from PIL import Image, ImageDraw, ImageGrab
 
 
 load_dotenv()
-VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
-FALLBACK_VISION_MODEL = "llama-3.2-11b-vision-preview"
+VISION_MODEL = "claude-sonnet-4-5"
 
 
 def _get_client():
     try:
-        from groq import Groq
+        import anthropic
     except ModuleNotFoundError as exc:
-        raise RuntimeError("vision unavailable: missing dependency 'groq'") from exc
-    api_key = os.getenv("GROQ_API_KEY")
+        raise RuntimeError("vision unavailable: missing dependency 'anthropic'") from exc
+    api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
-        raise RuntimeError("vision unavailable: GROQ_API_KEY is not configured")
-    return Groq(api_key=api_key)
+        raise RuntimeError("vision unavailable: ANTHROPIC_API_KEY is not configured")
+    return anthropic.Anthropic(api_key=api_key)
 
 
 def get_screen_b64() -> str:
@@ -40,60 +39,56 @@ def get_screen_b64() -> str:
 def describe_screen() -> str:
     screen_b64 = get_screen_b64()
     client = _get_client()
-    messages = [
-        {
-            "role": "user",
-            "content": [
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{screen_b64}"},
-                },
-                {
-                    "type": "text",
-                    "text": (
-                        "Describe what is on screen right now. Include the active window, visible text, "
-                        "buttons, inputs, and the current UI state. Be specific."
-                    ),
-                },
-            ],
-        }
-    ]
     try:
-        response = client.chat.completions.create(model=VISION_MODEL, messages=messages, max_tokens=500)
-        return response.choices[0].message.content
+        response = client.messages.create(
+            model=VISION_MODEL,
+            max_tokens=500,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": screen_b64,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": (
+                                "Describe what is on screen right now. Include the active window, visible text, "
+                                "buttons, inputs, and the current UI state. Be specific."
+                            ),
+                        },
+                    ],
+                }
+            ],
+        )
+        return "".join(block.text for block in response.content if getattr(block, "type", "") == "text").strip()
     except Exception as exc:
-        try:
-            fallback = client.chat.completions.create(
-                model=FALLBACK_VISION_MODEL,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": (
-                            "A screen image was captured but the preferred vision model is unavailable. "
-                            f"Return a concise fallback note. Error: {exc}"
-                        ),
-                    }
-                ],
-                max_tokens=200,
-            )
-            return fallback.choices[0].message.content
-        except Exception:
-            return f"Screen description unavailable: {exc}"
+        return f"Screen description unavailable: {exc}"
 
 
 def find_on_screen(thing_to_find: str) -> dict:
     screen_b64 = get_screen_b64()
     client = _get_client()
     try:
-        response = client.chat.completions.create(
+        response = client.messages.create(
             model=VISION_MODEL,
+            max_tokens=300,
             messages=[
                 {
                     "role": "user",
                     "content": [
                         {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/png;base64,{screen_b64}"},
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": screen_b64,
+                            },
                         },
                         {
                             "type": "text",
@@ -107,9 +102,8 @@ def find_on_screen(thing_to_find: str) -> dict:
                     ],
                 }
             ],
-            max_tokens=200,
         )
-        content = response.choices[0].message.content
+        content = "".join(block.text for block in response.content if getattr(block, "type", "") == "text").strip()
         try:
             return json.loads(content)
         except Exception:
