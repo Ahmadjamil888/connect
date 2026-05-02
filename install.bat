@@ -112,6 +112,7 @@ if errorlevel 1 (
 
 call :step 7/7 Running guided setup checks
 call :progress Installing editor bridge config "%VENV%" -m imos.cli mcp install
+call :progress Installing wake listener "%VENV%" -m imos.cli wake install
 call :progress Checking runtime status "%VENV%" -m imos.cli status
 
 echo.

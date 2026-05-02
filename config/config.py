@@ -9,6 +9,11 @@ CONFIG_DIR = Path.home() / ".connectai"
 CONFIG_PATH = CONFIG_DIR / "config.yaml"
 LEGACY_CONFIG_PATH = CONFIG_DIR / "config.json"
 
+
+def _fallback_paths() -> tuple[Path, Path, Path]:
+    base = Path.cwd() / ".connectai"
+    return base, base / "config.yaml", base / "config.json"
+
 PROVIDER_DEFAULTS = {
     "anthropic": {
         "model": "claude-sonnet-4-5",
@@ -123,6 +128,7 @@ def _read_yaml(path: Path) -> dict[str, Any]:
 
 
 def load_config() -> dict[str, Any]:
+    global CONFIG_DIR, CONFIG_PATH, LEGACY_CONFIG_PATH
     cfg = _read_yaml(CONFIG_PATH)
     if cfg:
         return cfg
@@ -130,15 +136,34 @@ def load_config() -> dict[str, Any]:
     if legacy:
         save_config(legacy)
         return legacy
+    fallback_dir, fallback_yaml, fallback_json = _fallback_paths()
+    if fallback_yaml.exists() or fallback_json.exists():
+        CONFIG_DIR, CONFIG_PATH, LEGACY_CONFIG_PATH = fallback_dir, fallback_yaml, fallback_json
+        cfg = _read_yaml(CONFIG_PATH)
+        if cfg:
+            return cfg
+        legacy = _read_json(LEGACY_CONFIG_PATH)
+        if legacy:
+            save_config(legacy)
+            return legacy
     return {}
 
 
 def save_config(cfg: dict[str, Any]):
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(
-        yaml.safe_dump(cfg, sort_keys=False, allow_unicode=False),
-        encoding="utf-8",
-    )
+    global CONFIG_DIR, CONFIG_PATH, LEGACY_CONFIG_PATH
+    try:
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        CONFIG_PATH.write_text(
+            yaml.safe_dump(cfg, sort_keys=False, allow_unicode=False),
+            encoding="utf-8",
+        )
+    except PermissionError:
+        CONFIG_DIR, CONFIG_PATH, LEGACY_CONFIG_PATH = _fallback_paths()
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        CONFIG_PATH.write_text(
+            yaml.safe_dump(cfg, sort_keys=False, allow_unicode=False),
+            encoding="utf-8",
+        )
 
 
 def _env_default_model() -> dict[str, Any]:

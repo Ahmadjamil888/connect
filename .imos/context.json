@@ -1,40 +1,257 @@
 {
   "history": [
     {
-      "prompt": "Write a Python hello world, save it, commit it to git, and send the result to Slack",
+      "prompt": "imos dashboard",
       "results": [
         {
-          "task_id": "c539e90a-b5e6-45e1-a0e9-389bf8f62aae",
-          "adapter_name": "model",
-          "success": true,
-          "output": "model:Write a Python hello world",
-          "error": null,
+          "task_id": "639c9a2e-977c-4292-a2c3-31b5043267ea",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
           "duration_ms": 0,
           "metadata": {}
-        },
+        }
+      ],
+      "context": {}
+    },
+    {
+      "prompt": "help",
+      "results": [
         {
-          "task_id": "f75e78fa-026c-40d5-86c3-1022ac11735e",
-          "adapter_name": "model",
-          "success": true,
-          "output": "model:save it",
-          "error": null,
+          "task_id": "5a4e1fb0-626a-4bbb-a356-9e479fbf8965",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
           "duration_ms": 0,
           "metadata": {}
-        },
+        }
+      ],
+      "context": {}
+    },
+    {
+      "prompt": "hello",
+      "results": [
         {
-          "task_id": "2b8038d5-f4b3-4a16-bb1c-2acb4433d906",
-          "adapter_name": "git",
-          "success": true,
-          "output": "git:commit it to git",
-          "error": null,
+          "task_id": "a5ebdb32-23b3-4a25-b4dc-e7a6a2abd4a1",
+          "adapter_name": "default_model",
+          "success": false,
+          "output": null,
+          "error": "float() argument must be a string or a real number, not 'NoneType'",
+          "duration_ms": 0,
+          "metadata": {
+            "provider": "groq"
+          }
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "imos",
+      "results": [
+        {
+          "task_id": "imos_init",
+          "adapter_name": "imos_adapter",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: imos_adapter",
           "duration_ms": 0,
           "metadata": {}
-        },
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "hello",
+      "results": [
         {
-          "task_id": "fb166d41-5e71-4e60-ae82-eb887c48990e",
-          "adapter_name": "slack",
+          "task_id": "1",
+          "adapter_name": "groq_llama-3.3-70b-versatile",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: groq_llama-3.3-70b-versatile",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "hello",
+      "results": [
+        {
+          "task_id": "1",
+          "adapter_name": "groq_llama-3.3-70b-versatile",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: groq_llama-3.3-70b-versatile",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "hello",
+      "results": [
+        {
+          "task_id": "1",
+          "adapter_name": "default_model",
           "success": true,
-          "output": "slack:and send the result to Slack",
+          "output": "Hello. How can I help you today?",
+          "error": null,
+          "duration_ms": 314,
+          "metadata": {
+            "provider": "groq",
+            "token_usage": {
+              "prompt_tokens": 36,
+              "completion_tokens": 10,
+              "total_tokens": 46
+            }
+          }
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "what can you do",
+      "results": [
+        {
+          "task_id": "1",
+          "adapter_name": "groq_llama_3_3_70b_versatile",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: groq_llama_3_3_70b_versatile",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "hello",
+      "results": [
+        {
+          "task_id": "1",
+          "adapter_name": "default_model",
+          "success": true,
+          "output": "Hello. How can I help you today?",
+          "error": null,
+          "duration_ms": 313,
+          "metadata": {
+            "provider": "groq",
+            "token_usage": {
+              "prompt_tokens": 36,
+              "completion_tokens": 10,
+              "total_tokens": 46
+            }
+          }
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "what is weather in pakistan",
+      "results": [
+        {
+          "task_id": "weather_in_pakistan",
+          "adapter_name": "google_search",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: google_search",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "what is weather in gujranwala.",
+      "results": [
+        {
+          "task_id": "get_weather",
+          "adapter_name": "local_browser",
+          "success": false,
+          "output": null,
+          "error": "Unsupported webapp action: search_web",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "answer this question",
+      "results": [
+        {
+          "task_id": "9091d1e6-7396-496c-9090-30d78f742e4e",
+          "adapter_name": "model1",
+          "success": true,
+          "output": "model1:answer this question",
           "error": null,
           "duration_ms": 0,
           "metadata": {}

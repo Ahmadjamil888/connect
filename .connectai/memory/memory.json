@@ -1,1 +1,48 @@
-[]
+[
+  {
+    "ts": "2026-05-02T17:04:49.817485",
+    "kind": "user",
+    "session_id": "f62966ef4987442e",
+    "content": "system info",
+    "metadata": {
+      "channel": "cli",
+      "user_id": "local"
+    }
+  },
+  {
+    "ts": "2026-05-02T17:04:49.819179",
+    "kind": "assistant",
+    "session_id": "f62966ef4987442e",
+    "content": "{'cpu_percent': 94.2, 'ram_percent': 55.3, 'disk_percent': 97.9, 'uptime_seconds': 704373, 'os': 'Windows-10-10.0.19045-SP0', 'hostname': 'DESKTOP-SIMJ8LV', 'ips': ['169.254.131.90', '169.254.231.108', '192.168.1.6', '169.254.134.195', '127.0.0.1', '169.254.180.167']}",
+    "metadata": {
+      "channel": "cli",
+      "adapters": [
+        "local_os"
+      ],
+      "duration_ms": 330
+    }
+  },
+  {
+    "ts": "2026-05-02T17:04:50.605374",
+    "kind": "user",
+    "session_id": "f62966ef4987442e",
+    "content": "list processes",
+    "metadata": {
+      "channel": "cli",
+      "user_id": "local"
+    }
+  },
+  {
+    "ts": "2026-05-02T17:04:50.619569",
+    "kind": "assistant",
+    "session_id": "f62966ef4987442e",
+    "content": "[{'pid': 0, 'name': 'System Idle Process', 'cpu_percent': 0.0, 'memory_percent': 9.708092228817792e-05}, {'pid': 4, 'name': 'System', 'cpu_percent': 0.0, 'memory_percent': 0.0016503756788990248}, {'pid': 8, 'name': 'svchost.exe', 'cpu_percent': 0.0, 'memory_percent': 0.11809894196356845}, {'pid': 56, 'name': '', 'cpu_percent': 0.0, 'memory_percent': 0.2638174063181235}, {'pid': 108, 'name': 'Registry', 'cpu_percent': 0.0, 'memory_percent': 0.5162763447285301}, {'pid': 256, 'name': 'WmiPrvSE.exe'",
+    "metadata": {
+      "channel": "cli",
+      "adapters": [
+        "local_os"
+      ],
+      "duration_ms": 1211
+    }
+  }
+]

@@ -112,10 +112,24 @@ class AsyncModelAdapter(IMOSAdapter):
         )
 
     def _temperature(self, task: IMOSTask, default: float = 0.2) -> float:
-        return float(task.metadata.get("temperature", self.config.get("temperature", default)))
+        value = task.metadata.get("temperature")
+        if value is None:
+            value = task.context.get("temperature")
+        if value is None:
+            value = self.config.get("temperature")
+        if value in (None, ""):
+            value = default
+        return float(value)
 
     def _max_tokens(self, task: IMOSTask, default: int = 1024) -> int:
-        return int(task.metadata.get("max_tokens", self.config.get("max_tokens", default)))
+        value = task.metadata.get("max_tokens")
+        if value is None:
+            value = task.context.get("max_tokens")
+        if value is None:
+            value = self.config.get("max_tokens")
+        if value in (None, ""):
+            value = default
+        return int(value)
 
     def _images(self, task: IMOSTask) -> list[Any]:
         images = task.metadata.get("images") or task.context.get("images") or []

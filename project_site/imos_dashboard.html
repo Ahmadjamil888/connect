@@ -113,6 +113,7 @@
     .controls, .grid, .history-list, .log-box { display: grid; gap: 14px; }
     .controls { grid-template-columns: 1fr 200px 150px 170px; }
     .adapter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    .catalog-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
     .stats-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
     .card { padding: 16px; }
     .card h4, .history-item h4 { margin: 0 0 8px; }
@@ -186,6 +187,13 @@
           <label class="check-item"><input id="settingsParallel" type="checkbox" /> Parallel execution</label>
           <label class="check-item"><input id="settingsPayments" type="checkbox" /> Enable payments</label>
           <label class="check-item"><input id="settingsOsControl" type="checkbox" /> Enable OS control</label>
+          <label class="tiny">Shell palette</label>
+          <select id="settingsShellPalette">
+            <option value="ember">ember</option>
+            <option value="matrix">matrix</option>
+            <option value="ice">ice</option>
+            <option value="paper">paper</option>
+          </select>
           <button class="subtle" onclick="saveSettings()">Save settings</button>
         </div>
       </div>
@@ -234,6 +242,11 @@
       <section>
         <h3>Adapters</h3>
         <div id="adapterGrid" class="adapter-grid"></div>
+      </section>
+
+      <section>
+        <h3>Available Integrations</h3>
+        <div id="catalogGrid" class="catalog-grid"></div>
       </section>
 
       <section>
@@ -308,6 +321,7 @@
     let permissionProfile = {};
     let recognition = null;
     let voiceListening = false;
+    let wakeWordArmed = false;
     function log(message) {
       logBox.textContent += `${new Date().toLocaleTimeString()}  ${message}\n`;
       logBox.scrollTop = logBox.scrollHeight;
@@ -317,6 +331,35 @@
       voiceStatus.textContent = message;
     }
 
+    function speakText(message) {
+      if (!("speechSynthesis" in window)) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(message);
+      utterance.rate = 1;
+      utterance.pitch = 1;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function handleWakePhrase(transcript) {
+      const normalized = transcript.toLowerCase().trim();
+      const wakePatterns = ["hey imos", "imos", "hi", "hi imos"];
+      const matched = wakePatterns.some(pattern => normalized === pattern || normalized.endsWith(` ${pattern}`) || normalized.includes(`${pattern},`) || normalized.includes(`${pattern} `));
+      if (!matched || wakeWordArmed) return false;
+      wakeWordArmed = true;
+      updateVoiceStatus("Wake phrase detected");
+      log("Wake phrase detected");
+      const greeting = "Hi sir, how's going.";
+      const promptBox = document.getElementById("prompt");
+      if (!promptBox.value.trim()) {
+        promptBox.value = "Hi sir, how's going.";
+      }
+      speakText(greeting);
+      setTimeout(() => {
+        wakeWordArmed = false;
+      }, 4000);
+      return true;
+    }
+
     async function fetchJSON(url, options) {
       const response = await fetch(url, options);
       return await response.json();
@@ -324,12 +367,15 @@
 
     async function loadAdapters() {
       const adapters = await fetchJSON("/imos/adapters");
+      const catalog = await fetchJSON("/imos/catalog");
       adaptersCache = adapters;
       const grid = document.getElementById("adapterGrid");
+      const catalogGrid = document.getElementById("catalogGrid");
       const active = adapters.filter(item => item.status === "connected").length;
       document.getElementById("activeCount").textContent = active;
       document.getElementById("configuredCount").textContent = adapters.length;
       grid.innerHTML = "";
+      catalogGrid.innerHTML = "";
       const checkboxGrid = document.getElementById("adapterCheckboxes");
       checkboxGrid.innerHTML = "";
       adapters.forEach(adapter => {
@@ -355,6 +401,19 @@
         check.className = "check-item";
         check.innerHTML = `<input type="checkbox" value="${adapter.name}" onchange="syncAdapterFilter()" /> <span>${adapter.name}</span>`;
         checkboxGrid.appendChild(check);
+      });
+      catalog.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <h4>${item.name}</h4>
+          <div class="muted">${item.adapter_type}</div>
+          <div class="tiny" style="margin-top:8px">${item.module}</div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="subtle" onclick="prefillCatalogAdapter('${item.adapter_type}','${item.name}')">Add</button>
+          </div>
+        `;
+        catalogGrid.appendChild(card);
       });
       populateModelSelector(adapters);
     }
@@ -395,6 +454,7 @@
       document.getElementById("settingsParallel").checked = !!settings.parallel_execution;
       document.getElementById("settingsPayments").checked = !!settings.enable_payments;
       document.getElementById("settingsOsControl").checked = !!settings.enable_os_control;
+      document.getElementById("settingsShellPalette").value = settings.shell_palette || "ember";
       renderPermissionPreview(permissions);
     }
 
@@ -479,6 +539,7 @@
           const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
             finalText += transcript + " ";
+            handleWakePhrase(transcript);
           } else {
             interimText += transcript + " ";
           }
@@ -488,7 +549,10 @@
         if (!promptBox.dataset.voiceBase) {
           promptBox.dataset.voiceBase = existing;
         }
-        const merged = [promptBox.dataset.voiceBase, finalText, interimText].filter(Boolean).join(" ").trim();
+        const wakeTriggered = finalText && handleWakePhrase(finalText.trim());
+        const merged = wakeTriggered
+          ? (promptBox.dataset.voiceBase || promptBox.value.trim())
+          : [promptBox.dataset.voiceBase, finalText, interimText].filter(Boolean).join(" ").trim();
         promptBox.value = merged;
         updateVoiceStatus(interimText ? `Listening... ${interimText.trim()}` : "Voice captured");
       };
@@ -534,6 +598,14 @@
       document.getElementById("adapterProvider").value = "";
       document.getElementById("adapterConfig").value = "";
       document.getElementById("adapterType").value = "model";
+    }
+
+    function prefillCatalogAdapter(adapterType, provider) {
+      openModal();
+      document.getElementById("adapterType").value = adapterType;
+      document.getElementById("adapterProvider").value = provider;
+      document.getElementById("adapterName").value = `${provider}_${Date.now().toString().slice(-4)}`;
+      document.getElementById("adapterConfig").value = JSON.stringify({ adapter_type: adapterType, provider }, null, 2);
     }
 
     function openPermissionModal() {
@@ -617,7 +689,8 @@
         max_concurrent_tasks: Number(document.getElementById("settingsMaxConcurrent").value || 10),
         parallel_execution: document.getElementById("settingsParallel").checked,
         enable_payments: document.getElementById("settingsPayments").checked,
-        enable_os_control: document.getElementById("settingsOsControl").checked
+        enable_os_control: document.getElementById("settingsOsControl").checked,
+        shell_palette: document.getElementById("settingsShellPalette").value
       };
       const result = await fetchJSON("/imos/settings", {
         method: "POST",

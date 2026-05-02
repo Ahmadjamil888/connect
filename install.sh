@@ -112,6 +112,7 @@ esac
 
 step "7/7" "Running guided setup checks"
 progress "Installing editor bridge config" "$VENV_PY" -m imos.cli mcp install
+progress "Installing wake listener" "$VENV_PY" -m imos.cli wake install
 progress "Checking runtime status" "$VENV_PY" -m imos.cli status
 
 echo ""

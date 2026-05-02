@@ -307,7 +307,7 @@ class ConnectAIRuntime:
             stream = client.chat.completions.create(
                 model=model,
                 messages=messages,
-                tools=[{"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": t["input_schema"]}} for t in tools],
+                tools=[{"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": t["input_schema"]}} for t in tools] if tools else None,
                 stream=True,
                 stream_options={"include_usage": True},
                 max_tokens=4096,
@@ -350,6 +350,8 @@ class ConnectAIRuntime:
         except openai.APIConnectionError as exc:
             return f"Connection dropped while streaming from {model}: {exc}", [], {}
         except Exception as exc:
+            if tools and ("Failed to call a function" in str(exc) or "failed_generation" in str(exc)):
+                return self._run_openai_compat(client, model, messages, [], on_text_delta=on_text_delta)
             return f"Streaming error from {model}: {exc}", [], {}
         tool_calls = []
         for raw in tool_calls_raw.values():
@@ -419,11 +421,12 @@ class ConnectAIRuntime:
         return_meta: bool = False,
     ):
         skills = self.skill_registry.load_all()
-        tools = [skill.to_tool_definition() for skill in skills]
+        actionable = self._is_actionable_request(user_text)
+        tools = [skill.to_tool_definition() for skill in skills] if actionable else []
         if self.mcp_runtime is not None:
-            tools.extend(self.mcp_runtime.tool_definitions())
-        plan = self._make_plan(user_text, skills) if self._is_actionable_request(user_text) else []
-        task = self.task_manager.create(user_text, session_id, plan=plan) if self.task_manager and self._is_actionable_request(user_text) else None
+            tools.extend(self.mcp_runtime.tool_definitions() if actionable else [])
+        plan = self._make_plan(user_text, skills) if actionable else []
+        task = self.task_manager.create(user_text, session_id, plan=plan) if self.task_manager and actionable else None
         memory_blocks = self.memory_store.context_blocks(session_id=session_id, query=user_text)
         system_prompt = self._system_prompt(workspace, memory_blocks, skills)
         messages = self._trim_messages(self._serialize_messages(system_prompt, session_history, user_text))
@@ -450,7 +453,7 @@ class ConnectAIRuntime:
                 self._record_usage(model, usage)
 
             if not tool_calls:
-                if self._is_actionable_request(user_text):
+                if actionable:
                     direct_tool_call = self._infer_direct_tool_call(user_text, skills)
                     if direct_tool_call:
                         messages.append({"role": "assistant", "content": response_text})
@@ -465,7 +468,7 @@ class ConnectAIRuntime:
                         ))
                         forced_tool_retry = True
                         continue
-                if self._is_actionable_request(user_text) and not forced_tool_retry:
+                if actionable and not forced_tool_retry:
                     messages.append(
                         {
                             "role": "user",
@@ -474,7 +477,7 @@ class ConnectAIRuntime:
                     )
                     forced_tool_retry = True
                     continue
-                if self._is_actionable_request(user_text):
+                if actionable:
                     if task is not None:
                         self.task_manager.complete(task, "blocked", tool_outcomes)
                     blocked_text = (
@@ -508,7 +511,7 @@ class ConnectAIRuntime:
                     }
                 )
                 continue
-            if self._is_actionable_request(user_text):
+            if actionable:
                 messages.append(
                     {
                         "role": "user",
@@ -517,7 +520,7 @@ class ConnectAIRuntime:
                 )
                 continue
         final_text = response_text or self._verified_summary(tool_outcomes)
-        if self._is_actionable_request(user_text) and tool_outcomes:
+        if actionable and tool_outcomes:
             if self._looks_like_unverified_plan(response_text):
                 final_text = self._verified_summary(tool_outcomes)
         if task is not None:

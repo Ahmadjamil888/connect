@@ -1,11 +1,15 @@
 import os
 import sys
 import json
+import shlex
+import subprocess
+import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from urllib.parse import unquote
+from urllib.request import urlopen
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -47,7 +51,7 @@ from config.config import (
 
 console = Console(highlight=False)
 
-HISTORY_PATH = Path.home() / ".connectai" / "history"
+HISTORY_PATH = Path.home() / ".imos" / "history"
 
 PROVIDER_MODELS = {
     "anthropic": [
@@ -127,112 +131,135 @@ PROVIDER_LABELS = {
 }
 
 INQUIRER_STYLE = get_style({
-    "questionmark":  "fg:#00ff88 bold",
-    "answermark":    "fg:#00ff88 bold",
-    "answer":        "fg:#00ff88 bold",
+    "questionmark":  "fg:#ff6b00 bold",
+    "answermark":    "fg:#ff6b00 bold",
+    "answer":        "fg:#ff6b00 bold",
     "input":         "fg:#ffffff",
     "question":      "fg:#ffffff bold",
     "instruction":   "fg:#555555",
     "long_instruction": "fg:#555555",
-    "pointer":       "fg:#00ff88 bold",
-    "checkbox":      "fg:#00ff88",
+    "pointer":       "fg:#ff6b00 bold",
+    "checkbox":      "fg:#ff6b00",
     "separator":     "fg:#333333",
     "skipped":       "fg:#555555",
     "validator":     "fg:#ff4444",
-    "marker":        "fg:#00ff88 bold",
+    "marker":        "fg:#ff6b00 bold",
     "fuzzy_prompt":  "fg:#ffffff",
     "fuzzy_info":    "fg:#555555",
     "fuzzy_border":  "fg:#333333",
-    "fuzzy_match":   "fg:#00ff88",
+    "fuzzy_match":   "fg:#ff6b00",
 })
 
 PROMPT_STYLE = Style.from_dict({
     "bottom-toolbar": "bg:#111111 fg:#555555",
-    "prompt":         "fg:#00ff88 bold",
+    "prompt":         "fg:#ff6b00 bold",
 })
 
 WELCOME_ART = [
-    "   _________  _   _ _   _ _   _ ______ _____ _______     ___  _____ ",
-    "  / ____/ _ \\| \\ | | \\ | | \\ | |  ____/ ____|__   __|   / _ \\|_   _|",
-    " | |   | | | |  \\| |  \\| |  \\| | |__ | |       | |     / /_\\ \\ | |  ",
-    " | |   | | | | . ` | . ` | . ` |  __|| |       | |     |  _  | | |  ",
-    " | |___| |_| | |\\  | |\\  | |\\  | |___| |____    | |     | | | |_| |_ ",
-    "  \\_____\\___/|_| \\_|_| \\_|_| \\_|______\\_____|   |_|     \\_| |_/_____|",
+    "██╗███╗   ███╗ ██████╗ ███████╗",
+    "██║████╗ ████║██╔═══██╗██╔════╝",
+    "██║██╔████╔██║██║   ██║███████╗",
+    "██║██║╚██╔╝██║██║   ██║╚════██║",
+    "██║██║ ╚═╝ ██║╚██████╔╝███████║",
+    "╚═╝╚═╝     ╚═╝ ╚═════╝ ╚══════╝",
 ]
 
 HELP = """
-  [bold bright_white]Commands[/bold bright_white]
+  [bold bright_white]IMOS Shell Commands[/bold bright_white]
 
-  [green]/setup[/green]              re-run the setup wizard
-  [green]/model[/green]              show current model config
-  [green]/provider[/green]           show active provider and model
-  [green]/models[/green]             list all providers and status
-  [green]/use[/green] [dim]<provider>[/dim]       switch provider interactively
-  [green]/setmodel[/green] [dim]<model>[/dim]     set a new model name for current provider
-  [green]/pickmodel[/green]         pick any provider/model pair interactively
-  [green]/setkey[/green] [dim]<provider> <key>[/dim]  set API key directly
-  [green]/settoken[/green] [dim]<svc> <tok>[/dim]    set deploy token (vercel/netlify/github)
-  [green]/skills[/green]            list installed skills
-  [green]/workflows[/green]         list YAML workflows
-  [green]/runflow[/green] [dim]<name>[/dim]       run a workflow by name
-  [green]/sessions[/green]          list local gateway sessions
-  [green]/tasks[/green]             list long-running task records
-  [green]/processes[/green]         list managed background processes
-  [green]/audit[/green]             show recent audit log entries
-  [green]/git[/green] [dim]status|branch|commit|diff|log[/dim]
-  [green]/mcp[/green]               list MCP servers and discovered tools
-  [green]/terminal[/green]          list managed terminal sessions
-  [green]/memory[/green] [dim]<query>[/dim]       search local memory index
-  [green]/config[/green] [dim]get <path>[/dim]    inspect YAML config
-  [green]/config[/green] [dim]set <path> <json>[/dim] update YAML config path
-  [green]/integrations[/green]      show configured integration keys
-  [green]/workspace[/green]          show workspace path
-  [green]/cd[/green] [dim]<path>[/dim]            change workspace
-  [green]/dashboard[/green]         launch local dashboard
-  [green]connect voice[/green]      launch the Jarvis voice loop
-  [green]/login[/green]             run Clerk login flow
-  [green]/logout[/green]            clear Clerk session
-  [green]/clear[/green]             clear screen
-  [green]/help[/green]              show this
-  [green]/exit[/green]              quit
+  [#ff6b00]/setup[/#ff6b00]              re-run the setup wizard
+  [#ff6b00]/model[/#ff6b00]              show current model config
+  [#ff6b00]/provider[/#ff6b00]           show active provider and model
+  [#ff6b00]/models[/#ff6b00]             list all providers and status
+  [#ff6b00]/use[/#ff6b00] [dim]<provider>[/dim]       switch provider interactively
+  [#ff6b00]/setmodel[/#ff6b00] [dim]<model>[/dim]     set a new model name for current provider
+  [#ff6b00]/pickmodel[/#ff6b00]          pick any provider/model pair interactively
+  [#ff6b00]/setkey[/#ff6b00] [dim]<provider> <key>[/dim]  set API key directly
+  [#ff6b00]/settoken[/#ff6b00] [dim]<svc> <tok>[/dim]    set deploy token (vercel/netlify/github)
+  [#ff6b00]/skills[/#ff6b00]             list installed skills
+  [#ff6b00]/workflows[/#ff6b00]          list YAML workflows
+  [#ff6b00]/runflow[/#ff6b00] [dim]<name>[/dim]        run a workflow by name
+  [#ff6b00]/sessions[/#ff6b00]           list local gateway sessions
+  [#ff6b00]/tasks[/#ff6b00]              list long-running task records
+  [#ff6b00]/processes[/#ff6b00]          list managed background processes
+  [#ff6b00]/audit[/#ff6b00]              show recent audit log entries
+  [#ff6b00]/git[/#ff6b00] [dim]status|branch|commit|diff|log[/dim]
+  [#ff6b00]/mcp[/#ff6b00]                list MCP servers and discovered tools
+  [#ff6b00]/terminal[/#ff6b00]           list managed terminal sessions
+  [#ff6b00]/memory[/#ff6b00] [dim]<query>[/dim]        search local memory index
+  [#ff6b00]/config[/#ff6b00] [dim]get <path>[/dim]     inspect YAML config
+  [#ff6b00]/config[/#ff6b00] [dim]set <path> <json>[/dim] update YAML config path
+  [#ff6b00]/integrations[/#ff6b00]       show configured integration keys
+  [#ff6b00]/workspace[/#ff6b00]          show workspace path
+  [#ff6b00]/cd[/#ff6b00] [dim]<path>[/dim]             change workspace
+  [#ff6b00]/dashboard[/#ff6b00]          launch local dashboard
+  [#ff6b00]/status[/#ff6b00]             show IMOS runtime status
+  [#ff6b00]/history[/#ff6b00]            show recent IMOS run history
+  [#ff6b00]/adapters[/#ff6b00]           show connected adapter registry
+  [#ff6b00]/wake[/#ff6b00] [dim]status|start|stop|install|uninstall[/dim]
+  [#ff6b00]/palette[/#ff6b00] [dim]list|set shell <name>|set dashboard <name>[/dim]
+  [#ff6b00]/imos[/#ff6b00] [dim]<cli args>[/dim]     run any IMOS CLI command from this shell
+  [#ff6b00]/login[/#ff6b00]              run Clerk login flow
+  [#ff6b00]/logout[/#ff6b00]             clear Clerk session
+  [#ff6b00]/clear[/#ff6b00]              clear screen
+  [#ff6b00]/help[/#ff6b00]               show this
+  [#ff6b00]/exit[/#ff6b00]               quit
+
+  [bold bright_white]IMOS CLI Commands[/bold bright_white]
+
+  [#ff6b00]imos[/#ff6b00]                         start IMOS shell
+  [#ff6b00]imos run[/#ff6b00] [dim]"<prompt>"[/dim]          run one orchestration task
+  [#ff6b00]imos dashboard[/#ff6b00]               open IMOS dashboard
+  [#ff6b00]imos adapters list[/#ff6b00]           list adapters
+  [#ff6b00]imos adapters add[/#ff6b00] [dim]<type> <name>[/dim]
+  [#ff6b00]imos adapters test[/#ff6b00] [dim]<name>[/dim]
+  [#ff6b00]imos adapters remove[/#ff6b00] [dim]<name>[/dim]
+  [#ff6b00]imos history[/#ff6b00]                 show recent history
+  [#ff6b00]imos status[/#ff6b00]                  show runtime status
+  [#ff6b00]imos mcp install[/#ff6b00]             install editor bridge
+  [#ff6b00]imos install mcp[/#ff6b00]             alias for editor bridge install
+  [#ff6b00]imos wake install[/#ff6b00]            install wake listener
+  [#ff6b00]imos wake start[/#ff6b00]              start wake listener
+  [#ff6b00]imos wake status[/#ff6b00]             show wake listener status
+  [#ff6b00]imos wake stop[/#ff6b00]               stop wake listener
+  [#ff6b00]imos wake uninstall[/#ff6b00]          remove wake listener
+  [#ff6b00]imos install wake[/#ff6b00]            alias for wake listener install
+  [#ff6b00]imos palette list[/#ff6b00]            list shell/dashboard palettes
+  [#ff6b00]imos palette set[/#ff6b00] [dim]--shell <name> --dashboard <name>[/dim]
 """
 
 
 def _home_title():
     title = Text()
     for line in WELCOME_ART:
-        title.append(line + "\n", style="bold bright_cyan")
+        title.append(line + "\n", style="bold #ff8c1a")
     return title
 
 
 def render_home_screen(model_config, workspace):
     provider = model_config.get("provider", "?")
     model = model_config.get("model", "?")
-    welcome = Text()
-    welcome.append("* ", style="bold #ff9b73")
-    welcome.append("Welcome to ", style="bold white")
-    welcome.append("Connect AI // JARVIS", style="bold bright_cyan")
 
     console.print()
-    console.print(
-        Panel(
-            welcome,
-            border_style="#ff9b73",
-            padding=(0, 2),
-            expand=False,
-            style="on #111111",
-        )
-    )
     console.print(Align.left(_home_title()))
-    console.print(f"  [bright_cyan]{provider}/{model}[/bright_cyan]")
-    console.print(f"  [dim]{workspace}[/dim]")
-    console.print("  [dim]Type /help for commands[/dim]")
+    subtitle = Text()
+    subtitle.append("Intelligent Machine Operating System ", style="bold white")
+    subtitle.append("v1.0.0", style="dim")
+    console.print(subtitle)
+    console.print("Dashboard -> [dim]http://127.0.0.1:8765/imos[/dim]")
+    console.print()
+    console.print("Loading IMOS runtime...")
+    console.print()
+    console.print(f"Provider: [#ff9b73]{provider}/{model}[/#ff9b73]")
+    console.print(f"Workspace: [dim]{workspace}[/dim]")
+    console.print("[dim]Type anything - natural language or shell commands.[/dim]")
+    console.print("[dim]Type [/dim][#ff8c1a]/help[/#ff8c1a][dim] for all commands.[/dim]")
     console.print()
 
 
 def _workspace_root_from_cfg(cfg: dict | None = None) -> Path:
     cfg = cfg or load_config()
-    return Path(cfg.get("workspace", str(Path.home() / "connectai_workspace")))
+    return Path(cfg.get("workspace", str(Path.home() / "imos_workspace")))
 
 
 def _read_env_value(path: Path, key: str) -> str:
@@ -288,7 +315,7 @@ def _dashboard_html(model_config: dict, workspace: Path, auth_info: dict, login_
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Connect AI Dashboard</title>
+  <title>IMOS Dashboard</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css" />
   <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
@@ -361,7 +388,7 @@ def _dashboard_html(model_config: dict, workspace: Path, auth_info: dict, login_
   </style>
 </head>
 <body>
-  <div class="welcome"><span class="mark">*</span>Welcome to <strong>Connect AI</strong></div>
+  <div class="welcome"><span class="mark">*</span>Welcome to <strong>IMOS</strong></div>
   <pre class="hero">{chr(10).join(WELCOME_ART)}</pre>
   <div class="grid">
     <section class="card">
@@ -397,7 +424,7 @@ def _dashboard_app_html() -> str:
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Connect AI Dashboard</title>
+  <title>IMOS Dashboard</title>
   <style>
     :root {
       --bg: #111111;
@@ -675,7 +702,7 @@ def _dashboard_app_html() -> str:
 <body>
   <div class="layout">
     <aside class="sidebar">
-      <div class="brand">* Welcome to <strong>Connect AI</strong></div>
+      <div class="brand">* Welcome to <strong>IMOS</strong></div>
       <pre class="hero">   _________  _   _ _   _ _   _ ______ _____ _______     ___  _____ 
   / ____/ _ \\| \\ | | \\ | | \\ | |  ____/ ____|__   __|   / _ \\|_   _|
  | |   | | | |  \\| |  \\| |  \\| | |__ | |       | |     / /_\\ \\ | |  
@@ -1175,6 +1202,36 @@ def _jarvis_dashboard_html() -> str:
 
 
 def launch_dashboard():
+    try:
+        port = int(load_config().get("dashboard", {}).get("port", 5000) or 5000)
+    except Exception:
+        port = 5000
+    dashboard_url = f"http://127.0.0.1:{port}/"
+    healthy = False
+    try:
+        with urlopen(f"{dashboard_url}api/status", timeout=2) as response:
+            healthy = int(getattr(response, "status", 200)) < 500
+    except Exception:
+        healthy = False
+
+    if not healthy:
+        subprocess.Popen(
+            [sys.executable, "imos_server.py", "--no-browser"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        for _ in range(20):
+            try:
+                with urlopen(f"{dashboard_url}api/status", timeout=2) as response:
+                    if int(getattr(response, "status", 200)) < 500:
+                        healthy = True
+                        break
+            except Exception:
+                time.sleep(0.5)
+    webbrowser.open(dashboard_url)
+    console.print("  [#ff9b73]Opened IMOS dashboard[/#ff9b73]" if healthy else "  [#ff9b73]Started IMOS dashboard[/#ff9b73]")
+    return
+
     cfg = load_config()
     workspace = _workspace_root_from_cfg(cfg)
     model_config = get_model_config()
@@ -1603,6 +1660,10 @@ def _save_model_name(model_name: str) -> dict:
 
 
 def build_gateway(workspace: str):
+    import asyncio
+    from imos.orchestrator import IMOSOrchestrator
+    from imos.registry import AdapterRegistry
+
     workspace_path = Path(workspace)
     state_root = workspace_path / ".connectai"
     session_manager = ConnectSessionManager(state_root / "sessions")
@@ -1632,6 +1693,12 @@ def build_gateway(workspace: str):
         cost_tracker=cost_tracker,
         mcp_runtime=mcp_runtime,
     )
+    registry = AdapterRegistry()
+    try:
+        asyncio.run(registry.auto_discover())
+        imos_orchestrator = IMOSOrchestrator(registry)
+    except Exception:
+        imos_orchestrator = None
     cli_channel = CLIChannel()
 
     def _tool_executor(name: str, args: dict):
@@ -1778,6 +1845,64 @@ def build_gateway(workspace: str):
         launch_dashboard()
         return CommandResult(True, "")
 
+    def _run_imos_cli(args: list[str]) -> CommandResult:
+        command = [sys.executable, "-m", "imos.cli", *args]
+        try:
+            result = subprocess.run(
+                command,
+                cwd=str(PROJECT_ROOT),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except Exception as exc:
+            return CommandResult(True, f"IMOS CLI error: {exc}")
+        output = (result.stdout or "").strip()
+        error = (result.stderr or "").strip()
+        if result.returncode != 0:
+            return CommandResult(True, error or output or f"IMOS CLI exited with code {result.returncode}")
+        return CommandResult(True, output or error or "Command completed.")
+
+    def _cmd_imos(raw: str) -> CommandResult:
+        try:
+            parts = shlex.split(raw)
+        except Exception as exc:
+            return CommandResult(True, f"Parse error: {exc}")
+        if len(parts) == 1:
+            return CommandResult(True, "Usage: /imos <command...>")
+        return _run_imos_cli(parts[1:])
+
+    def _cmd_status(_raw: str) -> CommandResult:
+        return _run_imos_cli(["status"])
+
+    def _cmd_history(_raw: str) -> CommandResult:
+        return _run_imos_cli(["history"])
+
+    def _cmd_adapters(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        args = ["adapters"]
+        if len(parts) == 1:
+            args.append("list")
+        else:
+            args.extend(shlex.split(parts[1]))
+        return _run_imos_cli(args)
+
+    def _cmd_wake(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        action = "status" if len(parts) == 1 else parts[1].strip()
+        if action not in {"status", "start", "stop", "install", "uninstall"}:
+            return CommandResult(True, "Usage: /wake status|start|stop|install|uninstall")
+        return _run_imos_cli(["wake", action])
+
+    def _cmd_palette(raw: str) -> CommandResult:
+        parts = raw.split()
+        if len(parts) == 1 or parts[1].lower() == "list":
+            return _run_imos_cli(["palette", "list"])
+        if len(parts) == 4 and parts[1].lower() == "set" and parts[2].lower() in {"shell", "dashboard"}:
+            option = f"--{parts[2].lower()}"
+            return _run_imos_cli(["palette", "set", option, parts[3]])
+        return CommandResult(True, "Usage: /palette list | /palette set shell <name> | /palette set dashboard <name>")
+
     def _cmd_login(_raw: str) -> CommandResult:
         run_login()
         return CommandResult(True, "")
@@ -1921,6 +2046,12 @@ def build_gateway(workspace: str):
             "/workspace": _cmd_workspace,
             "/cd": _cmd_cd,
             "/dashboard": _cmd_dashboard,
+            "/status": _cmd_status,
+            "/history": _cmd_history,
+            "/adapters": _cmd_adapters,
+            "/wake": _cmd_wake,
+            "/palette": _cmd_palette,
+            "/imos": _cmd_imos,
             "/login": _cmd_login,
             "/logout": _cmd_logout,
             "/skills": _cmd_skills,
@@ -1939,7 +2070,7 @@ def build_gateway(workspace: str):
             "/config": _cmd_config,
         }
     )
-    gateway = ConnectAIGateway(runtime, session_manager, memory_store, router)
+    gateway = ConnectAIGateway(runtime, session_manager, memory_store, router, imos_orchestrator=imos_orchestrator)
     return gateway, cli_channel, skill_registry
 
 
@@ -2015,7 +2146,7 @@ def run_setup_wizard():
     os.system("cls" if os.name == "nt" else "clear")
 
     console.print()
-    console.print("  [bold bright_white]Connect AI    Setup[/bold bright_white]")
+    console.print("  [bold bright_white]IMOS    Setup[/bold bright_white]")
     console.print("  [dim]Use arrow keys to navigate, Enter to confirm.[/dim]")
     console.print()
 
@@ -2090,7 +2221,7 @@ def run_setup_wizard():
 
     #  Deploy tokens 
     console.print(Rule("  [dim]Step 4 of 6    Deploy tokens  (optional)[/dim]", style="dim"))
-    console.print("  [dim]Leave blank to skip. These let Connect AI deploy your projects.[/dim]\n")
+    console.print("  [dim]Leave blank to skip. These let IMOS deploy your projects.[/dim]\n")
 
     cfg.setdefault("tokens", {})
     for svc, label in [("vercel", "Vercel token"), ("netlify", "Netlify token"), ("github", "GitHub personal access token")]:
@@ -2102,7 +2233,7 @@ def run_setup_wizard():
 
     #  Messaging 
     console.print(Rule("  [dim]Step 5 of 6    Messaging  (optional)[/dim]", style="dim"))
-    console.print("  [dim]Connect AI can notify you via Telegram or Slack.[/dim]\n")
+    console.print("  [dim]IMOS can notify you via Telegram or Slack.[/dim]\n")
 
     cfg.setdefault("messaging", {})
     tg = _text("Telegram bot token  (Enter to skip)")
@@ -2119,9 +2250,9 @@ def run_setup_wizard():
 
     #  Workspace 
     console.print(Rule("  [dim]Step 6 of 6    Workspace[/dim]", style="dim"))
-    console.print("  [dim]Default folder where Connect AI reads and writes files.[/dim]\n")
+    console.print("  [dim]Default folder where IMOS reads and writes files.[/dim]\n")
 
-    default_ws = str(Path.home() / "connectai_workspace")
+    default_ws = str(Path.home() / "imos_workspace")
     workspace = _text("Workspace path", default=default_ws)
     Path(workspace).mkdir(parents=True, exist_ok=True)
     cfg["workspace"] = workspace

@@ -88,6 +88,11 @@ async def imos_adapters():
     return [{"name": item.name, "type": item.adapter_type, "status": item.status, "capabilities": item.capabilities} for item in registry.get_all()]
 
 
+@app.get("/imos/catalog")
+async def imos_catalog():
+    return registry.available_catalog()
+
+
 @app.post("/imos/adapters")
 async def register_adapter(payload: dict[str, Any]):
     name = payload["name"]

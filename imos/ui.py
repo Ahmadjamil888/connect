@@ -6,6 +6,7 @@ import sys
 from typing import Dict
 
 from config.config import load_config, save_config
+from imos.config import merged_settings, save_settings
 
 DEFAULT_DASHBOARD_PALETTE = "ember"
 DEFAULT_SHELL_PALETTE = "ember"
@@ -172,6 +173,17 @@ def get_ui_config() -> dict:
     if shell_palette not in SHELL_PALETTES:
         shell_palette = DEFAULT_SHELL_PALETTE
 
+    try:
+        settings = merged_settings()
+        dashboard_from_settings = str(settings.get("dashboard_palette", dashboard_palette)).strip().lower()
+        shell_from_settings = str(settings.get("shell_palette", shell_palette)).strip().lower()
+        if dashboard_from_settings in DASHBOARD_PALETTES:
+            dashboard_palette = dashboard_from_settings
+        if shell_from_settings in SHELL_PALETTES:
+            shell_palette = shell_from_settings
+    except Exception:
+        pass
+
     return {
         "dashboard_palette": dashboard_palette,
         "shell_palette": shell_palette,
@@ -193,7 +205,15 @@ def save_ui_config(*, dashboard_palette: str | None = None, shell_palette: str |
         if shell_palette not in SHELL_PALETTES:
             raise ValueError(f"Unknown shell palette: {shell_palette}")
         _set_nested(cfg, "shell.palette", shell_palette)
-    save_config(cfg)
+    try:
+        save_config(cfg)
+    except Exception:
+        settings = merged_settings()
+        if dashboard_palette:
+            settings["dashboard_palette"] = dashboard_palette
+        if shell_palette:
+            settings["shell_palette"] = shell_palette
+        save_settings(settings)
     return get_ui_config()
 
 
@@ -252,4 +272,3 @@ def get_cli_palette() -> dict[str, str]:
             "X": "\033[0m",
         }
     return {"O": "", "W": "", "G": "", "R": "", "D": "", "X": ""}
-

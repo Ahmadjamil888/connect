@@ -4,16 +4,23 @@ import { DocsShell } from '../../components/DocsShell'
 export function DocsDashboardPage() {
   return (
     <DocsShell
-      title="The dashboard is the live status surface for the runtime."
-      description="It exposes sessions, memory, tools, nodes, canvas state, and a quick-ask panel so operators can observe and direct the system without dropping into internals."
+      title="The dashboard is the live IMOS operator surface."
+      description="It exposes chat, shell, voice, models, API keys, integrations, workflows, and activity in one orange-and-black control plane."
     >
       <div className="space-y-6 text-sm leading-8 text-neutral-400">
         <p>
-          Users can open the operator dashboard through the site, through the CLI, or as part of a background stack. In
-          cloud mode, the dashboard binding and authentication policy should be reviewed before exposing it publicly.
+          The current dashboard is the classic IMOS control room: live chat, full shell access, voice controls,
+          connection setup, multi-step workflows, and local activity visibility without exposing internal launch files.
         </p>
-        <CodeBlock label="Run the dashboard locally" code={'connect dashboard'} />
-        <CodeBlock label="Run the dashboard in cloud bind mode" code={'connect dashboard --cloud'} />
+        <CodeBlock label="Open the dashboard" code={'imos dashboard'} />
+        <CodeBlock
+          label="Useful dashboard-linked commands"
+          code={`imos
+imos status
+imos adapters list
+imos wake status
+imos palette set --shell ember --dashboard ember`}
+        />
       </div>
     </DocsShell>
   )

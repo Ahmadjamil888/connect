@@ -7,3 +7,4 @@ settings:
   dashboard_port: 8765
   enable_payments: false
   enable_os_control: true
+  shell_palette: matrix

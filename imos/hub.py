@@ -452,9 +452,281 @@ APP_CONNECTIONS = [
     },
 ]
 
+APP_CONNECTIONS.extend(
+    [
+        {
+            "provider": "signal",
+            "name": "Signal",
+            "category": "messaging",
+            "description": "signal-cli or Signal REST bridge automation.",
+            "fields": [
+                {"key": "phone_number", "label": "Phone number", "required": True},
+                {"key": "api_url", "label": "REST API URL"},
+                {"key": "api_key", "label": "API key", "secret": True},
+            ],
+        },
+        {
+            "provider": "matrix",
+            "name": "Matrix / Element",
+            "category": "messaging",
+            "description": "Matrix room messaging and bot workflows.",
+            "fields": [
+                {"key": "homeserver", "label": "Homeserver URL", "required": True},
+                {"key": "user_id", "label": "User ID", "required": True},
+                {"key": "access_token", "label": "Access token", "secret": True},
+                {"key": "room_id", "label": "Default room ID"},
+            ],
+        },
+        {
+            "provider": "mattermost",
+            "name": "Mattermost",
+            "category": "messaging",
+            "description": "Team posts, channels, and message automations.",
+            "fields": [
+                {"key": "base_url", "label": "Base URL", "required": True},
+                {"key": "token", "label": "Access token", "secret": True, "required": True},
+                {"key": "channel_id", "label": "Default channel ID"},
+            ],
+        },
+        {
+            "provider": "rocketchat",
+            "name": "Rocket.Chat",
+            "category": "messaging",
+            "description": "Channels, DMs, and webhook-driven ops workflows.",
+            "fields": [
+                {"key": "base_url", "label": "Base URL", "required": True},
+                {"key": "user_id", "label": "User ID"},
+                {"key": "auth_token", "label": "Auth token", "secret": True, "required": True},
+                {"key": "channel", "label": "Default channel"},
+            ],
+        },
+        {
+            "provider": "jira",
+            "name": "Jira",
+            "category": "productivity",
+            "description": "Issue workflows, ticket triage, and sprint automations.",
+            "fields": [
+                {"key": "server", "label": "Server URL", "required": True},
+                {"key": "email", "label": "Email", "required": True},
+                {"key": "api_token", "label": "API token", "secret": True, "required": True},
+                {"key": "project_key", "label": "Default project key"},
+            ],
+        },
+        {
+            "provider": "trello",
+            "name": "Trello",
+            "category": "productivity",
+            "description": "Boards, cards, lists, and lightweight ops flows.",
+            "fields": [
+                {"key": "api_key", "label": "API key", "secret": True, "required": True},
+                {"key": "token", "label": "Token", "secret": True, "required": True},
+                {"key": "board_id", "label": "Default board ID"},
+            ],
+        },
+        {
+            "provider": "linear",
+            "name": "Linear",
+            "category": "productivity",
+            "description": "Issue routing, release planning, and team triage.",
+            "fields": [
+                {"key": "api_key", "label": "API key", "secret": True, "required": True},
+                {"key": "team_id", "label": "Team ID"},
+            ],
+        },
+        {
+            "provider": "asana",
+            "name": "Asana",
+            "category": "productivity",
+            "description": "Projects, tasks, and portfolio automations.",
+            "fields": [
+                {"key": "access_token", "label": "Access token", "secret": True, "required": True},
+                {"key": "workspace_id", "label": "Workspace ID"},
+            ],
+        },
+        {
+            "provider": "google-workspace",
+            "name": "Google Workspace",
+            "category": "productivity",
+            "description": "Gmail, Drive, Docs, Sheets, and Calendar automation.",
+            "fields": [
+                {"key": "client_id", "label": "OAuth client ID"},
+                {"key": "client_secret", "label": "OAuth client secret", "secret": True},
+                {"key": "refresh_token", "label": "Refresh token", "secret": True},
+                {"key": "service_account_json", "label": "Service account JSON path"},
+            ],
+        },
+        {
+            "provider": "microsoft365",
+            "name": "Microsoft 365",
+            "category": "productivity",
+            "description": "Outlook, OneDrive, Word, Excel, and SharePoint flows.",
+            "fields": [
+                {"key": "client_id", "label": "Client ID", "required": True},
+                {"key": "client_secret", "label": "Client secret", "secret": True, "required": True},
+                {"key": "tenant_id", "label": "Tenant ID", "required": True},
+            ],
+        },
+        {
+            "provider": "zoom",
+            "name": "Zoom",
+            "category": "meetings",
+            "description": "Meeting scheduling, recordings, and summaries.",
+            "fields": [
+                {"key": "client_id", "label": "Client ID", "required": True},
+                {"key": "client_secret", "label": "Client secret", "secret": True, "required": True},
+                {"key": "account_id", "label": "Account ID", "required": True},
+            ],
+        },
+        {
+            "provider": "google-meet",
+            "name": "Google Meet",
+            "category": "meetings",
+            "description": "Meet scheduling via Calendar and Workspace auth.",
+            "fields": [
+                {"key": "client_id", "label": "OAuth client ID"},
+                {"key": "client_secret", "label": "OAuth client secret", "secret": True},
+                {"key": "refresh_token", "label": "Refresh token", "secret": True},
+            ],
+        },
+        {
+            "provider": "calendly",
+            "name": "Calendly",
+            "category": "meetings",
+            "description": "Scheduling links, event feeds, and booking workflows.",
+            "fields": [
+                {"key": "api_token", "label": "API token", "secret": True, "required": True},
+            ],
+        },
+        {
+            "provider": "stripe",
+            "name": "Stripe",
+            "category": "payments",
+            "description": "Customers, subscriptions, invoices, and payouts.",
+            "fields": [
+                {"key": "secret_key", "label": "Secret key", "secret": True, "required": True},
+                {"key": "webhook_secret", "label": "Webhook secret", "secret": True},
+            ],
+        },
+        {
+            "provider": "paypal",
+            "name": "PayPal",
+            "category": "payments",
+            "description": "Orders, captures, payouts, and subscriptions.",
+            "fields": [
+                {"key": "client_id", "label": "Client ID", "required": True},
+                {"key": "client_secret", "label": "Client secret", "secret": True, "required": True},
+                {"key": "mode", "label": "Mode", "default": "sandbox"},
+            ],
+        },
+        {
+            "provider": "shopify",
+            "name": "Shopify",
+            "category": "commerce",
+            "description": "Storefront orders, products, customers, and fulfillment.",
+            "fields": [
+                {"key": "shop_domain", "label": "Shop domain", "required": True},
+                {"key": "access_token", "label": "Access token", "secret": True, "required": True},
+            ],
+        },
+        {
+            "provider": "vercel",
+            "name": "Vercel",
+            "category": "deployment",
+            "description": "Project deployment, env vars, and preview automation.",
+            "fields": [
+                {"key": "token", "label": "Access token", "secret": True, "required": True},
+                {"key": "team_id", "label": "Team ID"},
+                {"key": "project_id", "label": "Default project ID"},
+            ],
+        },
+        {
+            "provider": "netlify",
+            "name": "Netlify",
+            "category": "deployment",
+            "description": "Site deploys, build hooks, and preview management.",
+            "fields": [
+                {"key": "token", "label": "Access token", "secret": True, "required": True},
+                {"key": "site_id", "label": "Site ID"},
+            ],
+        },
+        {
+            "provider": "railway",
+            "name": "Railway",
+            "category": "deployment",
+            "description": "Projects, services, and environment automation.",
+            "fields": [
+                {"key": "token", "label": "Access token", "secret": True, "required": True},
+                {"key": "project_id", "label": "Project ID"},
+            ],
+        },
+        {
+            "provider": "render",
+            "name": "Render",
+            "category": "deployment",
+            "description": "Deploy services, jobs, cron, and static sites.",
+            "fields": [
+                {"key": "api_key", "label": "API key", "secret": True, "required": True},
+                {"key": "service_id", "label": "Default service ID"},
+            ],
+        },
+        {
+            "provider": "supabase",
+            "name": "Supabase",
+            "category": "backend",
+            "description": "Database, auth, storage, and edge function automation.",
+            "fields": [
+                {"key": "project_url", "label": "Project URL", "required": True},
+                {"key": "service_role_key", "label": "Service role key", "secret": True, "required": True},
+            ],
+        },
+        {
+            "provider": "firebase",
+            "name": "Firebase",
+            "category": "backend",
+            "description": "Firestore, Auth, Functions, and hosting automation.",
+            "fields": [
+                {"key": "project_id", "label": "Project ID", "required": True},
+                {"key": "service_account_json", "label": "Service account JSON path", "required": True},
+            ],
+        },
+    ]
+)
+
+
+def _infer_auth(entry: dict[str, Any]) -> dict[str, Any]:
+    auth = dict(entry.get("auth", {}) or {})
+    fields = entry.get("fields", [])
+    keys = {field.get("key", "") for field in fields}
+    if not auth.get("type"):
+        if "webhook_url" in keys or "url" in keys and len(keys) <= 3:
+            auth["type"] = "webhook"
+        elif {"client_id", "client_secret"} & keys:
+            auth["type"] = "oauth2"
+        elif "email" in keys and ("app_password" in keys or "password" in keys):
+            auth["type"] = "smtp_or_password"
+        elif entry.get("category", "").startswith("model-local"):
+            auth["type"] = "local"
+        else:
+            auth["type"] = "api_key_or_token"
+    if "oauth2" in auth["type"] and "grant" not in auth:
+        auth["grant"] = "authorization_code_or_refresh_token"
+    if auth["type"] == "webhook" and "grant" not in auth:
+        auth["grant"] = "signed_url_or_secret_header"
+    if "scopes" not in auth:
+        auth["scopes"] = []
+    if "notes" not in auth:
+        auth["notes"] = "Credentials stay local and are stored in the local IMOS configuration."
+    return auth
+
+
+def _with_auth(entry: dict[str, Any]) -> dict[str, Any]:
+    enriched = dict(entry)
+    enriched["auth"] = _infer_auth(enriched)
+    return enriched
+
 
 def _catalog() -> list[dict[str, Any]]:
-    return [*APP_CONNECTIONS, *MODEL_CONNECTIONS]
+    return [_with_auth(item) for item in [*APP_CONNECTIONS, *MODEL_CONNECTIONS]]
 
 
 def _config_root() -> dict[str, Any]:
@@ -600,8 +872,53 @@ def delete_connection(connection_id: str) -> None:
         if item.get("source_connection_id") != connection_id
         and item.get("destination_connection_id") != connection_id
         and item.get("model_connection_id") != connection_id
+        and not any(str(step.get("connection_id")) == str(connection_id) for step in item.get("steps", []) if isinstance(step, dict))
     ]
     save_config(cfg)
+
+
+def _normalize_workflow_steps(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    steps = payload.get("steps")
+    normalized: list[dict[str, Any]] = []
+    if isinstance(steps, list):
+        for index, raw in enumerate(steps):
+            if not isinstance(raw, dict):
+                continue
+            connection_id = str(raw.get("connection_id", "")).strip()
+            if not connection_id:
+                continue
+            normalized.append(
+                {
+                    "id": str(raw.get("id", "")).strip() or str(uuid4()),
+                    "kind": str(raw.get("kind", "app")).strip() or "app",
+                    "connection_id": connection_id,
+                    "action": str(raw.get("action", "auto")).strip() or "auto",
+                    "prompt": str(raw.get("prompt", "")).strip(),
+                    "order": index,
+                }
+            )
+    if normalized:
+        return normalized
+
+    legacy = [
+        ("source_connection_id", "source"),
+        ("model_connection_id", "model"),
+        ("destination_connection_id", "destination"),
+    ]
+    for order, (key, kind) in enumerate(legacy):
+        value = str(payload.get(key, "")).strip()
+        if value:
+            normalized.append(
+                {
+                    "id": str(uuid4()),
+                    "kind": kind,
+                    "connection_id": value,
+                    "action": "auto",
+                    "prompt": str(payload.get("prompt_template", "")).strip() if kind == "model" else "",
+                    "order": order,
+                }
+            )
+    return normalized
 
 
 def list_workflows() -> list[dict[str, Any]]:
@@ -610,15 +927,20 @@ def list_workflows() -> list[dict[str, Any]]:
     for raw in cfg["automation"]["workflows"]:
         if not isinstance(raw, dict):
             continue
+        steps = _normalize_workflow_steps(raw)
+        source_connection_id = steps[0]["connection_id"] if steps else raw.get("source_connection_id", "")
+        model_connection_id = next((step["connection_id"] for step in steps if step.get("kind") == "model"), raw.get("model_connection_id", ""))
+        destination_connection_id = steps[-1]["connection_id"] if steps else raw.get("destination_connection_id", "")
         items.append({
             "id": raw.get("id"),
             "title": raw.get("title", "Untitled workflow"),
-            "source_connection_id": raw.get("source_connection_id", ""),
-            "model_connection_id": raw.get("model_connection_id", ""),
-            "destination_connection_id": raw.get("destination_connection_id", ""),
+            "source_connection_id": source_connection_id,
+            "model_connection_id": model_connection_id,
+            "destination_connection_id": destination_connection_id,
             "mode": raw.get("mode", "route"),
             "prompt_template": raw.get("prompt_template", ""),
             "enabled": bool(raw.get("enabled", True)),
+            "steps": steps,
         })
     return items
 
@@ -631,15 +953,17 @@ def upsert_workflow(payload: dict[str, Any]) -> dict[str, Any]:
     if existing is None:
         existing = {"id": workflow_id}
         items.append(existing)
+    steps = _normalize_workflow_steps(payload)
     existing.update({
         "id": workflow_id,
         "title": str(payload.get("title", "")).strip() or "Untitled workflow",
-        "source_connection_id": str(payload.get("source_connection_id", "")).strip(),
-        "model_connection_id": str(payload.get("model_connection_id", "")).strip(),
-        "destination_connection_id": str(payload.get("destination_connection_id", "")).strip(),
+        "source_connection_id": steps[0]["connection_id"] if steps else str(payload.get("source_connection_id", "")).strip(),
+        "model_connection_id": next((step["connection_id"] for step in steps if step.get("kind") == "model"), str(payload.get("model_connection_id", "")).strip()),
+        "destination_connection_id": steps[-1]["connection_id"] if steps else str(payload.get("destination_connection_id", "")).strip(),
         "mode": str(payload.get("mode", "route")).strip() or "route",
         "prompt_template": str(payload.get("prompt_template", "")).strip(),
         "enabled": bool(payload.get("enabled", True)),
+        "steps": steps,
     })
     save_config(cfg)
     return next(item for item in list_workflows() if item["id"] == workflow_id)

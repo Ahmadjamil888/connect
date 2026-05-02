@@ -21,10 +21,7 @@ class IMOSOrchestrator:
     def __init__(self, registry: AdapterRegistry | None = None) -> None:
         self.registry = registry or AdapterRegistry()
         self.settings = merged_settings()
-        try:
-            self.audit = AuditLogger(Path.home() / ".imos" / "logs")
-        except PermissionError:
-            self.audit = AuditLogger(Path.cwd() / ".imos" / "logs")
+        self.audit = self._build_audit_logger()
         self.policy = PolicyEngine()
         self.context_manager = IMOSContextManager()
         synthesis_name = self.settings.get("result_synthesis_model")
@@ -34,6 +31,16 @@ class IMOSOrchestrator:
             self.synthesis_adapter = models[0] if models else None
         self.router = TaskRouter(self.registry, self.settings, synthesis_adapter=self.synthesis_adapter)
         self.synthesizer = ResultSynthesizer(self.synthesis_adapter)
+
+    def _build_audit_logger(self) -> AuditLogger:
+        for root in (Path.home() / ".imos" / "logs", Path.cwd() / ".imos" / "logs"):
+            try:
+                logger = AuditLogger(root)
+                logger.append("imos_bootstrap", "audit_ready", {})
+                return logger
+            except Exception:
+                continue
+        return AuditLogger(Path.cwd() / "imos_logs")
 
     async def run(self, user_prompt: str, context: dict | None = None) -> OrchestratorResult:
         started = time.perf_counter()
@@ -81,7 +88,11 @@ class IMOSOrchestrator:
     async def _execute_task(self, task: IMOSTask, completed: dict[str, IMOSResult]) -> IMOSResult:
         adapter = self.registry.get(task.target_adapter)
         if adapter is None:
-            return IMOSResult(task.task_id, task.target_adapter, False, error=f"Adapter not found: {task.target_adapter}")
+            resolved_name = self.router.resolve_target_adapter(task.target_adapter, task.subtask_type, task.prompt)
+            adapter = self.registry.get(resolved_name)
+            if adapter is None:
+                return IMOSResult(task.task_id, task.target_adapter, False, error=f"Adapter not found: {task.target_adapter}")
+            task.target_adapter = adapter.name
         merged_context = dict(task.context)
         merged_context["dependency_results"] = {key: value.output for key, value in completed.items()}
         task.context = merged_context

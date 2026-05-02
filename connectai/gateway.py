@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Dict
 
@@ -8,11 +9,12 @@ from connectai.command_router import CommandResult
 
 
 class ConnectAIGateway:
-    def __init__(self, runtime, session_manager, memory_store, command_router):
+    def __init__(self, runtime, session_manager, memory_store, command_router, imos_orchestrator=None):
         self.runtime = runtime
         self.session_manager = session_manager
         self.memory_store = memory_store
         self.command_router = command_router
+        self.imos_orchestrator = imos_orchestrator
 
     def _dedupe_response(self, text: str) -> str:
         value = (text or "").strip()
@@ -65,6 +67,48 @@ class ConnectAIGateway:
             user_id=envelope.user_id,
         )
         self.session_manager.append_message(session, "user", envelope.text, envelope.metadata)
+        if self.imos_orchestrator is not None:
+            try:
+                result = asyncio.run(
+                    self.imos_orchestrator.run(
+                        envelope.text,
+                        context={
+                            "workspace": workspace,
+                            "session_key": envelope.session_key,
+                            "channel": envelope.channel,
+                            "user_id": envelope.user_id,
+                            "preferred_provider": model_config.get("provider"),
+                            "preferred_model": model_config.get("model"),
+                        },
+                    )
+                )
+                response_text = self._dedupe_response(str(result.final_response))
+                self.session_manager.append_message(session, "assistant", response_text)
+                self.memory_store.remember(
+                    content=envelope.text,
+                    kind="user",
+                    session_id=session.session_id,
+                    metadata={"channel": envelope.channel, "user_id": envelope.user_id},
+                )
+                if response_text:
+                    self.memory_store.remember(
+                        content=response_text[:500],
+                        kind="assistant",
+                        session_id=session.session_id,
+                        metadata={
+                            "channel": envelope.channel,
+                            "adapters": result.adapters_used,
+                            "duration_ms": result.duration_ms,
+                        },
+                    )
+                return {
+                    "output": response_text,
+                    "session_id": session.session_id,
+                    "usage": {"adapters_used": result.adapters_used, "duration_ms": result.duration_ms},
+                }
+            except Exception as exc:
+                return {"output": f"IMOS runtime error: {exc}", "session_id": session.session_id, "usage": {}}
+
         response = self.runtime.run(
             user_text=envelope.text,
             session_history=self.session_manager.history(session, limit=20),

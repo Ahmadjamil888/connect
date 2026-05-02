@@ -1,9 +1,9 @@
 """
 IMOS First-Time Setup Wizard.
-Runs automatically on first launch or via: imos --setup
+Runs automatically on first launch or from the IMOS setup flow.
 Covers: model, GitHub, cloud deploy, voice, workspace, system prompt,
         behaviour, goals, integrations, workflows, theme, fallbacks.
-Writes everything to .env and ~/.connectai/config.yaml
+Writes everything to your local IMOS configuration.
 """
 from __future__ import annotations
 
@@ -121,7 +121,7 @@ def read_env(key: str) -> str:
 
 
 def save_config_key(path: str, value):
-    """Save a dot-path key into ~/.connectai/config.yaml"""
+    """Save a dot-path key into the local IMOS YAML config."""
     try:
         import yaml
         cfg_dir = Path.home() / ".connectai"
@@ -583,7 +583,7 @@ def run_setup(force: bool = False):
     print()
     print(clr("  Start IMOS:  ", D) + clr("imos", O))
     print(clr("  Dashboard:   ", D) + clr("http://localhost:5000", W))
-    print(clr("  Re-run setup:", D) + clr("imos --setup", O))
+    print(clr("  Re-run setup:", D) + clr("launch IMOS, then use /setup", O))
     print()
 
 
