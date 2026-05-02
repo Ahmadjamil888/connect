@@ -2184,6 +2184,37 @@ def toolbar(model_config, workspace):
 def main():
     if len(sys.argv) > 1:
         top_command = sys.argv[1].strip().lower()
+        if top_command == "--doctor":
+            import asyncio
+            from imos.doctor import doctor_report
+
+            print(asyncio.run(doctor_report()))
+            return
+        if top_command == "imos":
+            from imos.cli import main as imos_main
+
+            imos_main(sys.argv[2:])
+            return
+        if top_command == "--imos":
+            from imos.orchestrator import IMOSOrchestrator
+            from imos.registry import AdapterRegistry
+
+            prompt = " ".join(sys.argv[2:]).strip()
+            if not prompt:
+                print("Usage: python ai_assistant.py --imos \"<prompt>\"")
+                return
+
+            async def _run_imos():
+                registry = AdapterRegistry()
+                await registry.auto_discover()
+                orchestrator = IMOSOrchestrator(registry)
+                result = await orchestrator.run(prompt)
+                print(result.final_response)
+
+            import asyncio
+
+            asyncio.run(_run_imos())
+            return
         if top_command == "dashboard":
             launch_dashboard()
             return

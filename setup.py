@@ -38,6 +38,7 @@ setup(
         "console_scripts": [
             "connect=ai_assistant:main",
             "connectai=ai_assistant:main",
+            "imos=imos.cli:main",
         ],
     },
 )

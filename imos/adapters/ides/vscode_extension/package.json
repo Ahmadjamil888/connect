@@ -1,0 +1,21 @@
+{
+  "name": "imos-vscode-bridge",
+  "displayName": "IMOS VS Code Bridge",
+  "version": "0.1.0",
+  "publisher": "imos-local",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "imos.openDashboard",
+        "title": "IMOS: Open Dashboard"
+      }
+    ]
+  }
+}

@@ -32,6 +32,17 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo [*] Creating IMOS home...
+if not exist "%USERPROFILE%\.imos" mkdir "%USERPROFILE%\.imos"
+
+echo [*] Generating default IMOS config...
+python -c "from imos.config import ensure_default_files; ensure_default_files()"
+
+set /p IMOS_MCP=Configure Cursor and Windsurf MCP now? [y/N]: 
+if /I "%IMOS_MCP%"=="Y" (
+    python -m imos.cli mcp install
+)
+
 echo [*] Installing global CONNECT command...
 call install_connect_command.bat
 if errorlevel 1 (
@@ -47,10 +58,11 @@ echo ========================================
 echo.
 echo Next steps:
 echo.
-echo 1. Verify your .env file contains GROQ_API_KEY
+echo 1. Verify your .env file contains the provider and adapter credentials you need
 echo.
 echo 2. Open a new terminal and run:
 echo    connect
+echo    imos status
 echo.
 echo ========================================
 
