@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
+import sys
+import time
 import webbrowser
-from pathlib import Path
 
 import click
+import httpx
 
 from imos.config import list_configured_adapters, remove_adapter_config, save_adapter_config
 from imos.mcp_server import install_mcp_configs
@@ -19,9 +22,55 @@ async def _build_orchestrator() -> IMOSOrchestrator:
     return IMOSOrchestrator(registry)
 
 
-@click.group()
-def cli() -> None:
-    pass
+async def _interactive_shell() -> None:
+    click.echo("IMOS interactive mode")
+    click.echo("Type a prompt to run it through IMOS. Commands: /help /status /history /dashboard /adapters /exit")
+    while True:
+        try:
+            prompt = click.prompt("imos", prompt_suffix=" > ", type=str).strip()
+        except (EOFError, KeyboardInterrupt):
+            click.echo()
+            break
+        if not prompt:
+            continue
+        if prompt in {"/exit", "exit", "quit"}:
+            break
+        if prompt == "/help":
+            click.echo("Enter any task prompt. Commands: /status /history /dashboard /adapters /exit")
+            continue
+        if prompt == "/dashboard":
+            webbrowser.open("http://127.0.0.1:8765/imos")
+            click.echo("Opened IMOS dashboard")
+            continue
+        if prompt == "/status":
+            orchestrator = await _build_orchestrator()
+            payload = {
+                "configured_adapters": list_configured_adapters(),
+                "loaded_adapters": [{"name": item.name, "status": item.status} for item in orchestrator.registry.get_all()],
+            }
+            click.echo(json.dumps(payload, indent=2))
+            continue
+        if prompt == "/history":
+            orchestrator = await _build_orchestrator()
+            click.echo(json.dumps(orchestrator.context_manager.recent_history(20), indent=2))
+            continue
+        if prompt == "/adapters":
+            orchestrator = await _build_orchestrator()
+            rows = [{"name": item.name, "type": item.adapter_type, "status": item.status} for item in orchestrator.registry.get_all()]
+            click.echo(json.dumps(rows, indent=2))
+            continue
+        orchestrator = await _build_orchestrator()
+        result = await orchestrator.run(prompt)
+        click.echo()
+        click.echo(result.final_response)
+        click.echo()
+
+
+@click.group(invoke_without_command=True)
+@click.pass_context
+def cli(ctx: click.Context) -> None:
+    if ctx.invoked_subcommand is None:
+        asyncio.run(_interactive_shell())
 
 
 @cli.command()
@@ -124,8 +173,30 @@ def mcp_install() -> None:
 
 @cli.command()
 def dashboard() -> None:
-    webbrowser.open("http://127.0.0.1:8765/imos")
-    click.echo("Opened IMOS dashboard")
+    dashboard_url = "http://127.0.0.1:8765/imos"
+    healthy = False
+    try:
+        response = httpx.get(dashboard_url, timeout=2.0)
+        healthy = response.status_code < 500
+    except Exception:
+        healthy = False
+
+    if not healthy:
+        subprocess.Popen(
+            [sys.executable, "-m", "uvicorn", "nexus:app", "--host", "127.0.0.1", "--port", "8765"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        for _ in range(20):
+            try:
+                response = httpx.get(dashboard_url, timeout=2.0)
+                if response.status_code < 500:
+                    healthy = True
+                    break
+            except Exception:
+                time.sleep(0.5)
+    webbrowser.open(dashboard_url)
+    click.echo("Opened IMOS dashboard" if healthy else "Started dashboard server and opened IMOS dashboard")
 
 
 def main(argv: list[str] | None = None) -> None:

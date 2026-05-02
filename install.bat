@@ -9,118 +9,148 @@ if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
 echo.
 echo  ========================================================
-echo    IMOS -- Intelligent Machine Operating System
-echo    Installer
+echo    IMOS Installer
+echo    One command, one runtime, one setup flow
 echo  ========================================================
 echo.
 
-:: ── Step 1: Resolve repo directory ──────────────────────────────────────────
-if exist "%SCRIPT_DIR%\imos_cli.py" (
+call :step 1/7 Resolving repository source
+if exist "%SCRIPT_DIR%\setup.py" if exist "%SCRIPT_DIR%\imos" (
     set "REPO_DIR=%SCRIPT_DIR%"
-    echo [1/6] Using existing repo at %REPO_DIR%
+    call :ok Using current repository
     goto :resolve_python
 )
 
 set "REPO_DIR=%INSTALL_DIR%"
-
-if exist "%REPO_DIR%\imos_cli.py" (
-    echo [1/6] Updating existing install at %REPO_DIR%
-    where git >nul 2>nul && git -C "%REPO_DIR%" pull --ff-only
+if exist "%REPO_DIR%\setup.py" if exist "%REPO_DIR%\imos" (
+    where git >nul 2>nul
+    if %errorlevel%==0 (
+        call :progress Updating repository git -C "%REPO_DIR%" pull --ff-only
+    ) else (
+        call :ok Using existing installation
+    )
     goto :resolve_python
 )
 
+if exist "%REPO_DIR%" rmdir /s /q "%REPO_DIR%"
+mkdir "%REPO_DIR%" >nul 2>nul
 where git >nul 2>nul
 if %errorlevel%==0 (
-    echo [1/6] Cloning IMOS into %REPO_DIR%
-    git clone "%REPO_URL%" "%REPO_DIR%" || goto :error
+    call :progress Cloning repository git clone "%REPO_URL%" "%REPO_DIR%"
 ) else (
-    echo [1/6] Downloading IMOS archive...
-    if not exist "%REPO_DIR%" mkdir "%REPO_DIR%"
     powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-      "$z='%TEMP%\imos.zip';" ^
+      "$z='%TEMP%\imos-main.zip';" ^
       "Invoke-WebRequest 'https://github.com/Ahmadjamil888/connect/archive/refs/heads/main.zip' -OutFile $z;" ^
       "Expand-Archive $z '%TEMP%\imos-src' -Force;" ^
       "Copy-Item '%TEMP%\imos-src\connect-main\*' '%REPO_DIR%' -Recurse -Force;" ^
-      "Remove-Item $z,'%TEMP%\imos-src' -Recurse -Force" || goto :error
+      "Remove-Item $z,'%TEMP%\imos-src' -Recurse -Force" >nul 2>nul
+    if errorlevel 1 goto :error
+    call :ok Downloaded repository archive
 )
 
-:: ── Step 2: Resolve Python ───────────────────────────────────────────────────
 :resolve_python
-echo [2/6] Checking Python...
-where py >nul 2>nul && set "PY=py -3" && goto :create_venv
-where python >nul 2>nul && set "PY=python" && goto :create_venv
-echo [!] Python 3.10+ is required. Download from https://python.org
+call :step 2/7 Checking Python runtime
+where py >nul 2>nul
+if %errorlevel%==0 (
+    set "PY=py -3"
+    goto :create_venv
+)
+where python >nul 2>nul
+if %errorlevel%==0 (
+    set "PY=python"
+    goto :create_venv
+)
+echo [!] Python 3.10+ is required
 goto :error
 
-:: ── Step 3: Create venv ──────────────────────────────────────────────────────
 :create_venv
-echo [3/6] Creating virtual environment...
+call :ok Python found
+call :step 3/7 Preparing virtual environment
 if not exist "%REPO_DIR%\venv\Scripts\python.exe" (
-    %PY% -m venv "%REPO_DIR%\venv" || goto :error
+    call :progress Creating virtual environment %PY% -m venv "%REPO_DIR%\venv"
+) else (
+    call :ok Using existing virtual environment
 )
 set "VENV=%REPO_DIR%\venv\Scripts\python.exe"
+if not exist "%VENV%" goto :error
 
-:: ── Step 4: Install requirements ─────────────────────────────────────────────
-echo [4/6] Installing requirements...
-"%VENV%" -m pip install --upgrade pip -q
-"%VENV%" -m pip install -r "%REPO_DIR%\requirements.txt" -q || goto :error
-echo       Done.
+call :step 4/7 Installing IMOS runtime
+call :progress Upgrading pip "%VENV%" -m pip install --upgrade pip
+call :progress Installing project dependencies "%VENV%" -m pip install -r "%REPO_DIR%\requirements.txt"
+call :progress Installing IMOS command "%VENV%" -m pip install -e "%REPO_DIR%"
 
-:: ── Step 5: Copy .env.example to .env ────────────────────────────────────────
-echo [5/6] Setting up environment file...
+call :step 5/7 Preparing local configuration
 if not exist "%REPO_DIR%\.env" (
     if exist "%REPO_DIR%\.env.example" (
         copy "%REPO_DIR%\.env.example" "%REPO_DIR%\.env" >nul
-        echo       Created .env from .env.example
+        call :ok Created .env from template
     ) else (
         type nul > "%REPO_DIR%\.env"
-        echo       Created empty .env
+        call :ok Created empty .env
     )
 ) else (
-    echo       .env already exists, skipping.
+    call :ok Existing .env preserved
 )
+if not exist "%USERPROFILE%\.imos" mkdir "%USERPROFILE%\.imos" >nul 2>nul
+call :progress Initializing IMOS home "%VENV%" -c "from imos.config import ensure_default_files; ensure_default_files()"
 
-:: ── Step 6: Install imos command ─────────────────────────────────────────────
-echo [6/6] Installing 'imos' command...
+call :step 6/7 Installing global launcher
 set "BIN_DIR=%USERPROFILE%\imos-bin"
-if not exist "%BIN_DIR%" mkdir "%BIN_DIR%"
-
+if not exist "%BIN_DIR%" mkdir "%BIN_DIR%" >nul 2>nul
 (
 echo @echo off
-echo "%VENV%" "%REPO_DIR%\imos_cli.py" %%*
+echo "%VENV%" -m imos.cli %%*
 ) > "%BIN_DIR%\imos.cmd"
-
-:: Add to PATH if not already there
+call :ok Installed launcher at %BIN_DIR%\imos.cmd
 echo %PATH% | find /I "%BIN_DIR%" >nul
 if errorlevel 1 (
     setx PATH "%PATH%;%BIN_DIR%" >nul
-    echo       Added %BIN_DIR% to PATH
-    echo       Open a NEW terminal for PATH to take effect.
+    call :ok Added launcher directory to PATH
 ) else (
-    echo       %BIN_DIR% already in PATH
+    call :ok Launcher directory already on PATH
 )
 
-:: Also copy to Python Scripts (usually already on PATH)
-if exist "%REPO_DIR%\venv\Scripts\" (
-    copy "%REPO_DIR%\imos.bat" "%REPO_DIR%\venv\Scripts\imos.bat" >nul 2>nul
-)
+call :step 7/7 Running guided setup checks
+call :progress Installing editor bridge config "%VENV%" -m imos.cli mcp install
+call :progress Checking runtime status "%VENV%" -m imos.cli status
 
 echo.
 echo  ========================================================
-echo    IMOS installed successfully!
+echo    IMOS is installed
 echo  ========================================================
 echo.
-echo    Open a NEW terminal and type:  imos
-echo    The setup wizard will run on first launch.
-echo.
-echo    Repo:      %REPO_DIR%
-echo    Dashboard: http://localhost:5000
+echo    Start IMOS from any terminal with: imos
+echo    Open the dashboard with:           imos dashboard
+echo    Repository source:                 %REPO_URL%
 echo.
 pause
 exit /b 0
 
+:step
+echo [%~1] %~2 %~3 %~4 %~5 %~6 %~7 %~8 %~9
+exit /b 0
+
+:ok
+echo       OK - %*
+exit /b 0
+
+:progress
+setlocal
+set "LABEL=%~1"
+shift
+echo       ... %LABEL%
+%* >nul 2>nul
+if errorlevel 1 (
+    endlocal
+    echo [!] %LABEL% failed
+    goto :error
+)
+endlocal
+echo       OK - %LABEL%
+exit /b 0
+
 :error
 echo.
-echo [!] Installation failed. Check the error above.
+echo [!] Installation failed. Review the message above.
 pause
 exit /b 1

@@ -111,7 +111,7 @@
       border: 1px solid var(--border);
     }
     .controls, .grid, .history-list, .log-box { display: grid; gap: 14px; }
-    .controls { grid-template-columns: 1fr 200px 200px; }
+    .controls { grid-template-columns: 1fr 200px 150px 170px; }
     .adapter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
     .stats-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
     .card { padding: 16px; }
@@ -129,6 +129,7 @@
     .permission-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px; }
     .permission-item { display:grid; gap:6px; border:1px solid var(--border); border-radius:14px; padding:12px; background:#0d131d; }
     .permission-item strong { font-size:13px; }
+    .voice-status { font-size: 12px; color: var(--muted); margin-top: 8px; }
     .log-box {
       padding: 14px;
       height: 300px;
@@ -205,8 +206,10 @@
         <div class="controls" style="margin-top:14px">
           <select id="modelSelector"><option value="auto">Auto model</option></select>
           <input id="adapterFilter" placeholder="Target adapters: slack,cursor" />
+          <button class="subtle" id="voiceButton" onclick="toggleVoice()">Voice input</button>
           <button onclick="runTask()">Run on IMOS</button>
         </div>
+        <div id="voiceStatus" class="voice-status">Voice idle</div>
         <div style="margin-top:14px">
           <div class="tiny" style="margin-bottom:8px">Quick adapter targeting</div>
           <div id="adapterCheckboxes" class="check-grid"></div>
@@ -299,12 +302,19 @@
 
   <script>
     const logBox = document.getElementById("logBox");
+    const voiceStatus = document.getElementById("voiceStatus");
     let adaptersCache = [];
     let capabilitiesCache = [];
     let permissionProfile = {};
+    let recognition = null;
+    let voiceListening = false;
     function log(message) {
       logBox.textContent += `${new Date().toLocaleTimeString()}  ${message}\n`;
       logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    function updateVoiceStatus(message) {
+      voiceStatus.textContent = message;
     }
 
     async function fetchJSON(url, options) {
@@ -436,6 +446,72 @@
       log(`Finished: ${result.final_response}`);
       await loadHistory();
       await loadStatus();
+    }
+
+    function buildSpeechRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) return null;
+      const instance = new SpeechRecognition();
+      instance.continuous = true;
+      instance.interimResults = true;
+      instance.lang = "en-US";
+      instance.onstart = () => {
+        voiceListening = true;
+        document.getElementById("voiceButton").textContent = "Stop voice";
+        updateVoiceStatus("Listening...");
+        log("Voice assistant listening");
+      };
+      instance.onend = () => {
+        voiceListening = false;
+        document.getElementById("voiceButton").textContent = "Voice input";
+        updateVoiceStatus("Voice idle");
+      };
+      instance.onerror = (event) => {
+        voiceListening = false;
+        document.getElementById("voiceButton").textContent = "Voice input";
+        updateVoiceStatus(`Voice error: ${event.error}`);
+        log(`Voice error: ${event.error}`);
+      };
+      instance.onresult = (event) => {
+        let finalText = "";
+        let interimText = "";
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalText += transcript + " ";
+          } else {
+            interimText += transcript + " ";
+          }
+        }
+        const promptBox = document.getElementById("prompt");
+        const existing = promptBox.dataset.voiceBase || promptBox.value.trim();
+        if (!promptBox.dataset.voiceBase) {
+          promptBox.dataset.voiceBase = existing;
+        }
+        const merged = [promptBox.dataset.voiceBase, finalText, interimText].filter(Boolean).join(" ").trim();
+        promptBox.value = merged;
+        updateVoiceStatus(interimText ? `Listening... ${interimText.trim()}` : "Voice captured");
+      };
+      return instance;
+    }
+
+    function toggleVoice() {
+      if (!recognition) {
+        recognition = buildSpeechRecognition();
+      }
+      if (!recognition) {
+        updateVoiceStatus("Voice recognition is not supported in this browser");
+        log("Voice recognition is not supported in this browser");
+        return;
+      }
+      const promptBox = document.getElementById("prompt");
+      if (voiceListening) {
+        recognition.stop();
+        delete promptBox.dataset.voiceBase;
+        return;
+      }
+      promptBox.dataset.voiceBase = promptBox.value.trim();
+      recognition.start();
     }
 
     async function testAdapter(name) {
