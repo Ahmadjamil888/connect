@@ -25,6 +25,28 @@ registry = AdapterRegistry()
 orchestrator = IMOSOrchestrator(registry)
 live_clients: list[WebSocket] = []
 
+DEFAULT_PERMISSION_PROFILE: dict[str, Any] = {
+    "pc_control": False,
+    "browser_control": False,
+    "ide_control": False,
+    "app_access": False,
+    "admin_mode": False,
+    "shell_execution": True,
+    "file_system_access": True,
+    "ask_every_time_for_destructive": True,
+    "preference_memory": True,
+    "notes": "",
+}
+
+
+def _permission_profile() -> dict[str, Any]:
+    settings = merged_settings()
+    current = settings.get("permission_profile", {})
+    merged = dict(DEFAULT_PERMISSION_PROFILE)
+    if isinstance(current, dict):
+        merged.update(current)
+    return merged
+
 
 async def _broadcast(event: dict[str, Any]) -> None:
     stale = []
@@ -123,6 +145,22 @@ async def update_imos_settings(payload: dict[str, Any]):
 @app.get("/imos/settings")
 async def get_imos_settings():
     return merged_settings()
+
+
+@app.get("/imos/permissions")
+async def get_imos_permissions():
+    return _permission_profile()
+
+
+@app.post("/imos/permissions")
+async def update_imos_permissions(payload: dict[str, Any]):
+    settings = merged_settings()
+    updated = _permission_profile()
+    updated.update(payload)
+    settings["permission_profile"] = updated
+    save_settings(settings)
+    await _broadcast({"type": "permission_profile_updated", "data": updated})
+    return {"status": "updated", "permissions": updated}
 
 
 @app.get("/imos/capabilities")

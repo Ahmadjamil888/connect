@@ -126,6 +126,9 @@
     .check-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px; }
     .check-item { display:flex; align-items:center; gap:8px; border:1px solid var(--border); border-radius:12px; padding:10px 12px; background:#0d131d; }
     .check-item input { width:auto; }
+    .permission-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px; }
+    .permission-item { display:grid; gap:6px; border:1px solid var(--border); border-radius:14px; padding:12px; background:#0d131d; }
+    .permission-item strong { font-size:13px; }
     .log-box {
       padding: 14px;
       height: 300px;
@@ -183,6 +186,14 @@
           <label class="check-item"><input id="settingsPayments" type="checkbox" /> Enable payments</label>
           <label class="check-item"><input id="settingsOsControl" type="checkbox" /> Enable OS control</label>
           <button class="subtle" onclick="saveSettings()">Save settings</button>
+        </div>
+      </div>
+      <div class="card" style="margin-top:18px">
+        <h4>Permission setup</h4>
+        <div class="tiny">Define what IMOS may control after explicit user approval.</div>
+        <div id="permissionPreview" class="chip-group" style="margin-top:12px"></div>
+        <div style="display:flex;gap:10px;margin-top:12px">
+          <button class="subtle" onclick="openPermissionModal()">Configure permissions</button>
         </div>
       </div>
     </aside>
@@ -260,10 +271,37 @@
     </div>
   </div>
 
+  <div id="permissionModal" class="modal">
+    <div class="modal-card">
+      <h3>First-run permissions</h3>
+      <div class="tiny" style="margin-bottom:12px">Enable only the surfaces the user has explicitly approved. Admin mode should remain off unless the user has granted elevated access.</div>
+      <div class="permission-grid">
+        <label class="permission-item"><strong>PC control</strong><span class="tiny">Keyboard, mouse, windows, screenshots, process actions</span><span><input id="permPcControl" type="checkbox" /> Allow</span></label>
+        <label class="permission-item"><strong>Browser control</strong><span class="tiny">Navigation, click, hover, typing, downloads, session actions</span><span><input id="permBrowserControl" type="checkbox" /> Allow</span></label>
+        <label class="permission-item"><strong>IDE control</strong><span class="tiny">Cursor, VS Code, JetBrains, file edits, terminal actions</span><span><input id="permIdeControl" type="checkbox" /> Allow</span></label>
+        <label class="permission-item"><strong>App access</strong><span class="tiny">Desktop and web app adapters, messaging and services</span><span><input id="permAppAccess" type="checkbox" /> Allow</span></label>
+        <label class="permission-item"><strong>Admin mode</strong><span class="tiny">Elevated actions only when the user grants admin-level access</span><span><input id="permAdminMode" type="checkbox" /> Allow</span></label>
+        <label class="permission-item"><strong>Shell execution</strong><span class="tiny">Terminal command execution through approved adapters</span><span><input id="permShellExecution" type="checkbox" /> Allow</span></label>
+        <label class="permission-item"><strong>Filesystem access</strong><span class="tiny">Read, write, move, and inspect workspace files</span><span><input id="permFileAccess" type="checkbox" /> Allow</span></label>
+        <label class="permission-item"><strong>Preference memory</strong><span class="tiny">Persist operator preferences across sessions</span><span><input id="permPreferenceMemory" type="checkbox" /> Allow</span></label>
+        <label class="permission-item"><strong>Destructive confirmation</strong><span class="tiny">Ask again before delete, shutdown, restart, payment, or similar risk</span><span><input id="permDestructiveConfirm" type="checkbox" /> Require</span></label>
+      </div>
+      <div class="grid" style="margin-top:14px">
+        <label class="tiny">Operator notes</label>
+        <textarea id="permNotes" placeholder="Examples: Browser control approved for staging only. Admin mode disabled by default."></textarea>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button onclick="savePermissions()">Save permissions</button>
+        <button class="subtle" onclick="closePermissionModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const logBox = document.getElementById("logBox");
     let adaptersCache = [];
     let capabilitiesCache = [];
+    let permissionProfile = {};
     function log(message) {
       logBox.textContent += `${new Date().toLocaleTimeString()}  ${message}\n`;
       logBox.scrollTop = logBox.scrollHeight;
@@ -330,12 +368,14 @@
     }
 
     async function loadStatus() {
-      const [status, capabilities, settings] = await Promise.all([
+      const [status, capabilities, settings, permissions] = await Promise.all([
         fetchJSON("/imos/status"),
         fetchJSON("/imos/capabilities"),
-        fetchJSON("/imos/settings")
+        fetchJSON("/imos/settings"),
+        fetchJSON("/imos/permissions")
       ]);
       capabilitiesCache = capabilities;
+      permissionProfile = permissions;
       document.getElementById("tasksToday").textContent = status.tasks_run_today;
       document.getElementById("capabilityCount").textContent = capabilities.length;
       document.getElementById("statusSummary").textContent = `${status.adapters_online} online / ${status.configured_adapters} configured`;
@@ -345,6 +385,19 @@
       document.getElementById("settingsParallel").checked = !!settings.parallel_execution;
       document.getElementById("settingsPayments").checked = !!settings.enable_payments;
       document.getElementById("settingsOsControl").checked = !!settings.enable_os_control;
+      renderPermissionPreview(permissions);
+    }
+
+    function renderPermissionPreview(permissions) {
+      const preview = document.getElementById("permissionPreview");
+      const items = [
+        permissions.pc_control ? "PC control enabled" : "PC control off",
+        permissions.browser_control ? "Browser enabled" : "Browser off",
+        permissions.ide_control ? "IDE enabled" : "IDE off",
+        permissions.app_access ? "App access enabled" : "App access off",
+        permissions.admin_mode ? "Admin mode enabled" : "Admin mode off",
+      ];
+      preview.innerHTML = items.map(item => `<span class="chip">${item}</span>`).join("");
     }
 
     async function loadHistory() {
@@ -405,6 +458,49 @@
       document.getElementById("adapterProvider").value = "";
       document.getElementById("adapterConfig").value = "";
       document.getElementById("adapterType").value = "model";
+    }
+
+    function openPermissionModal() {
+      const permissions = permissionProfile || {};
+      document.getElementById("permPcControl").checked = !!permissions.pc_control;
+      document.getElementById("permBrowserControl").checked = !!permissions.browser_control;
+      document.getElementById("permIdeControl").checked = !!permissions.ide_control;
+      document.getElementById("permAppAccess").checked = !!permissions.app_access;
+      document.getElementById("permAdminMode").checked = !!permissions.admin_mode;
+      document.getElementById("permShellExecution").checked = !!permissions.shell_execution;
+      document.getElementById("permFileAccess").checked = !!permissions.file_system_access;
+      document.getElementById("permPreferenceMemory").checked = !!permissions.preference_memory;
+      document.getElementById("permDestructiveConfirm").checked = !!permissions.ask_every_time_for_destructive;
+      document.getElementById("permNotes").value = permissions.notes || "";
+      document.getElementById("permissionModal").classList.add("open");
+    }
+
+    function closePermissionModal() {
+      document.getElementById("permissionModal").classList.remove("open");
+    }
+
+    async function savePermissions() {
+      const payload = {
+        pc_control: document.getElementById("permPcControl").checked,
+        browser_control: document.getElementById("permBrowserControl").checked,
+        ide_control: document.getElementById("permIdeControl").checked,
+        app_access: document.getElementById("permAppAccess").checked,
+        admin_mode: document.getElementById("permAdminMode").checked,
+        shell_execution: document.getElementById("permShellExecution").checked,
+        file_system_access: document.getElementById("permFileAccess").checked,
+        preference_memory: document.getElementById("permPreferenceMemory").checked,
+        ask_every_time_for_destructive: document.getElementById("permDestructiveConfirm").checked,
+        notes: document.getElementById("permNotes").value.trim()
+      };
+      const result = await fetchJSON("/imos/permissions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      permissionProfile = result.permissions || payload;
+      renderPermissionPreview(permissionProfile);
+      log(`Permissions updated: ${JSON.stringify(permissionProfile)}`);
+      closePermissionModal();
     }
 
     async function configureAdapter(name) {
