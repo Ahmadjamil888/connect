@@ -15,6 +15,8 @@ from ai_assistant import main
 from imos.config import get_adapter_config, list_configured_adapters, merged_settings, remove_adapter_config, save_adapter_config, save_settings
 from imos.orchestrator import IMOSOrchestrator
 from imos.registry import AdapterRegistry
+from imos.runtime import IMOS_SYSTEM_PROMPT_BASE
+from imos.session_runtime import IMOSSessionRuntime
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -23,13 +25,14 @@ IMOS_HTML = PROJECT_ROOT / "project_site" / "imos_dashboard.html"
 app = FastAPI(title="NEXUS + IMOS")
 registry = AdapterRegistry()
 orchestrator = IMOSOrchestrator(registry)
+session_runtime = IMOSSessionRuntime(orchestrator)
 live_clients: list[WebSocket] = []
 
 DEFAULT_PERMISSION_PROFILE: dict[str, Any] = {
-    "pc_control": False,
-    "browser_control": False,
-    "ide_control": False,
-    "app_access": False,
+    "pc_control": True,
+    "browser_control": True,
+    "ide_control": True,
+    "app_access": True,
     "admin_mode": False,
     "shell_execution": True,
     "file_system_access": True,
@@ -71,14 +74,17 @@ async def imos_dashboard():
 async def imos_run(payload: dict[str, Any]):
     prompt = payload.get("prompt", "")
     context = payload.get("context", {})
+    session_name = str(payload.get("session_name", "dashboard")).strip() or "dashboard"
+    session_id = str(payload.get("session_id", "")).strip() or None
     await _broadcast({"type": "task_started", "prompt": prompt})
-    result = await orchestrator.run(prompt, context=context)
+    result = await session_runtime.run_turn(prompt, session_id=session_id, session_name=session_name, context=context)
     await _broadcast({"type": "task_finished", "prompt": prompt, "result": result.final_response})
     return {
         "final_response": result.final_response,
         "subtask_results": [asdict(item) for item in result.subtask_results],
         "duration_ms": result.duration_ms,
         "adapters_used": result.adapters_used,
+        "metadata": result.metadata,
     }
 
 
@@ -127,6 +133,16 @@ async def imos_history():
     return orchestrator.context_manager.recent_history(50)
 
 
+@app.get("/imos/sessions")
+async def imos_sessions():
+    return session_runtime.list_sessions()
+
+
+@app.get("/imos/sessions/{session_id}")
+async def imos_session_detail(session_id: str):
+    return session_runtime.export_session(session_id)
+
+
 @app.get("/imos/status")
 async def imos_status():
     await registry.auto_discover()
@@ -135,6 +151,8 @@ async def imos_status():
         "adapters_online": len([item for item in registry.get_all() if item.status == "connected"]),
         "configured_adapters": len(list_configured_adapters()),
         "tasks_run_today": len(history),
+        "session_count": len(session_runtime.list_sessions()),
+        "integration_count": len(registry.available_catalog()),
         "settings": merged_settings(),
     }
 
@@ -172,6 +190,11 @@ async def update_imos_permissions(payload: dict[str, Any]):
 async def imos_capabilities():
     await registry.auto_discover()
     return sorted({capability for adapter in registry.get_all() for capability in adapter.capabilities})
+
+
+@app.get("/imos/system-prompt")
+async def imos_system_prompt():
+    return {"prompt": IMOS_SYSTEM_PROMPT_BASE}
 
 
 @app.websocket("/imos/ws")

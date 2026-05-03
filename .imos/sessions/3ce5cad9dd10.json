@@ -1,0 +1,22 @@
+{
+  "id": "3ce5cad9dd10",
+  "name": "local_ide_worker",
+  "created_at": "2026-05-03T13:12:56.767687",
+  "updated_at": "2026-05-03T13:12:56.814495",
+  "status": "idle",
+  "profile": "delegate",
+  "parent_id": "0ef2ecf2aa51",
+  "target": "",
+  "messages": [
+    {
+      "role": "user",
+      "content": "create me a pizza shop mobile application",
+      "ts": "2026-05-03T13:12:56.782180"
+    },
+    {
+      "role": "assistant",
+      "content": "{'delegated': True, 'adapter': 'local_ide', 'inbox_path': 'C:\\\\Users\\\\Admin\\\\Desktop\\\\connect\\\\.imos\\\\delegated_tasks\\\\local_ide\\\\549d1222-c00a-45e1-97b0-65508ba9d408.json', 'workspace': 'C:\\\\Users\\\\Admin\\\\Desktop\\\\connect'}",
+      "ts": "2026-05-03T13:12:56.803186"
+    }
+  ]
+}

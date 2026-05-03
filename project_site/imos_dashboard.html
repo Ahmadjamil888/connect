@@ -111,7 +111,7 @@
       border: 1px solid var(--border);
     }
     .controls, .grid, .history-list, .log-box { display: grid; gap: 14px; }
-    .controls { grid-template-columns: 1fr 200px 150px 170px; }
+    .controls { grid-template-columns: 1fr 180px 150px 170px 140px; }
     .adapter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
     .catalog-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
     .stats-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
@@ -166,7 +166,7 @@
         <div>IMOS</div>
       </div>
       <div class="status-badge"><span class="dot"></span><span id="connectionStatus">Connected</span></div>
-      <p class="muted">Universal orchestration runtime for models, IDEs, messaging, Git, browser automation, OS control, and service adapters.</p>
+      <p class="muted">CLI-first orchestration runtime for models, IDEs, messaging, Git, browser automation, workflows, OS control, and service adapters.</p>
       <button class="subtle" onclick="openModal()">Add Adapter</button>
       <div style="margin-top:18px">
         <div class="muted">Active adapters</div>
@@ -216,6 +216,7 @@
           <input id="adapterFilter" placeholder="Target adapters: slack,cursor" />
           <button class="subtle" id="voiceButton" onclick="toggleVoice()">Voice input</button>
           <button onclick="runTask()">Run on IMOS</button>
+          <label class="check-item" style="justify-content:center"><input id="beastMode" type="checkbox" /> Beast mode</label>
         </div>
         <div id="voiceStatus" class="voice-status">Voice idle</div>
         <div style="margin-top:14px">
@@ -234,8 +235,8 @@
           <div id="tasksToday" style="font-size:28px;font-weight:700">0</div>
         </div>
         <div class="card">
-          <div class="tiny">Capabilities</div>
-          <div id="capabilityCount" style="font-size:28px;font-weight:700">0</div>
+          <div class="tiny">Sessions</div>
+          <div id="sessionCount" style="font-size:28px;font-weight:700">0</div>
         </div>
       </section>
 
@@ -246,7 +247,18 @@
 
       <section>
         <h3>Available Integrations</h3>
+        <div id="integrationTabs" class="chip-group" style="margin-bottom:12px"></div>
         <div id="catalogGrid" class="catalog-grid"></div>
+      </section>
+
+      <section>
+        <h3>Workflow Patterns</h3>
+        <div id="workflowGrid" class="catalog-grid"></div>
+      </section>
+
+      <section>
+        <h3>Runtime Sessions</h3>
+        <div id="sessionList" class="history-list"></div>
       </section>
 
       <section>
@@ -257,6 +269,10 @@
 
     <aside class="panel">
       <h3>Live Output</h3>
+      <div class="card" style="margin-bottom:14px">
+        <h4>System prompt</h4>
+        <div id="promptSummary" class="tiny">Loading system prompt...</div>
+      </div>
       <div id="logBox" class="log-box"></div>
     </aside>
   </div>
@@ -318,7 +334,17 @@
     const voiceStatus = document.getElementById("voiceStatus");
     let adaptersCache = [];
     let capabilitiesCache = [];
+    let catalogCache = [];
+    let selectedCatalogType = "all";
     let permissionProfile = {};
+    const workflowPatterns = [
+      { title: "Build and verify app", text: "Scaffold app, run tests, inspect output, and summarize verified deliverables." },
+      { title: "Beast mode build", text: "Fan one goal across multiple model and IDE adapters, then merge the verified outputs." },
+      { title: "Ship and notify", text: "Prepare repo changes, deploy, and route the final result into messaging connectors." },
+      { title: "Research to execution", text: "Search, synthesize, build, and verify from one runtime session." },
+      { title: "Desktop automation", text: "Use browser, shell, and PC control together with session history preserved." },
+      { title: "Connector relay", text: "Receive webhook or message traffic, inject it into a session, and route the response back out." }
+    ];
     let recognition = null;
     let voiceListening = false;
     let wakeWordArmed = false;
@@ -369,6 +395,7 @@
       const adapters = await fetchJSON("/imos/adapters");
       const catalog = await fetchJSON("/imos/catalog");
       adaptersCache = adapters;
+      catalogCache = catalog;
       const grid = document.getElementById("adapterGrid");
       const catalogGrid = document.getElementById("catalogGrid");
       const active = adapters.filter(item => item.status === "connected").length;
@@ -402,20 +429,56 @@
         check.innerHTML = `<input type="checkbox" value="${adapter.name}" onchange="syncAdapterFilter()" /> <span>${adapter.name}</span>`;
         checkboxGrid.appendChild(check);
       });
-      catalog.forEach(item => {
-        const card = document.createElement("div");
-        card.className = "card";
-        card.innerHTML = `
-          <h4>${item.name}</h4>
-          <div class="muted">${item.adapter_type}</div>
+      renderCatalogTabs(catalog);
+      renderCatalogGrid(catalog);
+      renderWorkflowPatterns();
+      populateModelSelector(adapters);
+    }
+
+    function renderCatalogTabs(catalog) {
+      const tabs = document.getElementById("integrationTabs");
+      const groups = ["all", ...new Set(catalog.map(item => item.adapter_type))];
+      tabs.innerHTML = groups.map(group => {
+        const active = group === selectedCatalogType ? " style=\"border-color:var(--accent);color:var(--accent)\"" : "";
+        return `<button class="subtle" ${active} onclick="selectCatalogType('${group}')">${group}</button>`;
+      }).join("");
+    }
+
+    function renderCatalogGrid(catalog) {
+      const catalogGrid = document.getElementById("catalogGrid");
+      catalogGrid.innerHTML = "";
+      catalog
+        .filter(item => selectedCatalogType === "all" || item.adapter_type === selectedCatalogType)
+        .forEach(item => {
+          const card = document.createElement("div");
+          card.className = "card";
+          card.innerHTML = `
+            <h4>${item.name}</h4>
+            <div class="muted">${item.adapter_type}</div>
           <div class="tiny" style="margin-top:8px">${item.module}</div>
           <div style="display:flex;gap:8px;margin-top:12px">
             <button class="subtle" onclick="prefillCatalogAdapter('${item.adapter_type}','${item.name}')">Add</button>
           </div>
-        `;
-        catalogGrid.appendChild(card);
+          `;
+          catalogGrid.appendChild(card);
+        });
+    }
+
+    function selectCatalogType(group) {
+      selectedCatalogType = group;
+      renderCatalogTabs(catalogCache);
+      renderCatalogGrid(catalogCache);
+    }
+
+    function renderWorkflowPatterns() {
+      const grid = document.getElementById("workflowGrid");
+      grid.innerHTML = "";
+      workflowPatterns.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `<h4>${item.title}</h4><div class="tiny" style="margin-top:8px">${item.text}</div>`;
+        grid.appendChild(card);
       });
-      populateModelSelector(adapters);
     }
 
     function populateModelSelector(adapters) {
@@ -436,22 +499,24 @@
       document.getElementById("adapterFilter").value = values.join(",");
     }
 
-    async function loadStatus() {
-      const [status, capabilities, settings, permissions] = await Promise.all([
-        fetchJSON("/imos/status"),
-        fetchJSON("/imos/capabilities"),
-        fetchJSON("/imos/settings"),
-        fetchJSON("/imos/permissions")
-      ]);
-      capabilitiesCache = capabilities;
-      permissionProfile = permissions;
-      document.getElementById("tasksToday").textContent = status.tasks_run_today;
-      document.getElementById("capabilityCount").textContent = capabilities.length;
-      document.getElementById("statusSummary").textContent = `${status.adapters_online} online / ${status.configured_adapters} configured`;
-      document.getElementById("capabilityPreview").innerHTML = capabilities.slice(0, 8).map(item => `<span class="chip">${item}</span>`).join("");
-      document.getElementById("settingsSynthesisModel").value = settings.result_synthesis_model || "";
-      document.getElementById("settingsMaxConcurrent").value = settings.max_concurrent_tasks || 10;
-      document.getElementById("settingsParallel").checked = !!settings.parallel_execution;
+      async function loadStatus() {
+        const [status, capabilities, settings, permissions, promptData] = await Promise.all([
+          fetchJSON("/imos/status"),
+          fetchJSON("/imos/capabilities"),
+          fetchJSON("/imos/settings"),
+          fetchJSON("/imos/permissions"),
+          fetchJSON("/imos/system-prompt")
+        ]);
+        capabilitiesCache = capabilities;
+        permissionProfile = permissions;
+        document.getElementById("tasksToday").textContent = status.tasks_run_today;
+        document.getElementById("sessionCount").textContent = status.session_count || 0;
+        document.getElementById("statusSummary").textContent = `${status.adapters_online} online / ${status.configured_adapters} configured`;
+        document.getElementById("capabilityPreview").innerHTML = capabilities.slice(0, 8).map(item => `<span class="chip">${item}</span>`).join("");
+        document.getElementById("promptSummary").textContent = (promptData.prompt || "").split("\n").slice(0, 8).join(" ");
+        document.getElementById("settingsSynthesisModel").value = settings.result_synthesis_model || "";
+        document.getElementById("settingsMaxConcurrent").value = settings.max_concurrent_tasks || 10;
+        document.getElementById("settingsParallel").checked = !!settings.parallel_execution;
       document.getElementById("settingsPayments").checked = !!settings.enable_payments;
       document.getElementById("settingsOsControl").checked = !!settings.enable_os_control;
       document.getElementById("settingsShellPalette").value = settings.shell_palette || "ember";
@@ -487,8 +552,27 @@
           <details style="margin-top:8px"><summary>Show result</summary><pre>${JSON.stringify(item.results, null, 2)}</pre></details>
         `;
         list.appendChild(row);
-      });
-    }
+        });
+      }
+
+      async function loadSessions() {
+        const sessions = await fetchJSON("/imos/sessions");
+        const list = document.getElementById("sessionList");
+        list.innerHTML = "";
+        sessions.slice().reverse().forEach(item => {
+          const row = document.createElement("div");
+          row.className = "history-item";
+          row.innerHTML = `
+            <h4>${item.name}</h4>
+            <div class="meta-row">
+              <div class="muted">${item.profile}</div>
+              <div class="tiny">${item.status}</div>
+            </div>
+            <div class="tiny" style="margin-top:8px">${item.id}</div>
+          `;
+          list.appendChild(row);
+        });
+      }
 
     async function runTask() {
       const prompt = document.getElementById("prompt").value.trim();
@@ -497,14 +581,17 @@
       const adapterFilter = document.getElementById("adapterFilter").value.trim();
       const payload = {
         prompt,
+        session_name: "dashboard",
         context: {
           target_adapters: adapterFilter ? adapterFilter.split(",").map(x => x.trim()).filter(Boolean) : [],
           model: document.getElementById("modelSelector").value,
+          beast_mode: document.getElementById("beastMode").checked,
         }
       };
       const result = await fetchJSON("/imos/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       log(`Finished: ${result.final_response}`);
       await loadHistory();
+      await loadSessions();
       await loadStatus();
     }
 
@@ -709,6 +796,7 @@
 
     loadAdapters();
     loadHistory();
+    loadSessions();
     loadStatus();
   </script>
 </body>

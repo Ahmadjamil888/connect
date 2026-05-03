@@ -194,25 +194,29 @@ def get_ui_config() -> dict:
 
 def save_ui_config(*, dashboard_palette: str | None = None, shell_palette: str | None = None) -> dict:
     cfg = load_config()
+    normalized_dashboard = None
+    normalized_shell = None
     if dashboard_palette:
-        dashboard_palette = dashboard_palette.strip().lower()
-        if dashboard_palette not in DASHBOARD_PALETTES:
-            raise ValueError(f"Unknown dashboard palette: {dashboard_palette}")
-        _set_nested(cfg, "dashboard.palette", dashboard_palette)
-        _set_nested(cfg, "dashboard.theme", dashboard_palette)
+        normalized_dashboard = dashboard_palette.strip().lower()
+        if normalized_dashboard not in DASHBOARD_PALETTES:
+            raise ValueError(f"Unknown dashboard palette: {normalized_dashboard}")
+        _set_nested(cfg, "dashboard.palette", normalized_dashboard)
+        _set_nested(cfg, "dashboard.theme", normalized_dashboard)
     if shell_palette:
-        shell_palette = shell_palette.strip().lower()
-        if shell_palette not in SHELL_PALETTES:
-            raise ValueError(f"Unknown shell palette: {shell_palette}")
-        _set_nested(cfg, "shell.palette", shell_palette)
+        normalized_shell = shell_palette.strip().lower()
+        if normalized_shell not in SHELL_PALETTES:
+            raise ValueError(f"Unknown shell palette: {normalized_shell}")
+        _set_nested(cfg, "shell.palette", normalized_shell)
     try:
         save_config(cfg)
     except Exception:
-        settings = merged_settings()
-        if dashboard_palette:
-            settings["dashboard_palette"] = dashboard_palette
-        if shell_palette:
-            settings["shell_palette"] = shell_palette
+        pass
+    settings = merged_settings()
+    if normalized_dashboard:
+        settings["dashboard_palette"] = normalized_dashboard
+    if normalized_shell:
+        settings["shell_palette"] = normalized_shell
+    if normalized_dashboard or normalized_shell:
         save_settings(settings)
     return get_ui_config()
 

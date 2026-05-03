@@ -23,6 +23,8 @@ export function DocsOperationsPage() {
           code={`imos
 imos status
 imos adapters list
+imos sessions list
+imos shell --beast
 imos wake status
 imos palette set --shell ember --dashboard ember
 imos dashboard`}

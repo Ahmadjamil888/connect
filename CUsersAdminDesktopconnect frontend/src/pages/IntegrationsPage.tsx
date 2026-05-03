@@ -1,9 +1,11 @@
 import { SectionBlock } from '../components/SectionBlock'
 
 const integrationGroups = {
-  Messaging: ['Telegram', 'Slack webhooks', 'Slack bot mode', 'Discord webhooks', 'Twilio WhatsApp'],
-  Automation: ['Cron jobs', 'Workflow webhooks', 'Background orchestration', 'Session routing'],
-  Operator: ['Dashboard', 'Node pairing', 'Canvas persistence', 'CLI and browser auth handoff'],
+  Messaging: ['Telegram', 'Slack webhooks', 'Slack bot mode', 'Discord webhooks', 'Twilio WhatsApp', 'Signal', 'Matrix', 'Mattermost', 'Rocket.Chat', 'Teams'],
+  Productivity: ['Notion', 'Airtable', 'Jira', 'Trello', 'Linear', 'Asana', 'Google Workspace', 'Microsoft 365'],
+  Delivery: ['Vercel', 'Netlify', 'Railway', 'Render', 'GitHub', 'GitLab', 'Bitbucket', 'Webhooks'],
+  Commerce: ['Stripe', 'PayPal', 'Calendly', 'Zoom', 'Google Meet', 'Shopify', 'Supabase', 'Firebase'],
+  Operator: ['Dashboard', 'Node pairing', 'Canvas persistence', 'CLI and browser auth handoff', 'Beast mode sessions', 'Shared runtime memory'],
 }
 
 const notes = [

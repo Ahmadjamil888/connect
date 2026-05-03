@@ -165,66 +165,67 @@ WELCOME_ART = [
 ]
 
 HELP = """
-  [bold bright_white]IMOS Shell Commands[/bold bright_white]
+  [bold bright_white]IMOS Shell[/bold bright_white]
 
-  [#ff6b00]/setup[/#ff6b00]              re-run the setup wizard
-  [#ff6b00]/model[/#ff6b00]              show current model config
-  [#ff6b00]/provider[/#ff6b00]           show active provider and model
-  [#ff6b00]/models[/#ff6b00]             list all providers and status
-  [#ff6b00]/use[/#ff6b00] [dim]<provider>[/dim]       switch provider interactively
-  [#ff6b00]/setmodel[/#ff6b00] [dim]<model>[/dim]     set a new model name for current provider
-  [#ff6b00]/pickmodel[/#ff6b00]          pick any provider/model pair interactively
-  [#ff6b00]/setkey[/#ff6b00] [dim]<provider> <key>[/dim]  set API key directly
-  [#ff6b00]/settoken[/#ff6b00] [dim]<svc> <tok>[/dim]    set deploy token (vercel/netlify/github)
-  [#ff6b00]/skills[/#ff6b00]             list installed skills
-  [#ff6b00]/workflows[/#ff6b00]          list YAML workflows
-  [#ff6b00]/runflow[/#ff6b00] [dim]<name>[/dim]        run a workflow by name
-  [#ff6b00]/sessions[/#ff6b00]           list local gateway sessions
-  [#ff6b00]/tasks[/#ff6b00]              list long-running task records
-  [#ff6b00]/processes[/#ff6b00]          list managed background processes
-  [#ff6b00]/audit[/#ff6b00]              show recent audit log entries
-  [#ff6b00]/git[/#ff6b00] [dim]status|branch|commit|diff|log[/dim]
-  [#ff6b00]/mcp[/#ff6b00]                list MCP servers and discovered tools
-  [#ff6b00]/terminal[/#ff6b00]           list managed terminal sessions
-  [#ff6b00]/memory[/#ff6b00] [dim]<query>[/dim]        search local memory index
-  [#ff6b00]/config[/#ff6b00] [dim]get <path>[/dim]     inspect YAML config
-  [#ff6b00]/config[/#ff6b00] [dim]set <path> <json>[/dim] update YAML config path
-  [#ff6b00]/integrations[/#ff6b00]       show configured integration keys
-  [#ff6b00]/workspace[/#ff6b00]          show workspace path
-  [#ff6b00]/cd[/#ff6b00] [dim]<path>[/dim]             change workspace
-  [#ff6b00]/dashboard[/#ff6b00]          launch local dashboard
-  [#ff6b00]/status[/#ff6b00]             show IMOS runtime status
-  [#ff6b00]/history[/#ff6b00]            show recent IMOS run history
-  [#ff6b00]/adapters[/#ff6b00]           show connected adapter registry
+  [#ff6b00]/setup[/#ff6b00]                    re-run the setup wizard
+  [#ff6b00]/status[/#ff6b00]                   show IMOS runtime status
+  [#ff6b00]/history[/#ff6b00]                  show recent IMOS run history
+  [#ff6b00]/adapters[/#ff6b00]                 show connected adapter registry
+  [#ff6b00]/sessions[/#ff6b00]                 list local runtime sessions
+  [#ff6b00]/tasks[/#ff6b00]                    list long-running task records
+  [#ff6b00]/workflows[/#ff6b00]                list YAML workflows
+  [#ff6b00]/runflow[/#ff6b00] [dim]<name>[/dim]              run a workflow by name
+  [#ff6b00]/dashboard[/#ff6b00]                launch local dashboard
   [#ff6b00]/wake[/#ff6b00] [dim]status|start|stop|install|uninstall[/dim]
   [#ff6b00]/palette[/#ff6b00] [dim]list|set shell <name>|set dashboard <name>[/dim]
-  [#ff6b00]/imos[/#ff6b00] [dim]<cli args>[/dim]     run any IMOS CLI command from this shell
-  [#ff6b00]/login[/#ff6b00]              run Clerk login flow
-  [#ff6b00]/logout[/#ff6b00]             clear Clerk session
-  [#ff6b00]/clear[/#ff6b00]              clear screen
-  [#ff6b00]/help[/#ff6b00]               show this
-  [#ff6b00]/exit[/#ff6b00]               quit
+  [#ff6b00]/model[/#ff6b00]                    show current model config
+  [#ff6b00]/provider[/#ff6b00]                 show active provider and model
+  [#ff6b00]/models[/#ff6b00]                   list all providers and status
+  [#ff6b00]/use[/#ff6b00] [dim]<provider>[/dim]             switch provider interactively
+  [#ff6b00]/setmodel[/#ff6b00] [dim]<model>[/dim]           set a new model name for current provider
+  [#ff6b00]/pickmodel[/#ff6b00]                pick any provider/model pair interactively
+  [#ff6b00]/setkey[/#ff6b00] [dim]<provider> <key>[/dim]    set API key directly
+  [#ff6b00]/settoken[/#ff6b00] [dim]<svc> <tok>[/dim]       set deploy token
+  [#ff6b00]/mcp[/#ff6b00]                      list MCP servers and discovered tools
+  [#ff6b00]/terminal[/#ff6b00]                 list managed terminal sessions
+  [#ff6b00]/processes[/#ff6b00]                list managed background processes
+  [#ff6b00]/audit[/#ff6b00]                    show recent audit log entries
+  [#ff6b00]/memory[/#ff6b00] [dim]<query>[/dim]              search local memory index
+  [#ff6b00]/git[/#ff6b00] [dim]status|branch|commit|diff|log[/dim]
+  [#ff6b00]/config[/#ff6b00] [dim]get <path>[/dim]           inspect YAML config
+  [#ff6b00]/config[/#ff6b00] [dim]set <path> <json>[/dim]    update YAML config path
+  [#ff6b00]/integrations[/#ff6b00]             show configured integration keys
+  [#ff6b00]/workspace[/#ff6b00]                show workspace path
+  [#ff6b00]/cd[/#ff6b00] [dim]<path>[/dim]                   change workspace
+  [#ff6b00]/imos[/#ff6b00] [dim]<cli args>[/dim]             run any IMOS CLI command from this shell
+  [#ff6b00]/login[/#ff6b00]                    run Clerk login flow
+  [#ff6b00]/logout[/#ff6b00]                   clear Clerk session
+  [#ff6b00]/clear[/#ff6b00]                    clear screen
+  [#ff6b00]/help[/#ff6b00]                     show this
+  [#ff6b00]/exit[/#ff6b00]                     quit
 
-  [bold bright_white]IMOS CLI Commands[/bold bright_white]
+  [bold bright_white]CLI Commands[/bold bright_white]
 
-  [#ff6b00]imos[/#ff6b00]                         start IMOS shell
-  [#ff6b00]imos run[/#ff6b00] [dim]"<prompt>"[/dim]          run one orchestration task
-  [#ff6b00]imos dashboard[/#ff6b00]               open IMOS dashboard
-  [#ff6b00]imos adapters list[/#ff6b00]           list adapters
+  [#ff6b00]imos[/#ff6b00]                               start IMOS shell
+  [#ff6b00]imos shell[/#ff6b00] [dim]--session main[/dim]        open a named shell session
+  [#ff6b00]imos shell[/#ff6b00] [dim]--beast[/dim]                open shell with multi-adapter orchestration
+  [#ff6b00]imos run[/#ff6b00] [dim]"<prompt>"[/dim]                run one orchestration task
+  [#ff6b00]imos run[/#ff6b00] [dim]"<prompt>" --beast[/dim]        run across configured model and IDE adapters
+  [#ff6b00]imos run[/#ff6b00] [dim]"<prompt>" --adapters a,b[/dim] target specific adapters
+  [#ff6b00]imos dashboard[/#ff6b00]                     open IMOS dashboard
+  [#ff6b00]imos adapters list[/#ff6b00]                 list adapters
   [#ff6b00]imos adapters add[/#ff6b00] [dim]<type> <name>[/dim]
   [#ff6b00]imos adapters test[/#ff6b00] [dim]<name>[/dim]
   [#ff6b00]imos adapters remove[/#ff6b00] [dim]<name>[/dim]
-  [#ff6b00]imos history[/#ff6b00]                 show recent history
-  [#ff6b00]imos status[/#ff6b00]                  show runtime status
-  [#ff6b00]imos mcp install[/#ff6b00]             install editor bridge
-  [#ff6b00]imos install mcp[/#ff6b00]             alias for editor bridge install
-  [#ff6b00]imos wake install[/#ff6b00]            install wake listener
-  [#ff6b00]imos wake start[/#ff6b00]              start wake listener
-  [#ff6b00]imos wake status[/#ff6b00]             show wake listener status
-  [#ff6b00]imos wake stop[/#ff6b00]               stop wake listener
-  [#ff6b00]imos wake uninstall[/#ff6b00]          remove wake listener
-  [#ff6b00]imos install wake[/#ff6b00]            alias for wake listener install
-  [#ff6b00]imos palette list[/#ff6b00]            list shell/dashboard palettes
+  [#ff6b00]imos sessions list[/#ff6b00]                 list runtime sessions
+  [#ff6b00]imos sessions history[/#ff6b00] [dim]<id>[/dim]         show session transcript
+  [#ff6b00]imos sessions status[/#ff6b00] [dim]<id>[/dim]          show session status
+  [#ff6b00]imos sessions export[/#ff6b00] [dim]<id>[/dim]          export parent and worker session graph
+  [#ff6b00]imos history[/#ff6b00]                       show recent history
+  [#ff6b00]imos status[/#ff6b00]                        show runtime status
+  [#ff6b00]imos mcp install[/#ff6b00]                   install editor bridge
+  [#ff6b00]imos wake install[/#ff6b00]                  install wake listener
+  [#ff6b00]imos wake status[/#ff6b00]                   show wake listener status
   [#ff6b00]imos palette set[/#ff6b00] [dim]--shell <name> --dashboard <name>[/dim]
 """
 
@@ -243,17 +244,17 @@ def render_home_screen(model_config, workspace):
     console.print()
     console.print(Align.left(_home_title()))
     subtitle = Text()
-    subtitle.append("Intelligent Machine Operating System ", style="bold white")
+    subtitle.append("CLI-first orchestration runtime ", style="bold white")
     subtitle.append("v1.0.0", style="dim")
     console.print(subtitle)
     console.print("Dashboard -> [dim]http://127.0.0.1:8765/imos[/dim]")
     console.print()
-    console.print("Loading IMOS runtime...")
+    console.print("Loading IMOS shell...")
     console.print()
     console.print(f"Provider: [#ff9b73]{provider}/{model}[/#ff9b73]")
     console.print(f"Workspace: [dim]{workspace}[/dim]")
-    console.print("[dim]Type anything - natural language or shell commands.[/dim]")
-    console.print("[dim]Type [/dim][#ff8c1a]/help[/#ff8c1a][dim] for all commands.[/dim]")
+    console.print("[dim]One runtime. One session. Natural language, workflows, shell, and adapter routing from one CLI.[/dim]")
+    console.print("[dim]Type [/dim][#ff8c1a]/help[/#ff8c1a][dim] for the public command surface.[/dim]")
     console.print()
 
 

@@ -1,0 +1,14 @@
+{
+  "task_id": "549d1222-c00a-45e1-97b0-65508ba9d408",
+  "adapter": "local_ide",
+  "workspace": "C:\\Users\\Admin\\Desktop\\connect",
+  "prompt": "create me a pizza shop mobile application",
+  "metadata": {
+    "can_run_parallel": true,
+    "depends_on": [],
+    "action": "delegate_prompt",
+    "params": {
+      "prompt": "create me a pizza shop mobile application"
+    }
+  }
+}

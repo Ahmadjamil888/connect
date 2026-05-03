@@ -902,6 +902,125 @@ def test_verifier_supports_file_min_chars():
     print("   File length verification: OK")
     return True
 
+def test_verifier_implicitly_checks_real_side_effects():
+    """Test default verification does not blindly pass for file, dir, and shell tasks."""
+    print("\n=== Testing Implicit Side-Effect Verification ===")
+    from autonomous_agent import Verifier, Task
+
+    verifier = Verifier(ai_model=None)
+
+    file_target = Path("implicit_verify_file.txt")
+    file_target.write_text("ok", encoding="utf-8")
+    file_task = Task(
+        id="verify_file_implicit",
+        name="Verify file implicitly",
+        description="",
+        tool_name="write_file",
+        tool_args={"path": str(file_target)},
+        verification="done",
+    )
+    ok, reason = verifier.verify(file_task, "[WRITE_RESULT]")
+    assert ok, reason
+    file_target.unlink(missing_ok=True)
+
+    dir_target = Path("implicit_verify_dir")
+    dir_target.mkdir(exist_ok=True)
+    dir_task = Task(
+        id="verify_dir_implicit",
+        name="Verify dir implicitly",
+        description="",
+        tool_name="create_directory",
+        tool_args={"path": str(dir_target)},
+        verification="done",
+    )
+    ok, reason = verifier.verify(dir_task, "[DIR_RESULT]")
+    assert ok, reason
+    dir_target.rmdir()
+
+    shell_task = Task(
+        id="verify_shell_implicit",
+        name="Verify shell implicitly",
+        description="",
+        tool_name="run_shell_command",
+        tool_args={"command": "echo hi"},
+        verification="done",
+    )
+    ok, reason = verifier.verify(
+        shell_task,
+        "[SHELL_RESULT]\nok=true\nexit_code=0\ncwd=C:\\Users\\Admin\\Desktop\\connect\nstdout=hi",
+    )
+    assert ok, reason
+
+    failed_shell = verifier.verify(
+        shell_task,
+        "[SHELL_RESULT]\nok=false\nexit_code=1\ncwd=C:\\Users\\Admin\\Desktop\\connect\nstderr=bad",
+    )
+    assert failed_shell[0] is False
+    print("   Implicit side-effect verification: OK")
+    return True
+
+def test_executor_result_summary_is_verified():
+    """Test executor summaries are based on verified state, not requested intent."""
+    print("\n=== Testing Verified Result Summaries ===")
+    from autonomous_agent import (
+        AuditLogger,
+        Executor,
+        MemorySystem,
+        PolicyEngine,
+        SafetyManager,
+        Task,
+        ToolRegistry,
+        Verifier,
+        WorldStateStore,
+    )
+
+    class StubTools:
+        @staticmethod
+        def get_definitions():
+            return []
+
+    executor = Executor(
+        ai_model=None,
+        tools=StubTools(),
+        registry=ToolRegistry(StubTools()),
+        verifier=Verifier(ai_model=None),
+        memory=MemorySystem(),
+        safety=SafetyManager(confirm_callback=lambda task: True),
+        policy=PolicyEngine(),
+        audit=AuditLogger("test-secret"),
+        world_state=WorldStateStore(),
+    )
+
+    file_target = Path("verified_summary_file.txt")
+    file_target.write_text("hello summary", encoding="utf-8")
+    file_task = Task(
+        id="summary_file",
+        name="Summarize file",
+        description="",
+        tool_name="write_file",
+        tool_args={"path": str(file_target), "content": "hello summary"},
+    )
+    file_summary = executor._summarize_result(file_task)
+    assert "verified file" in file_summary
+    file_target.unlink(missing_ok=True)
+
+    dir_target = Path("verified_summary_dir")
+    dir_target.mkdir(exist_ok=True)
+    dir_task = Task(
+        id="summary_dir",
+        name="Summarize dir",
+        description="",
+        tool_name="create_directory",
+        tool_args={"path": str(dir_target)},
+    )
+    dir_summary = executor._summarize_result(dir_task)
+    dir_patch = executor._patch_summary(dir_task)
+    assert "verified directory" in dir_summary
+    assert dir_patch == [f"+ Verified directory `{dir_target}`"]
+    dir_target.rmdir()
+    print("   Verified result summaries: OK")
+    return True
+
 def test_safety_manager_confirms_external_actions():
     """Test message/trading/deploy actions are treated as confirmation-required."""
     print("\n=== Testing External Action Confirmation ===")
@@ -1169,6 +1288,8 @@ def main():
         "Tool Registry Schema Repair": test_tool_registry_schema_repair(),
         "Next.js Repo Planning": test_nextjs_repo_planning(),
         "Executor Validation Repair": test_executor_repairs_invalid_tool_args(),
+        "Implicit Side-Effect Verification": test_verifier_implicitly_checks_real_side_effects(),
+        "Verified Result Summaries": test_executor_result_summary_is_verified(),
         "Workflow Roundtrip": test_workflow_roundtrip(),
         "Generated Workflow Tools": test_generated_workflow_tools(),
         "Planner Helper Fallback": test_planner_helper_fallback(),

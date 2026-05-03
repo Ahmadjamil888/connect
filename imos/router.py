@@ -24,9 +24,9 @@ class TaskRouter:
     }
 
     INTENT_CAPABILITY = {
-        "code_generation": "write_file",
-        "code_editing": "apply_diff",
-        "code_review": "read_file",
+        "code_generation": "chat",
+        "code_editing": "chat",
+        "code_review": "chat",
         "file_operation": "read_file",
         "send_message": "send_message",
         "search_web": "navigate",
@@ -52,11 +52,58 @@ class TaskRouter:
         self.synthesis_adapter = synthesis_adapter
 
     async def decompose(self, prompt: str, context: dict[str, Any] | None = None) -> list[IMOSSubtask]:
+        context = context or {}
+        targeted = self._targeted_decompose(prompt, context)
+        if targeted:
+            return targeted
         if self.synthesis_adapter:
-            plan = await self._llm_decompose(prompt, context or {})
+            plan = await self._llm_decompose(prompt, context)
             if plan:
                 return plan
         return self._heuristic_decompose(prompt)
+
+    def _targeted_decompose(self, prompt: str, context: dict[str, Any]) -> list[IMOSSubtask]:
+        target_names = [str(item).strip() for item in context.get("target_adapters", []) if str(item).strip()]
+        beast_mode = bool(context.get("beast_mode"))
+        if not target_names and not beast_mode:
+            return []
+
+        if beast_mode and not target_names:
+            target_names = [
+                adapter.name
+                for adapter in self.registry.get_all()
+                if adapter.adapter_type in {"model", "ide"} and adapter.status in {"connected", "disconnected"}
+            ]
+        if not target_names:
+            return []
+
+        subtask_type = self._infer_intent(prompt.lower())
+        tasks: list[IMOSTask] = []
+        for index, name in enumerate(target_names):
+            adapter = self.registry.get(name)
+            if adapter is None:
+                continue
+            metadata = self._build_task_metadata(prompt, subtask_type, index, [])
+            metadata["can_run_parallel"] = len(target_names) > 1 or beast_mode
+            metadata["depends_on"] = []
+            if adapter.adapter_type == "ide":
+                metadata["action"] = "delegate_prompt"
+                metadata["params"] = {"prompt": prompt}
+            tasks.append(
+                IMOSTask(
+                    task_id=str(uuid.uuid4()),
+                    prompt=prompt,
+                    subtask_type=subtask_type,
+                    target_adapter=adapter.name,
+                    priority=index,
+                    context=context,
+                    metadata=metadata,
+                )
+            )
+        if not tasks:
+            return []
+        mode = "Beast mode parallel fan-out" if beast_mode else "Targeted adapter run"
+        return [IMOSSubtask(original_prompt=prompt, subtasks=tasks, routing_explanation=mode)]
 
     async def _llm_decompose(self, prompt: str, context: dict[str, Any]) -> list[IMOSSubtask]:
         task = IMOSTask(
@@ -77,18 +124,29 @@ class TaskRouter:
         try:
             data = json.loads(str(result.output))
             subtasks = []
-            for entry in data.get("subtasks", []):
-                subtasks.append(
-                    IMOSTask(
-                        task_id=entry.get("task_id", str(uuid.uuid4())),
-                        prompt=entry["prompt"],
-                        subtask_type=entry["subtask_type"],
-                        target_adapter=entry["target_adapter"],
-                        priority=int(entry.get("priority", 0)),
-                        context=context,
-                        metadata={"can_run_parallel": bool(entry.get("can_run_parallel", False)), "depends_on": entry.get("depends_on", [])},
-                    )
+            existing_tasks: list[IMOSTask] = []
+            for index, entry in enumerate(data.get("subtasks", [])):
+                subtask_type = entry["subtask_type"]
+                rewritten_prompt = entry["prompt"]
+                resolved_target = self.resolve_target_adapter(entry.get("target_adapter", ""), subtask_type, rewritten_prompt)
+                metadata = self._build_task_metadata(rewritten_prompt, subtask_type, index, existing_tasks)
+                metadata["can_run_parallel"] = bool(entry.get("can_run_parallel", False))
+                metadata["depends_on"] = entry.get("depends_on", metadata.get("depends_on", []))
+                for key, value in (entry.get("metadata") or {}).items():
+                    metadata[key] = value
+                task = IMOSTask(
+                    task_id=entry.get("task_id", str(uuid.uuid4())),
+                    prompt=rewritten_prompt,
+                    subtask_type=subtask_type,
+                    target_adapter=resolved_target,
+                    priority=int(entry.get("priority", 0)),
+                    context=context,
+                    metadata=metadata,
                 )
+                subtasks.append(
+                    task
+                )
+                existing_tasks.append(task)
             return [IMOSSubtask(original_prompt=prompt, subtasks=subtasks, routing_explanation="LLM-routed task graph")]
         except Exception:
             return []

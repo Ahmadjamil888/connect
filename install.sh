@@ -10,11 +10,24 @@ O='\033[38;5;208m'; W='\033[1;37m'; G='\033[32m'; R='\033[31m'; D='\033[90m'; X=
 step() { printf "${O}[%s]${X} %s\n" "$1" "$2"; }
 ok() { printf "${G}      OK${X} %s\n" "${1:+- $1}"; }
 fail() { printf "${R}[!] %s${X}\n" "$1" >&2; exit 1; }
+spinner() {
+  local pid="$1"
+  local marks='|/-\'
+  local i=0
+  while kill -0 "$pid" >/dev/null 2>&1; do
+    printf "\r${O}      [%c]${X} Installing..." "${marks:i++%${#marks}:1}"
+    sleep 0.12
+  done
+  printf "\r"
+}
 progress() {
   local label="$1"
   shift
   printf "${O}      ...${X} %s\n" "$label"
-  "$@" >/dev/null 2>&1 || fail "$label failed"
+  "$@" >/dev/null 2>&1 &
+  local pid=$!
+  spinner "$pid"
+  wait "$pid" || fail "$label failed"
   ok "$label"
 }
 
@@ -22,6 +35,7 @@ echo ""
 echo -e "${O}  ========================================================${X}"
 echo -e "${W}    IMOS Installer${X}"
 echo -e "${D}    One command, one runtime, one setup flow${X}"
+echo -e "${D}    Guided install with loader and staged verification${X}"
 echo -e "${O}  ========================================================${X}"
 echo ""
 

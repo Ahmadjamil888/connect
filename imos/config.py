@@ -14,6 +14,10 @@ CONNECTIONS_PATH = IMOS_HOME / "connections.yaml"
 SETTINGS_PATH = IMOS_HOME / "imos_settings.yaml"
 PROJECT_ENV_PATH = Path.cwd() / ".env"
 
+
+def _local_imos_path(filename: str) -> Path:
+    return Path.cwd() / ".imos" / filename
+
 DEFAULT_CONNECTIONS = {
     "connections": [],
     "settings": {
@@ -78,12 +82,23 @@ def ensure_default_files() -> None:
 
 def load_connections_config() -> dict[str, Any]:
     ensure_default_files()
-    return _read_yaml(CONNECTIONS_PATH, DEFAULT_CONNECTIONS)
+    payload = _read_yaml(CONNECTIONS_PATH, DEFAULT_CONNECTIONS)
+    fallback = _local_imos_path("connections.yaml")
+    if fallback != CONNECTIONS_PATH and fallback.exists():
+        local_payload = _read_yaml(fallback, DEFAULT_CONNECTIONS)
+        payload["connections"] = local_payload.get("connections", payload.get("connections", []))
+        payload["settings"].update(local_payload.get("settings", {}))
+    return payload
 
 
 def load_global_settings() -> dict[str, Any]:
     ensure_default_files()
-    return _read_yaml(SETTINGS_PATH, {"settings": deepcopy(DEFAULT_CONNECTIONS["settings"])})
+    payload = _read_yaml(SETTINGS_PATH, {"settings": deepcopy(DEFAULT_CONNECTIONS["settings"])})
+    fallback = _local_imos_path("imos_settings.yaml")
+    if fallback != SETTINGS_PATH and fallback.exists():
+        local_payload = _read_yaml(fallback, {"settings": deepcopy(DEFAULT_CONNECTIONS["settings"])})
+        payload["settings"].update(local_payload.get("settings", {}))
+    return payload
 
 
 def load_env_values() -> dict[str, str]:

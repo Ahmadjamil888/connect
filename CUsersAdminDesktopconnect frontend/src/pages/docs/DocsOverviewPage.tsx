@@ -4,7 +4,7 @@ export function DocsOverviewPage() {
   return (
     <DocsShell
       title="Everything needed to install, authenticate, operate, and extend IMOS."
-      description="This section is split into focused pages so operators can move directly to shell, dashboard, integrations, and workflow control without exposing internal runtime entry files."
+      description="This section is split into focused pages so operators can move directly to shell, dashboard, integrations, and workflow control without exposing internal source filenames."
     >
       <div className="space-y-6 text-sm leading-8 text-neutral-400">
         <p>

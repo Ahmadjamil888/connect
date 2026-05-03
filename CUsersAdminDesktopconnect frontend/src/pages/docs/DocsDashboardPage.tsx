@@ -5,12 +5,12 @@ export function DocsDashboardPage() {
   return (
     <DocsShell
       title="The dashboard is the live IMOS operator surface."
-      description="It exposes chat, shell, voice, models, API keys, integrations, workflows, and activity in one orange-and-black control plane."
+      description="It exposes chat, beast-mode routing, shell, voice, sessions, models, integrations, workflows, and activity in one control plane."
     >
       <div className="space-y-6 text-sm leading-8 text-neutral-400">
         <p>
-          The current dashboard is the classic IMOS control room: live chat, full shell access, voice controls,
-          connection setup, multi-step workflows, and local activity visibility without exposing internal launch files.
+          The dashboard is the CLI companion for IMOS: live chat, full shell access, voice controls, session visibility,
+          connection setup, multi-step workflows, permission controls, and adapter targeting without exposing internal source filenames.
         </p>
         <CodeBlock label="Open the dashboard" code={'imos dashboard'} />
         <CodeBlock
@@ -18,6 +18,8 @@ export function DocsDashboardPage() {
           code={`imos
 imos status
 imos adapters list
+imos sessions list
+imos shell --beast
 imos wake status
 imos palette set --shell ember --dashboard ember`}
         />

@@ -13,6 +13,7 @@ from imos.config import list_configured_adapters, remove_adapter_config, save_ad
 from imos.mcp_server import install_mcp_configs
 from imos.orchestrator import IMOSOrchestrator
 from imos.registry import AdapterRegistry
+from imos.session_runtime import IMOSSessionRuntime
 from imos.ui import get_ui_config, save_ui_config
 from imos.wake_service import _install_autostart_file, start_background as start_wake_service, status as wake_status, stop_background as stop_wake_service, uninstall_autostart
 
@@ -21,6 +22,9 @@ async def _build_orchestrator() -> IMOSOrchestrator:
     registry = AdapterRegistry()
     await registry.auto_discover()
     return IMOSOrchestrator(registry)
+
+async def _build_runtime() -> IMOSSessionRuntime:
+    return IMOSSessionRuntime(await _build_orchestrator())
 
 def _launch_legacy_shell() -> None:
     import ai_assistant
@@ -32,27 +36,54 @@ def _launch_legacy_shell() -> None:
     finally:
         sys.argv = original_argv
 
+def _interactive_shell(session_name: str, beast_mode: bool = False) -> None:
+    async def _run() -> None:
+        runtime = await _build_runtime()
+        session_id = runtime.ensure_session(session_name)
+        click.echo(f"IMOS session: {session_name} ({session_id})")
+        click.echo("Type `exit` or `quit` to stop.")
+        while True:
+            prompt = click.prompt("imos", prompt_suffix="> ", type=str)
+            if prompt.strip().lower() in {"exit", "quit"}:
+                break
+            result = await runtime.run_turn(prompt, session_id=session_id, session_name=session_name, context={"beast_mode": beast_mode})
+            click.echo(result.final_response)
+
+    asyncio.run(_run())
+
 
 @click.group(invoke_without_command=True)
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     if ctx.invoked_subcommand is None:
-        _launch_legacy_shell()
+        _interactive_shell("default")
 
 
 @cli.command()
-def shell() -> None:
+@click.option("--session", "session_name", default="default", help="Session name")
+@click.option("--beast", "beast_mode", is_flag=True, help="Fan the prompt out to all configured model and IDE adapters")
+def shell(session_name: str, beast_mode: bool) -> None:
+    _interactive_shell(session_name, beast_mode=beast_mode)
+
+
+@cli.command("legacy-shell")
+def legacy_shell() -> None:
     _launch_legacy_shell()
 
 
 @cli.command()
 @click.argument("prompt")
 @click.option("--adapters", default="", help="Comma-separated adapter targets")
-def run(prompt: str, adapters: str) -> None:
+@click.option("--session", "session_name", default="default", help="Persistent session name")
+@click.option("--beast", "beast_mode", is_flag=True, help="Run prompt across multiple model and IDE adapters")
+def run(prompt: str, adapters: str, session_name: str, beast_mode: bool) -> None:
     async def _run():
-        orchestrator = await _build_orchestrator()
-        context = {"target_adapters": [item.strip() for item in adapters.split(",") if item.strip()]} if adapters else {}
-        result = await orchestrator.run(prompt, context=context)
+        runtime = await _build_runtime()
+        context = {
+            "target_adapters": [item.strip() for item in adapters.split(",") if item.strip()],
+            "beast_mode": beast_mode,
+        }
+        result = await runtime.run_turn(prompt, session_name=session_name, context=context)
         click.echo(result.final_response)
 
     asyncio.run(_run())
@@ -126,6 +157,53 @@ def history() -> None:
         click.echo(json.dumps(orchestrator.context_manager.recent_history(50), indent=2))
 
     asyncio.run(_history())
+
+
+@cli.group(invoke_without_command=True)
+@click.pass_context
+def sessions(ctx: click.Context) -> None:
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+
+
+@sessions.command("list")
+def sessions_list() -> None:
+    async def _list():
+        runtime = await _build_runtime()
+        click.echo(json.dumps(runtime.list_sessions(), indent=2))
+
+    asyncio.run(_list())
+
+
+@sessions.command("history")
+@click.argument("session_id")
+@click.option("--limit", default=30, type=int, help="History limit")
+def sessions_history(session_id: str, limit: int) -> None:
+    async def _history():
+        runtime = await _build_runtime()
+        click.echo(json.dumps(runtime.history(session_id, limit=limit), indent=2))
+
+    asyncio.run(_history())
+
+
+@sessions.command("status")
+@click.argument("session_id")
+def sessions_status(session_id: str) -> None:
+    async def _status():
+        runtime = await _build_runtime()
+        click.echo(json.dumps(runtime.status(session_id), indent=2))
+
+    asyncio.run(_status())
+
+
+@sessions.command("export")
+@click.argument("session_id")
+def sessions_export(session_id: str) -> None:
+    async def _export():
+        runtime = await _build_runtime()
+        click.echo(json.dumps(runtime.export_session(session_id), indent=2))
+
+    asyncio.run(_export())
 
 
 @cli.command()

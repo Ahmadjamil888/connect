@@ -35,7 +35,12 @@ class BaseWebAdapter(IMOSAdapter):
         started = time.perf_counter()
         action = task.metadata.get("action") or task.subtask_type
         try:
-            handler = getattr(self, str(action), None)
+            aliases = {
+                "search": "search_web",
+                "web_search": "search_web",
+            }
+            handler_name = aliases.get(str(action), str(action))
+            handler = getattr(self, handler_name, None)
             if handler is None:
                 raise AttributeError(f"Unsupported webapp action: {action}")
             result = await handler(**task.metadata.get("params", {}))

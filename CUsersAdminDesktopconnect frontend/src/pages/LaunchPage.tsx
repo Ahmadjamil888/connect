@@ -1,16 +1,16 @@
 import { SectionBlock } from '../components/SectionBlock'
 
 const checklist = [
-  'Run the backend with `connect dashboard` or `python ai_assistant.py --dashboard`.',
-  'Sign in through Clerk in the frontend or by using `connect login` in the CLI.',
-  'Use the operator dashboard for sessions, tools, workflows, and runtime status.',
-  'Validate live connectors with the CLI test commands once credentials are present.',
+  'Install the runtime and open the shell with `imos`.',
+  'Sign in through Clerk in the frontend or by using `imos login` in the CLI.',
+  'Use `imos shell --beast` when the goal should fan out across multiple adapters.',
+  'Validate sessions, adapters, and dashboard reachability from the same CLI surface the operator will actually use.',
 ]
 
 const phases = [
   {
     title: 'Installation',
-    text: 'Install the repo, verify the global launcher path, and confirm `connect --doctor` reports the right repo launcher from any working directory.',
+    text: 'Install the repo, verify the global launcher path, and confirm `imos status` and `imos adapters list` report the right runtime state from any working directory.',
   },
   {
     title: 'Authentication',
@@ -18,7 +18,7 @@ const phases = [
   },
   {
     title: 'Runtime validation',
-    text: 'Confirm provider readiness, dashboard availability, session creation, and at least one working connector path before broad rollout.',
+    text: 'Confirm provider readiness, dashboard availability, session creation, beast-mode routing, and at least one working connector path before broad rollout.',
   },
 ]
 
@@ -66,9 +66,11 @@ export function LaunchPage() {
       >
         <div className="rounded-[2rem] border border-white/8 bg-black/50 p-6">
           <pre className="overflow-x-auto text-sm text-neutral-200">
-            <code>{`connect --doctor
-connect login
-connect dashboard`}</code>
+            <code>{`imos
+imos status
+imos adapters list
+imos shell --beast
+imos dashboard`}</code>
           </pre>
         </div>
       </SectionBlock>

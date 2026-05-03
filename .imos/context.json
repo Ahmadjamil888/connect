@@ -245,19 +245,292 @@
       }
     },
     {
-      "prompt": "answer this question",
+      "prompt": "hello",
       "results": [
         {
-          "task_id": "9091d1e6-7396-496c-9090-30d78f742e4e",
-          "adapter_name": "model1",
+          "task_id": "1",
+          "adapter_name": "default_model",
           "success": true,
-          "output": "model1:answer this question",
+          "output": "Hello. How can I help you today?",
           "error": null,
-          "duration_ms": 0,
+          "duration_ms": 306,
+          "metadata": {
+            "provider": "groq",
+            "token_usage": {
+              "prompt_tokens": 36,
+              "completion_tokens": 10,
+              "total_tokens": 46
+            }
+          }
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "how are you?",
+      "results": [
+        {
+          "task_id": "check_status",
+          "adapter_name": "default_model",
+          "success": true,
+          "output": "I'm just a language model, so I don't have feelings or emotions like humans do, but I'm functioning properly and ready to assist you with any questions or tasks you may have. How can I help you today?",
+          "error": null,
+          "duration_ms": 404,
+          "metadata": {
+            "provider": "groq",
+            "token_usage": {
+              "prompt_tokens": 39,
+              "completion_tokens": 46,
+              "total_tokens": 85
+            }
+          }
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "ijpijijrfir",
+      "results": [
+        {
+          "task_id": "1",
+          "adapter_name": "default_model",
+          "success": true,
+          "output": "The given prompt \"ijpijijrfir\" appears to be a sequence of random characters, possibly a typo or a nonsensical string. It does not form a coherent word, phrase, or sentence in the English language. Could you please provide more context or clarify what you would like me to do with this prompt?",
+          "error": null,
+          "duration_ms": 478,
+          "metadata": {
+            "provider": "groq",
+            "token_usage": {
+              "prompt_tokens": 47,
+              "completion_tokens": 67,
+              "total_tokens": 114
+            }
+          }
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "build me a python based mobile application for food delivery.",
+      "results": [
+        {
+          "task_id": "generate_food_delivery_app",
+          "adapter_name": "local_ide",
+          "success": true,
+          "output": {
+            "command": "Create a Python-based mobile application for food delivery with user authentication, restaurant listing, menu browsing, and order placement functionality.",
+            "cwd": "C:\\Users\\Admin\\Desktop\\connect",
+            "returncode": 1,
+            "stdout": "",
+            "stderr": "'Create' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n"
+          },
+          "error": null,
+          "duration_ms": 29,
+          "metadata": {}
+        },
+        {
+          "task_id": "design_database_schema",
+          "adapter_name": "local_ide",
+          "success": true,
+          "output": {
+            "command": "Design a database schema to store user information, restaurant data, menu items, and order history for the food delivery application.",
+            "cwd": "C:\\Users\\Admin\\Desktop\\connect",
+            "returncode": 1,
+            "stdout": "",
+            "stderr": "'Design' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n"
+          },
+          "error": null,
+          "duration_ms": 26,
+          "metadata": {}
+        },
+        {
+          "task_id": "implement_user_authentication",
+          "adapter_name": "local_ide",
+          "success": true,
+          "output": {
+            "command": "Implement user authentication using a library such as Flask-Login or Django Authentication for the food delivery application.",
+            "cwd": "C:\\Users\\Admin\\Desktop\\connect",
+            "returncode": 1,
+            "stdout": "",
+            "stderr": "'Implement' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n"
+          },
+          "error": null,
+          "duration_ms": 24,
+          "metadata": {}
+        },
+        {
+          "task_id": "develop_restaurant_listing",
+          "adapter_name": "local_ide",
+          "success": true,
+          "output": {
+            "command": "Develop a feature to display a list of nearby restaurants with their menus and reviews for the food delivery application.",
+            "cwd": "C:\\Users\\Admin\\Desktop\\connect",
+            "returncode": 1,
+            "stdout": "",
+            "stderr": "'Develop' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n"
+          },
+          "error": null,
+          "duration_ms": 25,
+          "metadata": {}
+        },
+        {
+          "task_id": "create_menu_browsing",
+          "adapter_name": "local_ide",
+          "success": true,
+          "output": {
+            "command": "Create a feature to allow users to browse menus and add items to their cart for the food delivery application.",
+            "cwd": "C:\\Users\\Admin\\Desktop\\connect",
+            "returncode": 1,
+            "stdout": "",
+            "stderr": "'Create' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n"
+          },
+          "error": null,
+          "duration_ms": 27,
+          "metadata": {}
+        },
+        {
+          "task_id": "implement_order_placement",
+          "adapter_name": "local_ide",
+          "success": true,
+          "output": {
+            "command": "Implement a feature to allow users to place orders and make payments using a payment gateway for the food delivery application.",
+            "cwd": "C:\\Users\\Admin\\Desktop\\connect",
+            "returncode": 1,
+            "stdout": "",
+            "stderr": "'Implement' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n"
+          },
+          "error": null,
+          "duration_ms": 24,
+          "metadata": {}
+        },
+        {
+          "task_id": "test_and_deploy",
+          "adapter_name": "local_ide",
+          "success": true,
+          "output": {
+            "command": "Test the food delivery application and deploy it to a cloud platform such as AWS or Google Cloud.",
+            "cwd": "C:\\Users\\Admin\\Desktop\\connect",
+            "returncode": 1,
+            "stdout": "",
+            "stderr": "'Test' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n"
+          },
+          "error": null,
+          "duration_ms": 26,
           "metadata": {}
         }
       ],
-      "context": {}
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "please create as you have full access of my pc",
+      "results": [
+        {
+          "task_id": "generate_code",
+          "adapter_name": "default_model",
+          "success": true,
+          "output": "Here's a step-by-step guide to creating a new Python script:\n\n### Step 1: Create a new Python script\nTo create a new Python script, navigate to the `imos_workspace` directory and create a new file. You can do this using your operating system's file explorer or using the command line.\n\n### Step 2: Name the script\nName the script, for example, `hello_world.py`.\n\n### Step 3: Add the main function\nOpen the script in a text editor and add the following code:\n\n```python\ndef main():\n    \"\"\"Prints 'Hello World' to the console.\"\"\"\n    print('Hello World')\n\nif __name__ == \"__main__\":\n    main()\n```\n\n### Explanation of the code:\n- The `main` function is defined with a docstring that describes its purpose.\n- Inside the `main` function, the `print` function is used to print 'Hello World' to the console.\n- The `if __name__ == \"__main__\":` line checks if the script is being run directly (not being imported as a module in another script). If it is, the `main` function is called.\n\n### Step 4: Run the script\nTo run the script, navigate to the `imos_workspace` directory in the command line and use the following command:\n```bash\npython hello_world.py\n```\nThis will execute the script and print 'Hello World' to the console.\n\nRemember to replace `hello_world.py` with the actual name of your script if it's different.",
+          "error": null,
+          "duration_ms": 1072,
+          "metadata": {
+            "provider": "groq",
+            "token_usage": {
+              "prompt_tokens": 56,
+              "completion_tokens": 315,
+              "total_tokens": 371
+            }
+          }
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "make me a react based e commerce store.",
+      "results": [
+        {
+          "task_id": "create_react_ecommerce_store",
+          "adapter_name": "default_model",
+          "success": true,
+          "output": "**E-commerce Store Overview**\n==========================\n\nIn this example, we will create a basic React-based e-commerce store with user authentication, product catalog, shopping cart, and payment gateway integration using Stripe.\n\n**Project Structure**\n-------------------\n\n*   `public/`: Publicly accessible files\n*   `src/`: Source code\n    *   `components/`: Reusable React components\n    *   `containers/`: Higher-order components that wrap other components\n    *   `actions/`: Action creators for Redux\n    *   `reducers/`: Redux reducers\n    *   `utils/`: Utility functions\n    *   `App.js`: Main application component\n    *   `index.js`: Entry point for the application\n\n**Dependencies**\n---------------\n\n*   `react`: React library\n*   `react-dom`: React DOM library\n*   `react-router-dom`: React Router library\n*   `redux`: Redux library\n*   `react-redux`: React Redux library\n*   `stripe-js`: Stripe JavaScript library\n*   `axios`: Axios library for making HTTP requests\n\n**Setup**\n--------\n\n### Install dependencies\n\n```bash\nnpm install react react-dom react-router-dom redux react-redux stripe-js axios\n```\n\n### Create a new React app\n\n```bash\nnpx create-react-app ecommerce-store\n```\n\n### Configure Stripe\n\nCreate a new file `stripe.js` in the `utils` directory:\n\n```javascript\n// src/utils/stripe.js\nimport Stripe from 'stripe';\n\nconst stripe = new Stripe('YOUR_STRIPE_SECRET_KEY', {\n    apiVersion: '2022-11-15',\n});\n\nexport default stripe;\n```\n\nReplace `YOUR_STRIPE_SECRET_KEY` with your actual Stripe secret key.\n\n**User Authentication**\n--------------------\n\n### Create a user model\n\nCreate a new file `user.js` in the `models` directory:\n\n```javascript\n// src/models/user.js\nclass User {\n    constructor(id, email, password) {\n        this.id = id;\n        this.email = email;\n        this.password = password;\n    }\n}\n\nexport default User;\n```\n\n### Create an authentication service\n\nCreate a new file `auth.js` in the `services` directory:\n\n```javascript\n// src/services/auth.js\nimport axios from 'axios';\n\nconst api = axios.create({\n    baseURL: 'https://your-auth-api.com/api',\n});\n\nconst login = async (email, password) => {\n    try {\n        const response = await api.post('/login', { email, password });\n        return response.data;\n    } catch (error) {\n        throw error;\n    }\n};\n\nconst register = async (email, password) => {\n    try {\n        const response = await api.post('/register', { email, password });\n        return response.data;\n    } catch (error) {\n        throw error;\n    }\n};\n\nexport { login, register };\n```\n\nReplace `https://your-auth-api.com/api` with your actual authentication API endpoint.\n\n### Create an authentication reducer\n\nCreate a new file `authReducer.js` in the `reducers` directory:\n\n```javascript\n// src/reducers/authReducer.js\nconst initialState = {\n    user: null,\n    isAuthenticated: false,\n};\n\nconst authReducer = (state = initialState, action) => {\n    switch (action.type) {\n        case 'LOGIN_SUCCESS':\n            return { ...state, user: action.payload, isAuthenticated: true };\n        case 'LOGOUT':\n            return { ...state, user: null, isAuthenticated: false };\n        default:\n            return state;\n    }\n};\n\nexport default authReducer;\n```\n\n### Create an authentication action creator\n\nCreate a new file `authActions.js` in the `actions` directory:\n\n```javascript\n// src/actions/authActions.js\nimport { login, register } from '../services/auth';\n\nexport const loginSuccess = (user) => {\n    return {\n        type: 'LOGIN_SUCCESS',\n        payload: user,\n    };\n};\n\nexport const logout = () => {\n    return {\n        type: 'LOGOUT',\n    };\n};\n\nexport const loginAsync = (email, password) => {\n    return async (dispatch) => {\n        try {\n            const user = await login(email, password);\n            dispatch(loginSuccess(user));\n        } catch (error) {\n            throw error;\n        }\n    };\n};\n\nexport const registerAsync = (email, password) => {\n    return async (dispatch) => {\n        try {\n            const user = await register(email, password);\n            dispatch(loginSuccess(user));\n        } catch (error) {\n            throw error;\n        }\n    };\n};\n```\n\n**Product Catalog**\n------------------\n\n### Create a product model\n\nCreate a new file `product.js` in the `models` directory:\n\n```javascript\n// src/models/product.js\nclass Product {\n    constructor(id, name, price, description) {\n        this.id = id;\n        this.name = name;\n        this.price = price;\n        this.description = description;\n    }\n}\n\nexport default Product;\n```\n\n### Create a product service",
+          "error": null,
+          "duration_ms": 2562,
+          "metadata": {
+            "provider": "groq",
+            "token_usage": {
+              "prompt_tokens": 57,
+              "completion_tokens": 1024,
+              "total_tokens": 1081
+            }
+          }
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "create me a pizza shop mobile application",
+      "results": [
+        {
+          "task_id": "549d1222-c00a-45e1-97b0-65508ba9d408",
+          "adapter_name": "local_ide",
+          "success": true,
+          "output": {
+            "delegated": true,
+            "adapter": "local_ide",
+            "inbox_path": "C:\\Users\\Admin\\Desktop\\connect\\.imos\\delegated_tasks\\local_ide\\549d1222-c00a-45e1-97b0-65508ba9d408.json",
+            "workspace": "C:\\Users\\Admin\\Desktop\\connect"
+          },
+          "error": null,
+          "duration_ms": 1,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "target_adapters": [],
+        "beast_mode": true,
+        "session_id": "0ef2ecf2aa51",
+        "session_name": "default"
+      }
     }
   ],
   "project_context": {},

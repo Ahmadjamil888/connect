@@ -79,13 +79,16 @@ class BaseIDEAdapter(IMOSAdapter):
         started = time.perf_counter()
         action = str(task.metadata.get("action") or task.subtask_type or "").lower()
         try:
-            if action in {"write_file", "create_file"}:
+            if action in {"delegate_prompt", "question_answer", "code_generation", "code_editing", "multi_step", "chat", ""}:
+                prompt = str(task.metadata.get("params", {}).get("prompt") or task.prompt)
+                output = await self.delegate_prompt(task.task_id, prompt, metadata=task.metadata)
+            elif action in {"write_file", "create_file"}:
                 output = await self.write_file(task.metadata["path"], task.metadata.get("content", task.prompt))
             elif action == "read_file":
                 output = await self.read_file(task.metadata["path"])
             elif action == "delete_file":
                 output = await self.delete_file(task.metadata["path"])
-            elif action == "run_terminal":
+            elif action in {"run_terminal", "shell_command", "run_shell"}:
                 output = await self.run_terminal(task.metadata.get("command", task.prompt), cwd=task.metadata.get("cwd"))
             elif action == "open_file":
                 output = await self.open_file(task.metadata["path"], line=task.metadata.get("line"))
@@ -98,11 +101,41 @@ class BaseIDEAdapter(IMOSAdapter):
             elif action == "get_current_file_content":
                 output = await self.get_current_file_content()
             else:
-                output = await self.run_terminal(task.prompt, cwd=task.metadata.get("cwd"))
-            return IMOSResult(task.task_id, self.name, True, output=output, duration_ms=int((time.perf_counter() - started) * 1000))
+                raise ValueError(f"Unsupported IDE action: {action or '(none)'}")
+            success = not (isinstance(output, dict) and output.get("returncode") not in {None, 0})
+            error = None
+            if not success and isinstance(output, dict):
+                error = str(output.get("stderr") or output.get("stdout") or f"Command failed with return code {output.get('returncode')}")
+            return IMOSResult(
+                task.task_id,
+                self.name,
+                success,
+                output=output,
+                error=error,
+                duration_ms=int((time.perf_counter() - started) * 1000),
+            )
         except Exception as exc:
             self.status = "error"
             return IMOSResult(task.task_id, self.name, False, output=None, error=str(exc), duration_ms=int((time.perf_counter() - started) * 1000))
+
+    async def delegate_prompt(self, task_id: str, prompt: str, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+        inbox = self.workspace / ".imos" / "delegated_tasks" / self.name
+        inbox.mkdir(parents=True, exist_ok=True)
+        target = inbox / f"{task_id}.json"
+        payload = {
+            "task_id": task_id,
+            "adapter": self.name,
+            "workspace": str(self.workspace),
+            "prompt": prompt,
+            "metadata": metadata or {},
+        }
+        target.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return {
+            "delegated": True,
+            "adapter": self.name,
+            "inbox_path": str(target),
+            "workspace": str(self.workspace),
+        }
 
     async def write_file(self, path: str, content: str) -> str:
         target = self._resolve(path)

@@ -1850,6 +1850,17 @@ class Verifier:
 
         rule = task.verification.strip() if task.verification else "done"
         if rule in {"", "done"}:
+            if task.tool_name == "write_file":
+                path = Path(str(task.tool_args.get("path", "")).strip())
+                return (path.exists() and path.is_file()), f"implicit file exists={path.exists() and path.is_file()}"
+            if task.tool_name == "create_directory":
+                path = Path(str(task.tool_args.get("path", "")).strip())
+                return (path.exists() and path.is_dir()), f"implicit dir exists={path.exists() and path.is_dir()}"
+            if task.tool_name == "run_shell_command":
+                shell = self._parse_shell_result(result)
+                if shell:
+                    ok = shell.get("ok") is True and int(shell.get("exit_code", 1)) == 0
+                    return ok, f"implicit shell exit_code={shell.get('exit_code', 'unknown')}"
             return True, "default pass"
 
         if rule.startswith("file_exists:"):
@@ -2372,10 +2383,18 @@ Keep the thought concrete and operational, not abstract.
         result = str(task.result or "").strip()
         if task.tool_name == "write_file":
             path = str(task.tool_args.get("path", ""))
-            content = str(task.tool_args.get("content", ""))
-            return f"updated {path} with {len(content.splitlines())} lines"
+            target = Path(path)
+            if target.exists() and target.is_file():
+                try:
+                    size = len(target.read_text(encoding="utf-8", errors="ignore"))
+                except Exception:
+                    size = target.stat().st_size
+                return f"verified file {path} chars={size}"
+            return f"write not verified for {path}"
         if task.tool_name == "create_directory":
-            return f"created {task.tool_args.get('path', '')}"
+            path = str(task.tool_args.get("path", ""))
+            target = Path(path)
+            return f"verified directory {path}" if target.exists() and target.is_dir() else f"directory not verified {path}"
         if task.tool_name == "run_shell_command":
             shell = self.verifier._parse_shell_result(result)
             exit_code = shell.get("exit_code", "unknown")
@@ -2403,7 +2422,10 @@ Keep the thought concrete and operational, not abstract.
     def _patch_summary(self, task: Task) -> List[str]:
         if task.tool_name == "create_directory":
             target = str(task.tool_args.get("path", ""))
-            return [f"+ Created workspace `{target}`"] if target else []
+            if not target:
+                return []
+            exists = Path(target).exists() and Path(target).is_dir()
+            return [f"+ Verified directory `{target}`"] if exists else [f"+ Directory not verified `{target}`"]
         if task.tool_name == "run_shell_command":
             shell = self.verifier._parse_shell_result(str(task.result or ""))
             lines = [f"+ Ran `{task.tool_args.get('command', '')}`"]
