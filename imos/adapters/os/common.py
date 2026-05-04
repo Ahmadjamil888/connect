@@ -25,6 +25,13 @@ class BaseOSAdapter(IMOSAdapter):
         started = time.perf_counter()
         action = task.metadata.get("action") or task.subtask_type
         try:
+            aliases = {
+                "shell_command": "run_shell",
+                "terminal": "run_shell",
+                "powershell": "run_shell",
+                "command_line": "run_shell",
+            }
+            action = aliases.get(str(action), action)
             handler = getattr(self, str(action), None)
             if handler is None:
                 raise AttributeError(f"Unsupported OS action: {action}")

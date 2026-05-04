@@ -14,8 +14,16 @@ class CommandResult:
 
 
 class CommandRouter:
-    def __init__(self, handlers: Dict[str, Callable[[str], CommandResult]]):
+    def __init__(
+        self,
+        handlers: Dict[str, Callable[[str], CommandResult]],
+        *,
+        natural_dispatcher: Callable[[str], CommandResult | None] | None = None,
+        routing_rules=None,
+    ):
         self.handlers = handlers
+        self.natural_dispatcher = natural_dispatcher
+        self.routing_rules = routing_rules
 
     def route(self, text: str) -> CommandResult:
         value = (text or "").strip()
@@ -37,14 +45,38 @@ class CommandRouter:
             "setup": "/setup",
             "skills": "/skills",
             "sessions": "/sessions",
+            "session": "/session",
             "tasks": "/tasks",
             "processes": "/processes",
             "audit": "/audit",
             "git": "/git status",
             "mcp": "/mcp",
+            "claude-code": "/claude-code",
+            "openai": "/openai",
+            "codex": "/codex",
+            "cursor": "/cursor",
+            "ide": "/ide",
+            "vscode": "/vscode",
+            "windsurf": "/windsurf",
+            "aider": "/aider",
+            "continue": "/continue",
+            "gemini": "/gemini",
+            "email": "/email",
+            "whatsapp": "/whatsapp",
+            "telegram": "/telegram",
+            "v0": "/v0",
+            "lovable": "/lovable",
+            "bolt": "/bolt",
+            "doctor": "/doctor",
+            "route": "/route",
             "terminal": "/terminal",
             "workflows": "/workflows",
             "pickmodel": "/pickmodel",
+            "consent": "/consent",
+            "contact": "/contact",
+            "listen": "/listen",
+            "voice": "/voice",
+            "autostart": "/autostart",
         }
         lowered = value.lower()
         if lowered in direct_map:
@@ -55,6 +87,8 @@ class CommandRouter:
             value = "/login"
         elif lowered in {"connect logout", "logout connect"}:
             value = "/logout"
+        elif lowered in {"take a screenshot", "what's on screen", "whats on screen"}:
+            value = "screenshot" if lowered == "take a screenshot" else value
         elif lowered.startswith("use provider "):
             value = "/use " + value.split(" ", 2)[2]
         elif lowered.startswith("set provider "):
@@ -75,6 +109,10 @@ class CommandRouter:
             value = "/config set " + value.split(" ", 2)[2]
 
         if not value.startswith("/"):
+            if self.natural_dispatcher is not None:
+                routed = self.natural_dispatcher(value)
+                if routed is not None:
+                    return routed
             return CommandResult(handled=False)
 
         command = value.split()[0].lower()

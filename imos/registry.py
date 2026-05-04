@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import inspect
 import re
+from abc import ABC
 from pathlib import Path
 from typing import Any
 
@@ -96,7 +97,12 @@ class AdapterRegistry:
         cls = getattr(module, class_name, None)
         if cls is None:
             for _, obj in inspect.getmembers(module, inspect.isclass):
-                if issubclass(obj, IMOSAdapter) and obj is not IMOSAdapter:
+                if (
+                    issubclass(obj, IMOSAdapter)
+                    and obj is not IMOSAdapter
+                    and not inspect.isabstract(obj)
+                    and obj.__module__ == module.__name__
+                ):
                     cls = obj
                     break
         if cls is None:

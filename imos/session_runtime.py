@@ -21,6 +21,9 @@ class IMOSSessionRuntime:
         candidate = root or (IMOS_HOME / "sessions")
         try:
             candidate.mkdir(parents=True, exist_ok=True)
+            probe = candidate / ".write_test"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink(missing_ok=True)
             return candidate
         except PermissionError:
             fallback = Path.cwd() / ".imos" / "sessions"

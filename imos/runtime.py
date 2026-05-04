@@ -35,6 +35,21 @@ CAPABILITIES YOU HAVE:
 - Voice: speak responses, listen for commands
 - Web search, browser control
 
+TOOL USAGE RULES:
+- For terminal or command execution, call the OS tool action `run_shell`.
+- If a prompt mentions shell, terminal, PowerShell, or command line, map it to `run_shell`.
+- Prefer a real tool call over a plain-text reply whenever a request maps to an available skill.
+- "build me a website" -> use `scaffold_react_app` unless the user explicitly asks for Next.js.
+- "build me a Next.js website" -> use `scaffold_nextjs`.
+- "run a command" or shell/terminal requests -> use `bash`.
+- "open cursor" or "launch vscode" -> use `open_application`.
+- For "scan my pc for unwanted files", "junk files", or "temporary files", call OS action `scan_unwanted_files`.
+- For "remove/delete/clean unwanted files", call OS action `delete_unwanted_files`.
+- For process inspection use `list_processes`; for opening apps use `start_process`; for machine details use `system_info`.
+- For filesystem reads use `read_file`; for writes use `write_file`; for file search use `search_files`.
+- For IDE delegation or coding inside an editor, use the IDE adapter action `delegate_prompt`.
+- Do not invent new action names when an existing tool action already covers the request.
+
 WHEN BUILDING APPS:
 - Use scaffold_nextjs skill for full Next.js projects with DB + deploy
 - Use scaffold_react_app for simple React/Vite apps
@@ -147,6 +162,120 @@ class IMOSRuntime:
             "the website is now available at",
         ]
         return any(m in lowered for m in markers)
+
+    def _find_skill(self, skills: List[Any], name: str):
+        return next((skill for skill in skills if skill.name == name), None)
+
+    def _guess_project_name(self, text: str) -> str:
+        lowered = text.lower()
+        patterns = [
+            r"(?:called|named)\s+([a-zA-Z0-9._-]+)",
+            r"project\s+([a-zA-Z0-9._-]+)",
+            r"app\s+([a-zA-Z0-9._-]+)",
+            r"website\s+([a-zA-Z0-9._-]+)",
+            r"store\s+([a-zA-Z0-9._-]+)",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                return match.group(1).strip(" .,:;")
+        if "ecommerce" in lowered or "e-commerce" in lowered:
+            return "ecommerce-store"
+        if "website" in lowered:
+            return "website-app"
+        return "react-app"
+
+    def _guess_application_name(self, text: str) -> str:
+        lowered = (text or "").strip().lower()
+        known_apps = [
+            "cursor",
+            "vscode",
+            "vs code",
+            "visual studio code",
+            "chrome",
+            "google chrome",
+            "firefox",
+            "edge",
+            "notepad",
+            "terminal",
+            "cmd",
+            "powershell",
+        ]
+        for app in known_apps:
+            if app in lowered:
+                return app
+        tokens = re.findall(r"[a-zA-Z0-9._-]+", text or "")
+        if not tokens:
+            return ""
+        for index, token in enumerate(tokens[:-1]):
+            if token.lower() in {"open", "launch", "start"}:
+                return tokens[index + 1]
+        return ""
+
+    def _infer_direct_tool_call(self, user_text: str, skills: List[Any]) -> Dict[str, Any] | None:
+        lowered = (user_text or "").strip().lower()
+        if not lowered:
+            return None
+
+        wants_nextjs = any(term in lowered for term in ["next.js", "nextjs", "next js"])
+        wants_website = any(term in lowered for term in [
+            "website",
+            "web app",
+            "webapp",
+            "landing page",
+            "homepage",
+            "portfolio site",
+            "professional site",
+            "professional website",
+        ])
+        wants_build = any(term in lowered for term in ["build", "create", "make", "scaffold"])
+        if wants_nextjs and wants_build and self._find_skill(skills, "scaffold_nextjs"):
+            return {
+                "id": "direct-scaffold-nextjs",
+                "name": "scaffold_nextjs",
+                "input": {
+                    "description": user_text.strip(),
+                    "project_name": self._guess_project_name(user_text),
+                    "db_type": "none",
+                    "deploy_target": "none",
+                },
+            }
+
+        if (
+            (any(term in lowered for term in ["react", "vite"]) or wants_website)
+            and wants_build
+            and self._find_skill(skills, "scaffold_react_app")
+        ):
+            return {
+                "id": "direct-scaffold-react-app",
+                "name": "scaffold_react_app",
+                "input": {
+                    "project_name": self._guess_project_name(user_text),
+                    "template": "react",
+                    "package_manager": "npm",
+                },
+            }
+
+        if any(term in lowered for term in ["open ", "launch ", "start "]) and self._find_skill(skills, "open_application"):
+            app_name = self._guess_application_name(user_text)
+            if app_name:
+                return {
+                    "id": "direct-open-application",
+                    "name": "open_application",
+                    "input": {"name_or_path": app_name},
+                }
+
+        if any(lowered.startswith(prefix) for prefix in ["run ", "execute ", "start "]) and self._find_skill(skills, "bash"):
+            for prefix in ("run ", "execute ", "start "):
+                if lowered.startswith(prefix):
+                    command = user_text[len(prefix):].strip()
+                    if command:
+                        return {
+                            "id": "direct-bash",
+                            "name": "bash",
+                            "input": {"command": command},
+                        }
+        return None
 
     # ------------------------------------------------------------------
     # Tool execution
@@ -411,6 +540,7 @@ class IMOSRuntime:
         return_meta: bool = False,
     ):
         skills = self.skill_registry.load_all()
+        actionable = self._is_actionable(user_text)
         tools = [s.to_tool_definition() for s in skills]
         if self.mcp_runtime is not None:
             tools.extend(self.mcp_runtime.tool_definitions())
@@ -421,14 +551,26 @@ class IMOSRuntime:
             self._serialize_messages(system_prompt, session_history, user_text)
         )
 
+        task = None
+        if self.task_manager and actionable:
+            task = self.task_manager.create(user_text, session_id)
+
+        direct_tool_call = self._infer_direct_tool_call(user_text, skills) if actionable else None
+        if direct_tool_call is not None:
+            tool_outcomes = self._execute_tool_calls(
+                skills, [direct_tool_call], "direct", messages, workspace, session_id, model_config
+            )
+            final_text = self._verified_summary(tool_outcomes)
+            if task is not None:
+                status = "partial_failure" if self._any_failed(tool_outcomes) else "completed"
+                self.task_manager.complete(task, status, tool_outcomes)
+            if return_meta:
+                return {"text": final_text, "usage": {}}
+            return final_text
+
         client = get_client(model_config)
         provider = model_config.get("provider", "anthropic")
         model = model_config.get("model", "")
-
-        # Task tracking
-        task = None
-        if self.task_manager and self._is_actionable(user_text):
-            task = self.task_manager.create(user_text, session_id)
 
         response_text = ""
         tool_outcomes: List[Dict[str, Any]] = []
@@ -459,8 +601,19 @@ class IMOSRuntime:
                 self._record_usage(model, usage)
 
             if not tool_calls:
+                if actionable:
+                    direct_tool_call = self._infer_direct_tool_call(user_text, skills)
+                    if direct_tool_call is not None:
+                        messages.append({"role": "assistant", "content": response_text})
+                        tool_outcomes.extend(
+                            self._execute_tool_calls(
+                                skills, [direct_tool_call], provider, messages, workspace, session_id, model_config
+                            )
+                        )
+                        forced_retry = True
+                        continue
                 # No tool calls — push for action if request is actionable
-                if self._is_actionable(user_text) and not forced_retry:
+                if actionable and not forced_retry:
                     messages.append({"role": "assistant", "content": response_text})
                     messages.append({
                         "role": "user",
@@ -474,13 +627,25 @@ class IMOSRuntime:
                     forced_retry = True
                     continue
 
+                if actionable:
+                    if task is not None:
+                        self.task_manager.complete(task, "blocked", tool_outcomes)
+                    blocked_text = (
+                        "No executable tool action was completed for this request. "
+                        "The runtime refused to pretend success. Add or select a real skill for this task, "
+                        "or use an explicit executable command such as a shell action or a project scaffold skill."
+                    )
+                    if return_meta:
+                        return {"text": blocked_text, "usage": latest_usage}
+                    return blocked_text
+
                 # Final answer
                 if task is not None:
                     status = "partial_failure" if self._any_failed(tool_outcomes) else "completed"
                     self.task_manager.complete(task, status, tool_outcomes)
 
                 final = response_text
-                if self._is_actionable(user_text) and tool_outcomes and self._looks_like_unverified_plan(response_text):
+                if actionable and tool_outcomes and self._looks_like_unverified_plan(response_text):
                     final = self._verified_summary(tool_outcomes)
 
                 if return_meta:
@@ -508,7 +673,7 @@ class IMOSRuntime:
                 continue
 
             # Ask for completion summary
-            if self._is_actionable(user_text):
+            if actionable:
                 messages.append({
                     "role": "user",
                     "content": (
@@ -521,7 +686,7 @@ class IMOSRuntime:
 
         # Max iterations reached
         final_text = response_text or self._verified_summary(tool_outcomes)
-        if self._is_actionable(user_text) and tool_outcomes and self._looks_like_unverified_plan(response_text):
+        if actionable and tool_outcomes and self._looks_like_unverified_plan(response_text):
             final_text = self._verified_summary(tool_outcomes)
 
         if task is not None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple
 
@@ -12,7 +13,20 @@ class ConnectAIRuntime:
     MAX_HISTORY_MESSAGES = 20
     MAX_HISTORY_CHARS = 24000
 
-    def __init__(self, skill_registry, memory_store, *, shell_runner=None, process_manager=None, audit_logger=None, task_manager=None, cost_tracker=None, mcp_runtime=None):
+    def __init__(
+        self,
+        skill_registry,
+        memory_store,
+        *,
+        shell_runner=None,
+        process_manager=None,
+        audit_logger=None,
+        task_manager=None,
+        cost_tracker=None,
+        mcp_runtime=None,
+        event_bus=None,
+        session_manager=None,
+    ):
         self.skill_registry = skill_registry
         self.memory_store = memory_store
         self.shell_runner = shell_runner
@@ -21,6 +35,9 @@ class ConnectAIRuntime:
         self.task_manager = task_manager
         self.cost_tracker = cost_tracker
         self.mcp_runtime = mcp_runtime
+        self.event_bus = event_bus
+        self.session_manager = session_manager
+        self.consent_manager = None
 
     def _is_actionable_request(self, text: str) -> bool:
         lowered = (text or "").strip().lower()
@@ -84,6 +101,13 @@ class ConnectAIRuntime:
             "If verification fails, explicitly say what failed instead of pretending success.",
             "For actionable requests, your final answer must be grounded in the actual tool results from this run.",
             "Do not emit imaginary command logs, file paths, URLs, or success messages.",
+            "You must prefer an actual tool call over a plain-text reply whenever the request maps to an available skill.",
+            "Routing examples:",
+            "- 'build me a website' -> scaffold_react_app unless the user explicitly asks for Next.js.",
+            "- 'build me a Next.js website' -> scaffold_nextjs.",
+            "- shell, terminal, PowerShell, or command requests -> bash.",
+            "- 'open cursor' or 'launch vscode' -> open_application.",
+            "If a request is actionable and no exact mapping exists, choose the closest executable skill instead of replying with advice.",
             f"Workspace: {workspace}",
             "Available skills:\n" + "\n".join(skill_lines),
         ]
@@ -182,18 +206,184 @@ class ConnectAIRuntime:
                 return match.group(1).strip(" .,:;")
         if "ecommerce" in lowered or "e-commerce" in lowered:
             return "ecommerce-store"
+        if "html" in lowered and ("landing page" in lowered or "website" in lowered):
+            return "html-landing-page"
         if "website" in lowered:
             return "website-app"
         return "react-app"
+
+    def _html_landing_page_content(self, title: str) -> str:
+        safe_title = title.replace("-", " ").replace("_", " ").strip().title() or "Landing Page"
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{safe_title}</title>
+  <style>
+    :root {{
+      color-scheme: light;
+      --bg: #f5f0e8;
+      --panel: #fffaf2;
+      --text: #1f1a14;
+      --muted: #6c6258;
+      --accent: #b85c38;
+      --accent-dark: #8e4325;
+      --border: #e3d6c6;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      font-family: Consolas, "Courier New", monospace;
+      background: linear-gradient(180deg, var(--bg), #efe4d4);
+      color: var(--text);
+    }}
+    .wrap {{
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 72px 24px;
+    }}
+    .hero {{
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 48px;
+      box-shadow: 0 20px 60px rgba(31, 26, 20, 0.08);
+    }}
+    .eyebrow {{
+      display: inline-block;
+      margin-bottom: 16px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(184, 92, 56, 0.12);
+      color: var(--accent-dark);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }}
+    h1 {{
+      margin: 0 0 16px;
+      font-size: clamp(2.5rem, 6vw, 4.5rem);
+      line-height: 0.95;
+    }}
+    p {{
+      max-width: 52ch;
+      font-size: 1rem;
+      line-height: 1.7;
+      color: var(--muted);
+    }}
+    .actions {{
+      display: flex;
+      gap: 12px;
+      margin-top: 28px;
+      flex-wrap: wrap;
+    }}
+    .button {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 160px;
+      padding: 14px 18px;
+      border-radius: 14px;
+      text-decoration: none;
+      border: 1px solid var(--accent);
+      color: white;
+      background: var(--accent);
+    }}
+    .button.secondary {{
+      background: transparent;
+      color: var(--accent-dark);
+      border-color: var(--border);
+    }}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <span class="eyebrow">Launch Ready</span>
+      <h1>{safe_title}</h1>
+      <p>A clean single-file landing page scaffold generated by IMOS. Replace this copy with your product pitch, proof points, and call to action.</p>
+      <div class="actions">
+        <a class="button" href="#start">Get Started</a>
+        <a class="button secondary" href="#learn">Learn More</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
+"""
+
+    def _guess_application_name(self, text: str) -> str:
+        lowered = (text or "").strip().lower()
+        known_apps = [
+            "cursor",
+            "vscode",
+            "vs code",
+            "visual studio code",
+            "chrome",
+            "google chrome",
+            "firefox",
+            "edge",
+            "notepad",
+            "terminal",
+            "cmd",
+            "powershell",
+        ]
+        for app in known_apps:
+            if app in lowered:
+                return app
+        tokens = re.findall(r"[a-zA-Z0-9._-]+", text or "")
+        if not tokens:
+            return ""
+        for index, token in enumerate(tokens[:-1]):
+            if token.lower() in {"open", "launch", "start"}:
+                return tokens[index + 1]
+        return ""
 
     def _infer_direct_tool_call(self, user_text: str, skills: List[Any]) -> Dict[str, Any] | None:
         lowered = (user_text or "").strip().lower()
         if not lowered:
             return None
 
+        wants_nextjs = any(term in lowered for term in ["next.js", "nextjs", "next js"])
+        wants_html = any(term in lowered for term in [" html ", "static site", "static website", "plain html", "simple html"]) or lowered.startswith("html ")
+        wants_website = any(term in lowered for term in [
+            "website",
+            "web app",
+            "webapp",
+            "landing page",
+            "homepage",
+            "portfolio site",
+            "professional site",
+            "professional website",
+        ])
+        wants_build = any(term in lowered for term in ["build", "create", "make", "scaffold"])
+        if wants_nextjs and wants_build and self._find_skill(skills, "scaffold_nextjs"):
+            return {
+                "id": "direct-scaffold-nextjs",
+                "name": "scaffold_nextjs",
+                "input": {
+                    "description": user_text.strip(),
+                    "project_name": self._guess_project_name(user_text),
+                    "db_type": "none",
+                    "deploy_target": "none",
+                },
+            }
+
+        if wants_html and wants_build and wants_website and self._find_skill(skills, "write_file"):
+            project_name = self._guess_project_name(user_text)
+            return {
+                "id": "direct-write-html-landing-page",
+                "name": "write_file",
+                "input": {
+                    "path": f"{project_name}/index.html",
+                    "content": self._html_landing_page_content(project_name),
+                },
+            }
+
         if (
-            any(term in lowered for term in ["react", "vite"])
-            and any(term in lowered for term in ["build", "create", "make", "scaffold"])
+            (any(term in lowered for term in ["react", "vite"]) or wants_website)
+            and wants_build
             and self._find_skill(skills, "scaffold_react_app")
         ):
             return {
@@ -205,6 +395,15 @@ class ConnectAIRuntime:
                     "package_manager": "npm",
                 },
             }
+
+        if any(term in lowered for term in ["open ", "launch ", "start "]) and self._find_skill(skills, "open_application"):
+            app_name = self._guess_application_name(user_text)
+            if app_name:
+                return {
+                    "id": "direct-open-application",
+                    "name": "open_application",
+                    "input": {"name_or_path": app_name},
+                }
 
         if any(lowered.startswith(prefix) for prefix in ["run ", "execute ", "start "]) and self._find_skill(skills, "bash"):
             for prefix in ("run ", "execute ", "start "):
@@ -230,17 +429,33 @@ class ConnectAIRuntime:
     ) -> List[Dict[str, Any]]:
         anthropic_tool_results = []
         outcomes: List[Dict[str, Any]] = []
+        blocked_tools = {"computer_control", "send_email", "open_application", "write_file", "bash", "scaffold_react_app", "scaffold_nextjs", "start_dev_server"}
         for tool_call in tool_calls:
+            started = time.perf_counter()
+            input_summary = json.dumps(tool_call.get("input", {}), ensure_ascii=False)[:200]
+            if self.event_bus is not None:
+                self.event_bus.tool_start(tool_call["name"], input_summary, session_id=session_id)
+            if self.consent_manager is not None and not self.consent_manager.is_granted() and tool_call["name"] in blocked_tools:
+                tool_result = {"ok": False, "error": f"Read-only mode: {tool_call['name']} requires /consent first."}
+                duration = round(time.perf_counter() - started, 3)
+                if self.event_bus is not None:
+                    self.event_bus.tool_end(tool_call["name"], "error", duration, session_id=session_id)
+                outcomes.append({"name": tool_call["name"], "input": tool_call.get("input", {}), "result": tool_result})
+                continue
             skill = next((item for item in skills if item.name == tool_call["name"]), None)
             if not skill:
                 if self.mcp_runtime is not None and self.mcp_runtime.has_tool(tool_call["name"]):
                     try:
+                        if self.event_bus is not None:
+                            self.event_bus.tool_progress(tool_call["name"], "Calling MCP tool", session_id=session_id)
                         tool_result = self.mcp_runtime.call_tool(tool_call["name"], tool_call.get("input", {}))
                     except Exception as exc:
                         tool_result = {"ok": False, "error": str(exc)}
                 else:
                     tool_result = f"Unknown skill: {tool_call['name']}"
             else:
+                if self.event_bus is not None:
+                    self.event_bus.tool_progress(tool_call["name"], "Executing tool", session_id=session_id)
                 tool_result = skill.handler(
                     tool_call["input"],
                     workspace=workspace,
@@ -250,6 +465,21 @@ class ConnectAIRuntime:
                     shell_runner=self.shell_runner,
                     process_manager=self.process_manager,
                     audit_logger=self.audit_logger,
+                )
+            duration = round(time.perf_counter() - started, 3)
+            status = "ok"
+            if isinstance(tool_result, dict) and tool_result.get("ok") is False:
+                status = "error"
+            if self.event_bus is not None:
+                self.event_bus.tool_end(tool_call["name"], status, duration, session_id=session_id)
+            if self.session_manager is not None:
+                self.session_manager.record_tool_call(
+                    session_id,
+                    name=tool_call["name"],
+                    input_summary=input_summary,
+                    status=status,
+                    duration=duration,
+                    metadata={"input": tool_call.get("input", {})},
                 )
             outcomes.append({"name": tool_call["name"], "input": tool_call.get("input", {}), "result": tool_result})
             if self.audit_logger is not None:
@@ -430,6 +660,26 @@ class ConnectAIRuntime:
         memory_blocks = self.memory_store.context_blocks(session_id=session_id, query=user_text)
         system_prompt = self._system_prompt(workspace, memory_blocks, skills)
         messages = self._trim_messages(self._serialize_messages(system_prompt, session_history, user_text))
+        direct_tool_call = self._infer_direct_tool_call(user_text, skills) if actionable else None
+        if direct_tool_call is not None:
+            tool_outcomes = self._execute_tool_calls(
+                skills,
+                [direct_tool_call],
+                "direct",
+                messages,
+                workspace,
+                session_id,
+                model_config,
+            )
+            final_text = self._verified_summary(tool_outcomes)
+            if task is not None:
+                final_status = "completed"
+                if self._any_outcome_failed(tool_outcomes):
+                    final_status = "partial_failure"
+                self.task_manager.complete(task, final_status, tool_outcomes)
+            if return_meta:
+                return {"text": final_text, "usage": {}}
+            return final_text
         client = get_client(model_config)
         provider = model_config.get("provider", "anthropic")
         model = model_config.get("model", "")

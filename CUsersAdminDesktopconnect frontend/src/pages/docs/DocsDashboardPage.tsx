@@ -4,24 +4,24 @@ import { DocsShell } from '../../components/DocsShell'
 export function DocsDashboardPage() {
   return (
     <DocsShell
-      title="The dashboard is the live IMOS operator surface."
-      description="It exposes chat, beast-mode routing, shell, voice, sessions, models, integrations, workflows, and activity in one control plane."
+      title="Operator Dashboard"
+      description="The dashboard is the browser-side operator control plane for chat, shell, voice, sessions, integrations, workflows, and live activity."
     >
       <div className="space-y-6 text-sm leading-8 text-neutral-400">
         <p>
-          The dashboard is the CLI companion for IMOS: live chat, full shell access, voice controls, session visibility,
-          connection setup, multi-step workflows, permission controls, and adapter targeting without exposing internal source filenames.
+          The dashboard is the CLI companion for IMOS: live chat, shell access, voice controls, session visibility,
+          connection setup, workflow management, configuration forms, and runtime activity from one operator surface.
         </p>
         <CodeBlock label="Open the dashboard" code={'imos dashboard'} />
         <CodeBlock
           label="Useful dashboard-linked commands"
           code={`imos
-imos status
-imos adapters list
-imos sessions list
-imos shell --beast
-imos wake status
-imos palette set --shell ember --dashboard ember`}
+/dashboard
+/status
+/doctor
+/session list
+/listen status
+/voice test`}
         />
       </div>
     </DocsShell>

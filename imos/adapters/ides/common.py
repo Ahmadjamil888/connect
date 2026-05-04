@@ -252,7 +252,14 @@ class MCPServerBase(BaseIDEAdapter):
                     "args": ["-m", "imos.mcp_server"],
                 }
             }
-            self.mcp_config_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            serialized = json.dumps(payload, indent=2)
+            try:
+                existing = self.mcp_config_path.read_text(encoding="utf-8") if self.mcp_config_path.exists() else None
+                if existing != serialized:
+                    self.mcp_config_path.write_text(serialized, encoding="utf-8")
+            except PermissionError:
+                if not self.mcp_config_path.exists():
+                    raise
         return True
 
 

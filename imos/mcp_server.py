@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+import argparse
 from pathlib import Path
 from typing import Any
 
@@ -155,10 +156,15 @@ def install_mcp_configs() -> list[str]:
 
 
 async def main_async() -> None:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--http", action="store_true")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8767)
+    args, _unknown = parser.parse_known_args(sys.argv[1:])
     server = IMOSMCPServer()
     await server.initialize()
-    if "--http" in sys.argv:
-        await server.serve_http()
+    if args.http:
+        await server.serve_http(host=args.host, port=args.port)
         return
     await server.serve_stdio()
 

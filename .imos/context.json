@@ -508,28 +508,350 @@
       }
     },
     {
-      "prompt": "create me a pizza shop mobile application",
+      "prompt": "hello",
       "results": [
         {
-          "task_id": "549d1222-c00a-45e1-97b0-65508ba9d408",
-          "adapter_name": "local_ide",
+          "task_id": "1",
+          "adapter_name": "default_model",
           "success": true,
-          "output": {
-            "delegated": true,
-            "adapter": "local_ide",
-            "inbox_path": "C:\\Users\\Admin\\Desktop\\connect\\.imos\\delegated_tasks\\local_ide\\549d1222-c00a-45e1-97b0-65508ba9d408.json",
-            "workspace": "C:\\Users\\Admin\\Desktop\\connect"
-          },
+          "output": "Hello. How can I help you today?",
           "error": null,
-          "duration_ms": 1,
+          "duration_ms": 305,
+          "metadata": {
+            "provider": "groq",
+            "token_usage": {
+              "prompt_tokens": 36,
+              "completion_tokens": 10,
+              "total_tokens": 46
+            }
+          }
+        }
+      ],
+      "context": {
+        "beast_mode": false,
+        "session_id": "e2cc54110999",
+        "session_name": "default"
+      }
+    },
+    {
+      "prompt": "scan my pc for unwanted files",
+      "results": [
+        {
+          "task_id": "scan_pc",
+          "adapter_name": "local_os",
+          "success": false,
+          "output": null,
+          "error": "Unsupported OS action: shell_command",
+          "duration_ms": 0,
           "metadata": {}
         }
       ],
       "context": {
-        "target_adapters": [],
-        "beast_mode": true,
-        "session_id": "0ef2ecf2aa51",
+        "beast_mode": false,
+        "session_id": "e2cc54110999",
         "session_name": "default"
+      }
+    },
+    {
+      "prompt": "hello",
+      "results": [
+        {
+          "task_id": "1",
+          "adapter_name": "default_model",
+          "success": true,
+          "output": "Hello. How can I help you today?",
+          "error": null,
+          "duration_ms": 320,
+          "metadata": {
+            "provider": "groq",
+            "token_usage": {
+              "prompt_tokens": 36,
+              "completion_tokens": 10,
+              "total_tokens": 46
+            }
+          }
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "remove all unwanted files from my pc.",
+      "results": [
+        {
+          "task_id": "remove_unwanted_files",
+          "adapter_name": "local_os",
+          "success": false,
+          "output": null,
+          "error": "OsControlAdapter.run_shell() missing 1 required positional argument: 'command'",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "prompt": "hello",
+      "results": [
+        {
+          "task_id": "b4d65aaa-a855-4c8a-8d30-cbe3e58c0c76",
+          "adapter_name": "default_model",
+          "success": true,
+          "output": "Hello. How can I assist you today?",
+          "error": null,
+          "duration_ms": 316,
+          "metadata": {
+            "provider": "groq",
+            "token_usage": {
+              "prompt_tokens": 36,
+              "completion_tokens": 10,
+              "total_tokens": 46
+            },
+            "model": "llama-3.1-8b-instant"
+          }
+        }
+      ],
+      "context": {
+        "target_adapters": [],
+        "beast_mode": false,
+        "session_id": "e2cc54110999",
+        "session_name": "default"
+      }
+    },
+    {
+      "prompt": "build me a website.",
+      "results": [
+        {
+          "task_id": "build_website_1",
+          "adapter_name": "default_model",
+          "success": true,
+          "output": "**Basic HTML Structure for a Website**\n=====================================\n\nBelow is a basic HTML structure for a website with a navigation bar and a footer.\n\n```html\n<!-- index.html -->\n\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Website Title</title>\n    <link rel=\"stylesheet\" href=\"styles.css\">\n</head>\n<body>\n    <!-- Navigation Bar -->\n    <nav class=\"nav-bar\">\n        <ul>\n            <li><a href=\"#home\">Home</a></li>\n            <li><a href=\"#about\">About</a></li>\n            <li><a href=\"#contact\">Contact</a></li>\n        </ul>\n    </nav>\n\n    <!-- Main Content -->\n    <main>\n        <section id=\"home\">\n            <h1>Welcome to our website</h1>\n            <p>This is the home page.</p>\n        </section>\n        <section id=\"about\">\n            <h1>About Us</h1>\n            <p>This is the about page.</p>\n        </section>\n        <section id=\"contact\">\n            <h1>Contact Us</h1>\n            <p>This is the contact page.</p>\n        </section>\n    </main>\n\n    <!-- Footer -->\n    <footer>\n        <p>&copy; 2024 Website Name</p>\n    </footer>\n\n    <script src=\"script.js\"></script>\n</body>\n</html>\n```\n\n**CSS Styles (in styles.css file)**\n---------------------------------\n\n```css\n/* styles.css */\n\n.nav-bar {\n    background-color: #333;\n    color: #fff;\n    padding: 1rem;\n    text-align: center;\n}\n\n.nav-bar ul {\n    list-style: none;\n    margin: 0;\n    padding: 0;\n}\n\n.nav-bar li {\n    display: inline-block;\n    margin-right: 20px;\n}\n\n.nav-bar a {\n    color: #fff;\n    text-decoration: none;\n}\n\n.nav-bar a:hover {\n    color: #ccc;\n}\n\nmain {\n    max-width: 800px;\n    margin: 0 auto;\n    padding: 2rem;\n}\n\nfooter {\n    background-color: #333;\n    color: #fff;\n    padding: 1rem;\n    text-align: center;\n    clear: both;\n}\n```\n\nThis basic structure includes:\n\n*   A navigation bar with links to different sections of the website\n*   A main content section with three sections (home, about, and contact)\n*   A footer with copyright information\n\nYou can customize the styles and content to fit your needs.",
+          "error": null,
+          "duration_ms": 822,
+          "metadata": {
+            "provider": "groq",
+            "token_usage": {
+              "prompt_tokens": 50,
+              "completion_tokens": 564,
+              "total_tokens": 614
+            },
+            "model": "llama-3.1-8b-instant"
+          }
+        },
+        {
+          "task_id": "build_website_2",
+          "adapter_name": "default_model",
+          "success": true,
+          "output": "**Navigation Bar and Footer Functionality in JavaScript**\n\nBelow is an example of how you can create a navigation bar and footer using JavaScript. This example includes functionality for toggling the navigation bar on smaller screens and adding a sticky footer.\n\n### HTML\n\n```html\n<!-- index.html -->\n\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Navigation Bar and Footer</title>\n    <link rel=\"stylesheet\" href=\"styles.css\">\n</head>\n<body>\n    <nav id=\"nav-bar\">\n        <ul>\n            <li><a href=\"#home\">Home</a></li>\n            <li><a href=\"#about\">About</a></li>\n            <li><a href=\"#contact\">Contact</a></li>\n        </ul>\n    </nav>\n    <main>\n        <section id=\"home\">\n            <h1>Welcome to our website!</h1>\n        </section>\n        <section id=\"about\">\n            <h1>About us</h1>\n        </section>\n        <section id=\"contact\">\n            <h1>Get in touch</h1>\n        </section>\n    </main>\n    <footer id=\"footer\">\n        <p>&copy; 2023 Our Website</p>\n    </footer>\n\n    <script src=\"script.js\"></script>\n</body>\n</html>\n```\n\n### CSS (in styles.css file)\n\n```css\n/* styles.css */\n\nbody {\n    margin: 0;\n    padding: 0;\n    font-family: Arial, sans-serif;\n}\n\n#nav-bar {\n    background-color: #333;\n    color: #fff;\n    padding: 1rem;\n    text-align: center;\n}\n\n#nav-bar ul {\n    list-style: none;\n    margin: 0;\n    padding: 0;\n}\n\n#nav-bar li {\n    display: inline-block;\n    margin-right: 20px;\n}\n\n#nav-bar a {\n    color: #fff;\n    text-decoration: none;\n}\n\n#nav-bar a:hover {\n    color: #ccc;\n}\n\nmain {\n    display: flex;\n    flex-direction: column;\n    align-items: center;\n    padding: 2rem;\n}\n\nsection {\n    background-color: #f7f7f7;\n    padding: 2rem;\n    margin-bottom: 20px;\n    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);\n}\n\nfooter {\n    background-color: #333;\n    color: #fff;\n    padding: 1rem;\n    text-align: center;\n    position: fixed;\n    bottom: 0;\n    width: 100%;\n}\n\n@media (max-width: 768px) {\n    #nav-bar {\n        position: fixed;\n        top: 0;\n        left: 0;\n        width: 100%;\n        background-color: #333;\n        padding: 1rem;\n        text-align: center;\n    }\n\n    #nav-bar ul {\n        display: flex;\n        flex-direction: column;\n        align-items: center;\n    }\n\n    #nav-bar li {\n        margin-bottom: 10px;\n    }\n}\n```\n\n### JavaScript (in script.js file)\n\n```javascript\n// script.js\n\n// Get the navigation bar and footer elements\nconst navBar = document.getElementById('nav-bar');\nconst footer = document.getElementById('footer');\n\n// Add event listener to toggle navigation bar on smaller screens\ndocument.addEventListener('DOMContentLoaded', () => {\n    const toggleNav = () => {\n        navBar.classList.toggle('open');\n    };\n\n    // Toggle navigation bar on click\n    navBar.addEventListener('click', toggleNav);\n\n    // Toggle navigation bar on resize\n    window.addEventListener('resize', () => {\n        if (window.innerWidth > 768) {\n            navBar.classList.remove('open');\n        }\n    });\n});\n```\n\nThis code creates a basic navigation bar and footer with JavaScript functionality to toggle the navigation bar on smaller screens. The navigation bar is fixed to the top of the page on smaller screens, and the footer is fixed to the bottom of the page. The JavaScript code uses the `DOMContentLoaded` event to ensure that the navigation bar and footer elements are available before attempting to access them. The `toggleNav` function is called when the navigation bar is clicked, and the `resize` event is used to toggle the navigation bar on resize.",
+          "error": null,
+          "duration_ms": 1245,
+          "metadata": {
+            "provider": "groq",
+            "token_usage": {
+              "prompt_tokens": 45,
+              "completion_tokens": 932,
+              "total_tokens": 977
+            },
+            "model": "llama-3.1-8b-instant"
+          }
+        },
+        {
+          "task_id": "build_website_3",
+          "adapter_name": "default_model",
+          "success": true,
+          "output": "**CSS Styles for the Website**\n=====================================\n\n### Global Styles\n\n```css\n/* Global Styles */\n\n* {\n  box-sizing: border-box;\n  margin: 0;\n  padding: 0;\n}\n\nbody {\n  font-family: Arial, sans-serif;\n  line-height: 1.6;\n  color: #333;\n  background-color: #f9f9f9;\n}\n\nh1, h2, h3, h4, h5, h6 {\n  font-weight: bold;\n  color: #333;\n}\n\nh1 {\n  font-size: 36px;\n  margin-bottom: 20px;\n}\n\nh2 {\n  font-size: 24px;\n  margin-bottom: 15px;\n}\n\nh3 {\n  font-size: 18px;\n  margin-bottom: 10px;\n}\n\np {\n  margin-bottom: 15px;\n}\n\na {\n  text-decoration: none;\n  color: #337ab7;\n}\n\na:hover {\n  color: #23527c;\n}\n\nbutton {\n  background-color: #337ab7;\n  color: #fff;\n  border: none;\n  padding: 10px 20px;\n  font-size: 16px;\n  cursor: pointer;\n}\n\nbutton:hover {\n  background-color: #23527c;\n}\n```\n\n### Navigation Bar Styles\n\n```css\n/* Navigation Bar Styles */\n\nnav {\n  background-color: #333;\n  padding: 10px;\n  text-align: center;\n}\n\nnav ul {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  justify-content: space-between;\n}\n\nnav li {\n  margin-right: 20px;\n}\n\nnav a {\n  color: #fff;\n  text-decoration: none;\n}\n\nnav a:hover {\n  color: #ccc;\n}\n```\n\n### Header Styles\n\n```css\n/* Header Styles */\n\nheader {\n  background-image: linear-gradient(to bottom, #333, #555);\n  background-size: 100% 300px;\n  background-position: 0% 100%;\n  height: 300px;\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  color: #fff;\n}\n\nheader h1 {\n  font-size: 48px;\n  margin-bottom: 20px;\n}\n```\n\n### Footer Styles\n\n```css\n/* Footer Styles */\n\nfooter {\n  background-color: #333;\n  padding: 10px;\n  text-align: center;\n  color: #fff;\n}\n\nfooter p {\n  margin-bottom: 10px;\n}\n```\n\n### Responsive Design\n\n```css\n/* Responsive Design */\n\n@media only screen and (max-width: 768px) {\n  nav ul {\n    flex-direction: column;\n  }\n  nav li {\n    margin-right: 0;\n    margin-bottom: 10px;\n  }\n}\n\n@media only screen and (max-width: 480px) {\n  header {\n    background-size: 100% 200px;\n  }\n  header h1 {\n    font-size: 36px;\n  }\n}\n```\n\nThis CSS code includes global styles, navigation bar styles, header styles, footer styles, and responsive design styles. You can adjust the styles to fit your specific needs and design preferences.",
+          "error": null,
+          "duration_ms": 2257,
+          "metadata": {
+            "provider": "groq",
+            "token_usage": {
+              "prompt_tokens": 41,
+              "completion_tokens": 684,
+              "total_tokens": 725
+            },
+            "model": "llama-3.1-8b-instant"
+          }
+        },
+        {
+          "task_id": "build_website_4",
+          "adapter_name": "local_ide",
+          "success": false,
+          "output": null,
+          "error": "Unsupported IDE action: file_operation",
+          "duration_ms": 0,
+          "metadata": {}
+        },
+        {
+          "task_id": "build_website_5",
+          "adapter_name": "default_model",
+          "success": true,
+          "output": "However, I need more information from you. Please provide the following details:\n\n1. The developer's email address\n2. The subject of the email\n3. A brief message to include in the email\n4. Any specific requirements or attachments you'd like to include\n\nOnce I have this information, I can assist you in crafting a professional email with a link to the website.\n\nIf you don't have the developer's email address, I can also provide a general template that you can use as a starting point.\n\nHere's a general template:\n\nSubject: [Subject of the email]\n\nDear [Developer's name],\n\nI hope this email finds you well. I wanted to share with you the link to our website: [link to the website].\n\n[Optional: Brief message or description of the website]\n\nBest regards,\n[Your name]\n\nPlease provide the necessary details, and I'll be happy to assist you further.",
+          "error": null,
+          "duration_ms": 13532,
+          "metadata": {
+            "provider": "groq",
+            "token_usage": {
+              "prompt_tokens": 47,
+              "completion_tokens": 185,
+              "total_tokens": 232
+            },
+            "model": "llama-3.1-8b-instant"
+          }
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "cli:local-user",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.1-8b-instant"
+      }
+    },
+    {
+      "prompt": "hello",
+      "results": [
+        {
+          "task_id": "task_1",
+          "adapter_name": "default_model",
+          "success": true,
+          "output": "Hello. How can I assist you today?",
+          "error": null,
+          "duration_ms": 263,
+          "metadata": {
+            "provider": "groq",
+            "token_usage": {
+              "prompt_tokens": 36,
+              "completion_tokens": 10,
+              "total_tokens": 46
+            },
+            "model": "llama-3.1-8b-instant"
+          }
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.1-8b-instant",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "task_1",
+          "adapter_name": "local_os",
+          "success": false,
+          "output": null,
+          "error": "OsControlAdapter.run_shell() missing 1 required positional argument: 'command'",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.1-8b-instant",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "hello",
+      "results": [
+        {
+          "task_id": "1",
+          "adapter_name": "default_model",
+          "success": true,
+          "output": "Hello. It's nice to meet you. Is there something I can help you with or would you like to chat?",
+          "error": null,
+          "duration_ms": 360,
+          "metadata": {
+            "provider": "groq",
+            "token_usage": {
+              "prompt_tokens": 36,
+              "completion_tokens": 25,
+              "total_tokens": 61
+            },
+            "model": "llama-3.3-70b-versatile"
+          }
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "imos_test_ok",
+          "adapter_name": "local_os",
+          "success": false,
+          "output": null,
+          "error": "OsControlAdapter.run_shell() missing 1 required positional argument: 'command'",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "0b906dc4-2a37-4c2f-b908-9df5b06e9f26",
+          "adapter_name": "anthropic",
+          "success": false,
+          "output": null,
+          "error": "\"Could not resolve authentication method. Expected either api_key or auth_token to be set. Or for one of the `X-Api-Key` or `Authorization` headers to be explicitly omitted\"",
+          "duration_ms": 3017,
+          "metadata": {
+            "provider": "anthropic"
+          }
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
       }
     }
   ],

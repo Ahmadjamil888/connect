@@ -55,7 +55,7 @@ class ToolRegistry:
 
 def build_registry() -> ToolRegistry:
     from core import vision
-    from tools import browser, filesystem, pc_manager, research, screen_control, shell
+    from tools import browser, computer_control, filesystem, pc_manager, research, screen_control, shell
 
     registry = ToolRegistry()
     registry.register(
@@ -131,4 +131,14 @@ def build_registry() -> ToolRegistry:
     registry.register("kill_process", "Kill a process by name or PID", {"name": {"type": "string"}, "pid": {"type": "integer"}}, pc_manager.kill_process)
     registry.register("get_system_info", "Get CPU, RAM, disk usage", {}, pc_manager.system_info)
     registry.register("clean_pc", "Delete temp files and free up space", {"confirm": {"type": "boolean"}}, pc_manager.clean_temp)
+    registry.register("computer_control.click", "Click at screen coordinates", {"x": {"type": "integer", "required": True}, "y": {"type": "integer", "required": True}}, computer_control.click)
+    registry.register("computer_control.click_element", "Click an element on screen using an image path", {"image_path": {"type": "string", "required": True}}, computer_control.click_element)
+    registry.register("computer_control.type_text", "Type text into the active window", {"text": {"type": "string", "required": True}}, computer_control.type_text)
+    registry.register("computer_control.screenshot", "Capture and save a desktop screenshot", {}, computer_control.screenshot)
+    registry.register("computer_control.open_app", "Open a desktop application", {"name": {"type": "string", "required": True}}, computer_control.open_app)
+    registry.register("computer_control.hover", "Move the pointer to a screen coordinate", {"x": {"type": "integer", "required": True}, "y": {"type": "integer", "required": True}}, computer_control.hover)
+    registry.register("computer_control.press_key", "Press a key or key combination", {"key": {"type": "string", "required": True}}, computer_control.press_key)
+    registry.register("computer_control.scroll", "Scroll the mouse wheel", {"x": {"type": "integer"}, "y": {"type": "integer"}, "amount": {"type": "integer", "required": True}}, computer_control.scroll)
+    registry.register("computer_control.focus_window", "Focus a desktop window by title", {"title": {"type": "string", "required": True}}, computer_control.focus_window)
+    registry.register("computer_control.find_on_screen", "Locate an element on screen using an image path", {"image_path": {"type": "string", "required": True}}, computer_control.find_on_screen)
     return registry

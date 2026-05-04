@@ -44,6 +44,7 @@ class TaskRouter:
         "read_file": "read_file",
         "write_file": "write_file",
         "search_files": "search_files",
+        "cleanup_files": "delete_unwanted_files",
     }
 
     def __init__(self, registry: AdapterRegistry, settings: dict[str, Any], synthesis_adapter=None) -> None:
@@ -153,6 +154,41 @@ class TaskRouter:
 
     def _heuristic_decompose(self, prompt: str) -> list[IMOSSubtask]:
         lowered = prompt.lower()
+        cleanup_scan_and_delete = (
+            any(token in lowered for token in ["unwanted files", "junk files", "temporary files"])
+            and any(token in lowered for token in ["scan my pc", "scan pc", "scan"])
+            and any(token in lowered for token in ["remove", "delete", "clean"])
+        )
+        if cleanup_scan_and_delete:
+            scan_target = self._select_adapter("search_files")
+            cleanup_target = self._select_adapter("cleanup_files")
+            scan_task = IMOSTask(
+                task_id=str(uuid.uuid4()),
+                prompt="scan my pc for unwanted files",
+                subtask_type="search_files",
+                target_adapter=scan_target,
+                priority=0,
+                metadata={
+                    "can_run_parallel": True,
+                    "depends_on": [],
+                    "action": "scan_unwanted_files",
+                    "params": {},
+                },
+            )
+            cleanup_task = IMOSTask(
+                task_id=str(uuid.uuid4()),
+                prompt="remove all unwanted files from my pc",
+                subtask_type="cleanup_files",
+                target_adapter=cleanup_target,
+                priority=1,
+                metadata={
+                    "can_run_parallel": False,
+                    "depends_on": [scan_task.task_id],
+                    "action": "delete_unwanted_files",
+                    "params": {"confirm": True},
+                },
+            )
+            return [IMOSSubtask(original_prompt=prompt, subtasks=[scan_task, cleanup_task], routing_explanation="Heuristic cleanup routing with verification scan before deletion")]
         parts = [part.strip() for part in prompt.replace(" and then ", ",").replace(" then ", ",").split(",") if part.strip()]
         tasks: list[IMOSTask] = []
         for index, part in enumerate(parts or [prompt]):
@@ -172,10 +208,25 @@ class TaskRouter:
         return [IMOSSubtask(original_prompt=prompt, subtasks=tasks, routing_explanation=f"Heuristic routing for prompt: {lowered[:80]}")]
 
     def _infer_intent(self, lowered: str) -> str:
+        if (
+            any(token in lowered for token in ["website", "web app", "webapp", "landing page", "homepage", "portfolio site", "professional website"])
+            and any(token in lowered for token in ["build", "create", "make", "scaffold"])
+        ):
+            return "code_generation"
+        cleanup_delete = (
+            any(token in lowered for token in ["unwanted files", "junk files", "temporary files"])
+            and any(token in lowered for token in ["remove", "delete", "clean"])
+        )
+        if cleanup_delete:
+            return "cleanup_files"
         if any(token in lowered for token in ["weather", "temperature in ", "forecast", "news about ", "search for ", "look up ", "google ", "find on web", "search the web"]):
             return "search_web"
         if any(token in lowered for token in ["list processes", "running apps", "running processes", "show processes"]):
             return "list_processes"
+        if any(token in lowered for token in ["clean my pc", "cleanup my pc"]):
+            return "cleanup_files"
+        if any(token in lowered for token in ["unwanted files", "junk files", "temporary files", "scan my pc", "scan pc", "cleanup scan"]):
+            return "search_files"
         if any(token in lowered for token in ["system info", "cpu usage", "ram usage", "disk usage", "ip address", "hostname"]):
             return "system_info"
         if any(token in lowered for token in ["open website", "go to ", "visit ", "browse ", "open url"]) or "http://" in lowered or "https://" in lowered:
@@ -251,7 +302,14 @@ class TaskRouter:
             query = re.sub(r"^(search for|search the web for|search the web|look up|google)\s+", "", prompt.strip(), flags=re.IGNORECASE).strip()
             metadata["action"] = "search_web"
             metadata["params"] = {"query": query or prompt.strip()}
-        elif subtask_type in {"list_processes", "system_info", "read_file", "write_file", "search_files"}:
+        elif subtask_type == "search_files":
+            metadata["action"] = "scan_unwanted_files" if any(token in lowered for token in ["unwanted files", "junk files", "temporary files", "scan my pc", "scan pc", "cleanup scan"]) else "search_files"
+            if metadata["action"] == "search_files":
+                metadata["params"] = {"pattern": "*"}
+        elif subtask_type == "cleanup_files":
+            metadata["action"] = "delete_unwanted_files"
+            metadata["params"] = {"confirm": True}
+        elif subtask_type in {"list_processes", "system_info", "read_file", "write_file"}:
             metadata["action"] = subtask_type
         return metadata
 

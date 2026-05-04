@@ -1,0 +1,22 @@
+{
+  "id": "2593ae8b7ea6",
+  "name": "default",
+  "created_at": "2026-05-03T15:15:29.810467",
+  "updated_at": "2026-05-03T15:15:35.188181",
+  "status": "idle",
+  "profile": "imos",
+  "parent_id": "",
+  "target": "",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hello",
+      "ts": "2026-05-03T15:15:29.829553"
+    },
+    {
+      "role": "assistant",
+      "content": "\"Could not resolve authentication method. Expected either api_key or auth_token to be set. Or for one of the `X-Api-Key` or `Authorization` headers to be explicitly omitted\"",
+      "ts": "2026-05-03T15:15:35.177003"
+    }
+  ]
+}

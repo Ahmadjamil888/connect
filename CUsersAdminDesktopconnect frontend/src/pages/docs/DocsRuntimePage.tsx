@@ -3,8 +3,8 @@ import { DocsShell } from '../../components/DocsShell'
 export function DocsRuntimePage() {
   return (
     <DocsShell
-      title="The gateway routes. The runtime thinks and executes."
-      description="The product is deliberately split so the execution model remains consistent whether you launch locally, expose cloud mode, or run the dashboard stack."
+      title="Routing and Runtime"
+      description="The gateway routes work, the runtime executes it, and the shell plus dashboard remain consistent whether you launch locally or expose the system through additional surfaces."
     >
       <div className="space-y-6 text-sm leading-8 text-neutral-400">
         <p>
@@ -13,11 +13,12 @@ export function DocsRuntimePage() {
         </p>
         <p>
           The runtime assembles context, invokes the configured model provider, filters tools by policy, persists session
-          state, stores memory, and delivers outputs back into the correct surface.
+          state, stores memory, and delivers outputs back into the correct surface whether that is the CLI shell,
+          dashboard, voice layer, or an integration.
         </p>
         <p>
-          This separation makes it possible to run the system locally, expose it in cloud mode, or start it through the
-          dashboard stack or Windows service layer without changing the core execution model.
+          Routing rules let you assign work types like code, research, writing, or computer control to different
+          providers. That keeps the operator surface simple while still giving the runtime a model-aware execution plan.
         </p>
       </div>
     </DocsShell>

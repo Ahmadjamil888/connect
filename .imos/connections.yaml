@@ -1,4 +1,17 @@
-connections: []
+connections:
+- name: anthropic
+  adapter_type: model
+  provider: anthropic
+  auto_connect: false
+- name: openai
+  adapter_type: model
+  provider: openai
+  auto_connect: false
+- name: browser_live
+  adapter_type: webapp
+  provider: browser
+  auto_connect: false
+  HEADLESS: true
 settings:
   default_model: auto
   parallel_execution: true

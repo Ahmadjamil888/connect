@@ -1,0 +1,17 @@
+{
+  "alpha": {
+    "session_id": "9b65f7604d5f455c",
+    "name": "alpha",
+    "session_key": "alpha",
+    "channel": "cli",
+    "user_id": "local-user",
+    "title": "main",
+    "status": "active",
+    "created_at": "2026-05-03T16:10:09.175042",
+    "updated_at": "2026-05-03T16:10:09.187526",
+    "message_count": 1,
+    "active_provider": "",
+    "routing_rules": {},
+    "metadata": {}
+  }
+}

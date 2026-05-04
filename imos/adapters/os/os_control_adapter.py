@@ -32,6 +32,8 @@ class OsControlAdapter(BaseOSAdapter):
                 "move_file",
                 "delete_path",
                 "search_files",
+                "scan_unwanted_files",
+                "delete_unwanted_files",
                 "watch_path",
                 "run_shell",
                 "stream_shell",
@@ -117,6 +119,67 @@ class OsControlAdapter(BaseOSAdapter):
 
     async def search_files(self, pattern: str, root: str = ".") -> Any:
         return [str(item) for item in Path(root).rglob(pattern)]
+
+    async def scan_unwanted_files(self, root: str | None = None) -> Any:
+        roots = []
+        if root:
+            roots.append(Path(root))
+        else:
+            env_roots = [
+                os.getenv("TEMP"),
+                os.getenv("TMP"),
+                str(Path.home() / "Downloads"),
+                str(Path.home() / "Desktop"),
+            ]
+            seen_roots: set[str] = set()
+            for item in env_roots:
+                if not item:
+                    continue
+                normalized = str(Path(item).resolve())
+                if normalized in seen_roots:
+                    continue
+                seen_roots.add(normalized)
+                roots.append(Path(normalized))
+        patterns = ["*.tmp", "*.temp", "*.bak", "*.old", "*.log", "*.dmp"]
+        matches: list[str] = []
+        seen_matches: set[str] = set()
+        for base in roots:
+            if not base.exists():
+                continue
+            for pattern in patterns:
+                try:
+                    for item in base.rglob(pattern):
+                        candidate = str(item)
+                        if candidate in seen_matches:
+                            continue
+                        seen_matches.add(candidate)
+                        matches.append(candidate)
+                        if len(matches) >= 200:
+                            return {"roots": [str(path) for path in roots], "patterns": patterns, "matches": matches}
+                except Exception:
+                    continue
+        return {"roots": [str(path) for path in roots], "patterns": patterns, "matches": matches}
+
+    async def delete_unwanted_files(self, root: str | None = None, confirm: bool = False) -> Any:
+        self._check_policy("delete_path", confirm)
+        scan = await self.scan_unwanted_files(root=root)
+        deleted: list[str] = []
+        failed: list[dict[str, str]] = []
+        for match in scan.get("matches", []):
+            target = Path(match)
+            try:
+                if target.exists() and target.is_file():
+                    target.unlink()
+                    deleted.append(str(target))
+            except Exception as exc:
+                failed.append({"path": str(target), "error": str(exc)})
+        return {
+            "roots": scan.get("roots", []),
+            "patterns": scan.get("patterns", []),
+            "deleted": deleted,
+            "failed": failed,
+            "deleted_count": len(deleted),
+        }
 
     async def run_shell(self, command: str, timeout: int = 60, cwd: str | None = None) -> Any:
         process = await asyncio.create_subprocess_shell(command, cwd=cwd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)

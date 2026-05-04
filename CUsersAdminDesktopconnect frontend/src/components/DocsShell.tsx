@@ -4,13 +4,13 @@ import { Link, useLocation } from 'react-router-dom'
 import { DocSidebar, type DocItem } from './DocSidebar'
 
 export const DOC_ITEMS: DocItem[] = [
-  { path: '/docs/overview', label: 'Overview' },
-  { path: '/docs/installation', label: 'Installation' },
-  { path: '/docs/authentication', label: 'Authentication' },
-  { path: '/docs/runtime', label: 'Gateway and Runtime' },
-  { path: '/docs/dashboard', label: 'Dashboard' },
-  { path: '/docs/connectors', label: 'Messaging and Connectors' },
-  { path: '/docs/operations', label: 'Operations' },
+  { path: '/docs/overview', label: 'Product Overview' },
+  { path: '/docs/installation', label: 'Getting Started' },
+  { path: '/docs/authentication', label: 'Sign-In and Access' },
+  { path: '/docs/runtime', label: 'Routing and Runtime' },
+  { path: '/docs/dashboard', label: 'Operator Dashboard' },
+  { path: '/docs/connectors', label: 'Integrations and Connectors' },
+  { path: '/docs/operations', label: 'CLI and Commands' },
 ]
 
 type DocsShellProps = {

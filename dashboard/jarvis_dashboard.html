@@ -3,92 +3,568 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ConnectAI J.A.R.V.I.S Dashboard</title>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+  <title>IMOS Dashboard</title>
   <style>
-    :root { --arc:#00d4ff; --arc-dim:#0088aa; --arc-glow:rgba(0,212,255,.15); --warn:#ff6b2b; --green:#00ff9d; --bg:#020b12; --panel:rgba(0,20,35,.84); --border:rgba(0,212,255,.2); --text:#a0e4f1; --text-dim:rgba(160,228,241,.45); }
-    * { box-sizing:border-box; margin:0; padding:0; }
-    body { background:var(--bg); color:var(--text); font-family:'Rajdhani',sans-serif; overflow:hidden; height:100vh; width:100vw; cursor:crosshair; }
-    body::before { content:''; position:fixed; inset:0; background-image:linear-gradient(rgba(0,212,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,.04) 1px, transparent 1px); background-size:40px 40px; animation:gridDrift 22s linear infinite; pointer-events:none; }
-    body::after { content:''; position:fixed; inset:0; background:linear-gradient(transparent 50%, rgba(0,0,0,.035) 50%); background-size:100% 4px; pointer-events:none; animation:scan 8s linear infinite; z-index:9999; }
-    @keyframes gridDrift { from{background-position:0 0} to{background-position:40px 40px} }
-    @keyframes scan { 0%,100%{opacity:1} 50%{opacity:.55} }
-    .hud-corner{position:fixed;width:80px;height:80px;z-index:100;pointer-events:none}.hud-corner::before,.hud-corner::after{content:'';position:absolute;background:var(--arc);box-shadow:0 0 10px var(--arc)}.hud-corner::before{width:2px;height:40px}.hud-corner::after{width:40px;height:2px}.hud-corner.tl{top:16px;left:16px}.hud-corner.tr{top:16px;right:16px;transform:scaleX(-1)}.hud-corner.bl{bottom:16px;left:16px;transform:scaleY(-1)}.hud-corner.br{bottom:16px;right:16px;transform:scale(-1)}
-    .topbar{position:fixed;top:0;left:0;right:0;height:56px;background:linear-gradient(180deg, rgba(0,30,50,.95) 0%, transparent 100%);display:flex;align-items:center;justify-content:space-between;padding:0 80px;z-index:50;border-bottom:1px solid var(--border)}.topbar::after{content:'';position:absolute;bottom:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg, transparent, var(--arc), transparent);animation:pulseLine 3s ease-in-out infinite}@keyframes pulseLine{0%,100%{opacity:.3}50%{opacity:1}}
-    .logo{font-family:'Orbitron',sans-serif;font-size:20px;font-weight:900;letter-spacing:6px;color:#fff;text-shadow:0 0 20px var(--arc),0 0 40px var(--arc)}.logo span{color:var(--arc)}
-    .sys-status{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--arc-dim);letter-spacing:2px;display:flex;gap:24px}.sys-status .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s ease-in-out infinite;margin-right:6px}@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-    .datetime{font-family:'Orbitron',sans-serif;font-size:13px;color:var(--arc);letter-spacing:2px;text-shadow:0 0 10px var(--arc)}
-    .dashboard{display:grid;grid-template-columns:260px minmax(0,1fr) 320px;grid-template-rows:56px 1fr 180px;height:100vh;padding:56px 16px 12px}
-    .panel{background:var(--panel);border:1px solid var(--border);position:relative;overflow:hidden;backdrop-filter:blur(10px)}.panel::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg, rgba(0,212,255,.05) 0%, transparent 60%);pointer-events:none}
-    .panel-title{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:4px;color:var(--arc-dim);padding:10px 14px 6px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}.panel-title::before{content:'';width:3px;height:10px;background:var(--arc);box-shadow:0 0 8px var(--arc)}
-    .left{grid-column:1;grid-row:2;display:flex;flex-direction:column;gap:8px;padding:8px 8px 8px 0}.center{grid-column:2;grid-row:2;display:flex;flex-direction:column;gap:8px;padding:8px;min-width:0}.right{grid-column:3;grid-row:2;display:flex;flex-direction:column;gap:8px;padding:8px 0 8px 8px}.bottom{grid-column:1/-1;grid-row:3;display:flex;gap:8px;padding-bottom:8px}
-    .vital-row{padding:8px 14px;border-bottom:1px solid rgba(0,212,255,.06);display:flex;align-items:center;justify-content:space-between;gap:12px}.vital-label{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);letter-spacing:1px}.vital-val{font-family:'Orbitron',monospace;font-size:13px;color:var(--arc);text-shadow:0 0 8px var(--arc)}.vital-bar{width:100%;height:3px;background:rgba(0,212,255,.1);margin-top:4px;position:relative}.vital-bar-fill{height:100%;background:linear-gradient(90deg,var(--arc-dim),var(--arc));box-shadow:0 0 6px var(--arc);transition:width .8s ease}.warn{background:linear-gradient(90deg,#ff6b2b,#ffaa00);box-shadow:0 0 6px #ff6b2b}
-    .arc-panel{height:240px;display:flex;align-items:center;justify-content:center;position:relative}.arc-reactor{width:160px;height:160px;position:relative;display:flex;align-items:center;justify-content:center}.arc-ring{position:absolute;border-radius:50%;border:1px solid rgba(0,212,255,.3)}.arc-ring:nth-child(1){width:160px;height:160px;animation:spin 8s linear infinite;border-color:rgba(0,212,255,.2);border-top-color:var(--arc)}.arc-ring:nth-child(2){width:130px;height:130px;animation:spin 5s linear infinite reverse;border-color:rgba(0,212,255,.15);border-right-color:var(--arc)}.arc-ring:nth-child(3){width:100px;height:100px;animation:spin 3s linear infinite;border-top-color:rgba(0,212,255,.4);border-color:rgba(0,212,255,.08)}.arc-ring:nth-child(4){width:70px;height:70px;animation:spin 2s linear infinite reverse;border-color:rgba(0,212,255,.2);border-left-color:var(--arc)}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}.arc-core{width:44px;height:44px;border-radius:50%;background:radial-gradient(circle,#fff 0%,var(--arc) 40%,#005577 100%);box-shadow:0 0 20px var(--arc),0 0 40px var(--arc),0 0 80px rgba(0,212,255,.4);animation:pulseCore 2s ease-in-out infinite;z-index:1}@keyframes pulseCore{0%,100%{box-shadow:0 0 20px var(--arc),0 0 40px var(--arc),0 0 80px rgba(0,212,255,.4)}50%{box-shadow:0 0 30px var(--arc),0 0 60px var(--arc),0 0 120px rgba(0,212,255,.6)}}.arc-label{position:absolute;bottom:-28px;left:50%;transform:translateX(-50%);font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:4px;color:var(--arc-dim);white-space:nowrap}
-    .chat-panel{flex:1;min-height:0;display:flex;flex-direction:column}.chat-messages{flex:1;overflow-y:auto;padding:10px 14px;scroll-behavior:smooth}.msg{margin-bottom:10px}.msg-user{text-align:right}.msg-user .bubble{display:inline-block;background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.25);border-radius:12px 2px 12px 12px;padding:8px 12px;font-size:13px;color:var(--arc);max-width:80%}.msg-jarvis .bubble{display:inline-block;background:rgba(0,20,35,.8);border:1px solid rgba(0,212,255,.15);border-radius:2px 12px 12px 12px;padding:8px 12px;font-size:13px;color:#e0f7ff;max-width:85%;white-space:pre-wrap}.msg-sender{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-dim);margin-bottom:3px}.chat-input-row{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--border)}.chat-input{flex:1;background:rgba(0,20,35,.6);border:1px solid var(--border);color:var(--arc);font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:1px;padding:8px 12px;outline:none}.send-btn,.action-btn{background:rgba(0,212,255,.1);border:1px solid var(--arc-dim);color:var(--arc);font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;cursor:pointer;transition:all .2s}.send-btn{padding:8px 16px}.send-btn:hover,.action-btn:hover{background:rgba(0,212,255,.2);box-shadow:0 0 16px var(--arc-glow)}
-    .list-area{padding:8px 14px 12px;overflow-y:auto}.list-item{padding:7px 0;border-bottom:1px solid rgba(0,212,255,.06);font-family:'Share Tech Mono',monospace;font-size:10px}.list-item strong{color:#fff;font-weight:500}.subtle{color:var(--text-dim)}
-    .weather-main,.news-main{padding:10px 14px 12px}.weather-main .temp{font-family:'Orbitron',sans-serif;font-size:32px;color:#fff;text-shadow:0 0 18px var(--arc)}.weather-main .meta,.news-main .meta{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);margin-top:6px}.news-headline{padding:10px 14px;border-bottom:1px solid rgba(0,212,255,.06)}.news-headline .title{color:#fff;font-size:13px;line-height:1.3}.news-headline .meta{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);margin-top:5px}
-    .metric-card{flex:1;background:var(--panel);border:1px solid var(--border);padding:10px 14px;position:relative;overflow:hidden}.metric-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--arc),transparent);animation:shimmer 2s ease-in-out infinite}@keyframes shimmer{0%,100%{opacity:.3}50%{opacity:1}}.metric-label{font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:3px;color:var(--text-dim);margin-bottom:4px}.metric-value{font-family:'Orbitron',sans-serif;font-size:22px;font-weight:700;color:#fff;line-height:1}.metric-unit{font-size:10px;color:var(--arc-dim);margin-left:4px}.metric-sub{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-dim);margin-top:4px}
-    .waveform{display:flex;align-items:center;gap:2px;height:24px;margin-top:6px}.wave-bar{width:3px;background:var(--arc);border-radius:1px;box-shadow:0 0 4px var(--arc);animation:wave 1s ease-in-out infinite}@keyframes wave{0%,100%{transform:scaleY(.2)}50%{transform:scaleY(1)}}.action-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:10px 14px 14px}.action-btn{padding:10px 8px}
-    @media (max-width:1280px){.dashboard{grid-template-columns:1fr;grid-template-rows:56px auto auto auto;overflow-y:auto;height:auto;min-height:100vh}.left,.center,.right,.bottom{grid-column:1;padding:8px 0}.bottom{flex-direction:column}body{overflow:auto}}
+    :root{
+      --bg:#000000;
+      --panel:#0a0a0a;
+      --panel-2:#111111;
+      --panel-3:#1a1a1a;
+      --bubble:#202020;
+      --line:#1f1f1f;
+      --line-2:#222222;
+      --text:#ffffff;
+      --muted:#888888;
+      --orange:#FF4500;
+      --green:#22c55e;
+      --red:#ef4444;
+      --sidebar-width:220px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100vh;overflow:hidden;margin:0}
+    body{background:var(--bg);color:var(--text);font:14px/1.4 "Segoe UI",sans-serif}
+    button,input,textarea,select{font:inherit}
+    button{cursor:pointer}
+    .layout{display:grid;grid-template-columns:var(--sidebar-width) 1fr 220px;height:100vh;overflow:hidden}
+    .sidebar,.rightbar{height:100vh;overflow:hidden;background:var(--bg)}
+    .sidebar{border-right:1px solid var(--line);transition:width .2s ease}
+    .rightbar{border-left:1px solid var(--line)}
+    .sidebar-scroll,.rightbar-scroll{height:100%;overflow:auto;padding:16px}
+    .sidebar.collapsed{width:48px}
+    .layout.collapsed{grid-template-columns:48px 1fr 220px}
+    .main{height:100vh;display:grid;grid-template-rows:48px 1fr;overflow:hidden}
+    .topbar{height:48px;display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--bg)}
+    .top-brand{font-size:20px;font-weight:800;color:var(--orange)}
+    .top-sub{color:var(--muted);font-size:12px}
+    .top-metrics{display:flex;align-items:center;gap:12px;margin-left:auto;min-width:0}
+    .metric{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;white-space:nowrap}
+    .metric strong{color:var(--text);font-weight:600}
+    .dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex:0 0 auto}
+    .dot.bad{background:var(--red)}
+    .clock{margin-left:8px;color:var(--text);font-size:12px;white-space:nowrap}
+    .content-shell{display:grid;grid-template-rows:1fr auto;height:calc(100vh - 48px);overflow:hidden}
+    .center-scroll{overflow:hidden;min-height:0}
+    .panel{display:none;height:100%;overflow:auto;padding:18px}
+    .panel.active{display:block}
+    .brand{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+    .brand-name{font-size:24px;font-weight:800;color:var(--orange);letter-spacing:.08em}
+    .section-label,.panel-title{color:var(--muted);font-size:11px;letter-spacing:.16em;margin:18px 0 10px}
+    .sidebar.collapsed .section-label,.sidebar.collapsed .brand-name,.sidebar.collapsed .nav-label,.sidebar.collapsed .online span{display:none}
+    .sidebar.collapsed .brand{justify-content:center}
+    .nav-item,.toggle-btn{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;margin-bottom:6px;background:transparent;border:none;border-left:3px solid transparent;border-radius:8px;color:var(--text);text-align:left}
+    .toggle-btn{padding:8px 12px;color:var(--orange)}
+    .nav-item.active{background:var(--panel-2);border-left-color:var(--orange);color:var(--orange)}
+    .sidebar.collapsed .nav-item,.sidebar.collapsed .toggle-btn{justify-content:center;padding:10px 0}
+    .nav-icon{width:18px;text-align:center;flex:0 0 18px}
+    .online{position:sticky;bottom:0;display:flex;align-items:center;gap:8px;padding-top:24px;background:linear-gradient(to top,var(--bg),transparent)}
+    .chat-stream,.shell-stream{display:flex;flex-direction:column;gap:14px;min-height:100%}
+    .bubble{max-width:76%;padding:14px 16px;border-radius:16px;background:var(--bubble);white-space:pre-wrap}
+    .bubble.user{margin-left:auto;background:#171717}
+    .shell-row{font-family:Consolas,"Courier New",monospace;background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;white-space:pre-wrap}
+    .shell-row .prompt{color:var(--orange)}
+    .card-list,.activity-list,.stats-list,.quick-actions,.workflow-list,.table,.config-list{display:grid;gap:10px}
+    .card,.stat-card,.activity-item,.workflow-item,.shell-card,.row{background:#111111;border:1px solid #222222;border-radius:12px;padding:12px}
+    .card h3,.workflow-item h3{margin:0 0 6px;font-size:14px}
+    .muted{color:var(--muted)}
+    .status-line{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .status-pill{display:inline-flex;align-items:center;gap:6px;color:var(--text);font-size:12px}
+    .status-dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+    .status-dot.bad{background:var(--red)}
+    .field,.inline-form{display:grid;gap:6px;margin-top:10px}
+    .field input,.field textarea,.field select,.inline-form input,.inline-form textarea,.inline-form select{width:100%;background:var(--panel-3);border:1px solid #222222;color:var(--text);border-radius:10px;padding:10px 12px}
+    .field input:focus,.field textarea:focus,.field select:focus,.inline-form input:focus,.inline-form textarea:focus,.inline-form select:focus,.composer textarea:focus{outline:none;border-color:var(--orange)}
+    .field textarea{min-height:90px;resize:vertical}
+    .actions-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+    .btn{background:var(--panel-3);border:1px solid #222222;color:var(--text);padding:10px 12px;border-radius:10px}
+    .btn:hover,.btn.active{border-color:var(--orange);color:var(--orange)}
+    .btn-primary{background:var(--panel-3);border-color:#222222;color:var(--text)}
+    .btn-danger{border-color:var(--red);color:var(--red)}
+    .btn-danger:hover{border-color:var(--red);color:var(--red)}
+    .card.default-provider{border-left:3px solid var(--orange)}
+    .composer{display:flex;align-items:center;gap:12px;padding:14px 18px;border-top:1px solid var(--line);background:var(--bg)}
+    .composer.hidden{display:none}
+    .composer-prefix{font-family:Consolas,"Courier New",monospace;color:var(--orange);white-space:nowrap}
+    .composer textarea{flex:1;resize:none;height:54px;background:var(--panel-3);border:1px solid #222222;color:var(--text);border-radius:14px;padding:14px 16px}
+    .composer button{background:var(--panel-3);border:1px solid #222222;color:var(--text);padding:14px 20px;border-radius:14px;font-weight:700}
+    .quick-actions{grid-template-columns:1fr 1fr}
+    .quick-actions .btn{min-height:64px;text-align:left}
+    .filter-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .table .row{display:grid;gap:10px;align-items:center}
+    .api-row{grid-template-columns:1fr 1fr .8fr auto}
+    .contact-row,.rule-row,.session-row,.workflow-row{grid-template-columns:1fr 1fr auto}
+    .models-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .tooltip{position:fixed;pointer-events:none;background:#111111;border:1px solid #222222;color:var(--text);padding:6px 8px;border-radius:8px;font-size:12px;display:none;z-index:50}
+    .danger-card{border-color:var(--red)}
+    .mono{font-family:Consolas,"Courier New",monospace}
+    .spinner{display:inline-block;animation:spin 1s linear infinite}
+    @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    @media (max-width:1000px){
+      .layout,.layout.collapsed{grid-template-columns:220px 1fr}
+      .rightbar{display:none}
+      .sidebar.collapsed{width:220px}
+    }
   </style>
 </head>
 <body>
-  <div class="hud-corner tl"></div><div class="hud-corner tr"></div><div class="hud-corner bl"></div><div class="hud-corner br"></div>
-  <div class="topbar">
-    <div class="logo">CONNECT<span>.JARVIS</span></div>
-    <div class="sys-status"><span><span class="dot"></span>SYSTEMS ONLINE</span><span><span class="dot"></span>AI CORE ACTIVE</span><span><span class="dot"></span>TOOLS ARMED</span></div>
-    <div class="datetime" id="clock">--:--:-- // ---</div>
+  <div class="layout" id="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="brand">
+          <div class="brand-name">IMOS</div>
+        </div>
+        <button class="toggle-btn" id="sidebarToggle" title="Collapse sidebar"><span class="nav-icon" id="toggleIcon">‹</span><span class="nav-label">Collapse</span></button>
+        <div class="section-label">WORKSPACE</div>
+        <button class="nav-item active" data-tab="chat" data-label="Chat"><span class="nav-icon">💬</span><span class="nav-label">Chat</span></button>
+        <button class="nav-item" data-tab="shell" data-label="Shell"><span class="nav-icon">⌘</span><span class="nav-label">Shell</span></button>
+        <button class="nav-item" data-tab="voice" data-label="Voice"><span class="nav-icon">🎙</span><span class="nav-label">Voice</span></button>
+        <div class="section-label">CONFIGURATION</div>
+        <button class="nav-item" data-tab="models" data-label="Models"><span class="nav-icon">🧠</span><span class="nav-label">Models</span></button>
+        <button class="nav-item" data-tab="apikeys" data-label="API Keys"><span class="nav-icon">🔑</span><span class="nav-label">API Keys</span></button>
+        <button class="nav-item" data-tab="skills" data-label="Skills"><span class="nav-icon">🧰</span><span class="nav-label">Skills</span></button>
+        <button class="nav-item" data-tab="integrations" data-label="Integrations"><span class="nav-icon">🔗</span><span class="nav-label">Integrations</span></button>
+        <button class="nav-item" data-tab="workflows" data-label="Workflows"><span class="nav-icon">🧭</span><span class="nav-label">Workflows</span></button>
+        <div class="section-label">SYSTEM</div>
+        <button class="nav-item" data-tab="activity" data-label="Activity Log"><span class="nav-icon">📜</span><span class="nav-label">Activity Log</span></button>
+        <button class="nav-item" data-tab="settings" data-label="Settings"><span class="nav-icon">⚙</span><span class="nav-label">Settings</span></button>
+        <div class="online"><div class="dot"></div><span>Online</span></div>
+      </div>
+    </aside>
+    <section class="main">
+      <div class="topbar">
+        <div class="top-brand">IMOS</div>
+        <div class="top-sub">Intelligent Machine OS</div>
+        <div class="top-metrics">
+          <div class="metric"><div class="dot"></div><span>CPU <strong id="cpu">0%</strong></span></div>
+          <div class="metric"><div class="dot"></div><span>RAM <strong id="ram">0%</strong></span></div>
+          <div class="metric"><div class="dot"></div><span>DISK <strong id="disk">0%</strong></span></div>
+          <div class="metric"><span>MODEL <strong id="model">n/a</strong></span></div>
+        </div>
+        <div class="clock" id="clock">--:--:--</div>
+      </div>
+      <div class="content-shell">
+        <div class="center-scroll">
+          <div class="panel active" data-panel="chat"><div class="chat-stream" id="chatStream"></div></div>
+          <div class="panel" data-panel="shell"><div class="shell-stream" id="shellStream"></div></div>
+          <div class="panel" data-panel="voice">
+            <div class="panel-title">VOICE</div>
+            <div class="grid-2">
+              <div class="card"><h3>Listener Status</h3><div class="status-pill"><span class="status-dot" id="voiceActiveDot"></span><span id="listenerStatus">inactive</span></div></div>
+              <div class="card"><h3>Voice Provider</h3><div class="muted" id="voiceProvider">-</div></div>
+              <div class="card"><h3>Wake Word</h3><div class="inline-form"><input id="wakeWordInput" /><button class="btn" id="saveWakeWord">Save</button></div></div>
+              <div class="card"><h3>Voice Name</h3><div class="inline-form"><input id="voiceNameInput" /><button class="btn" id="saveVoiceName">Save</button></div></div>
+            </div>
+            <div class="actions-row">
+              <button class="btn" id="startListening">Start Listening</button>
+              <button class="btn" id="stopListening">Stop Listening</button>
+              <button class="btn" id="testVoice">Test Voice</button>
+            </div>
+          </div>
+          <div class="panel" data-panel="models">
+            <div class="status-line"><div class="panel-title">MODEL PROVIDERS</div><button class="btn" id="showProviderForm">Add Provider</button></div>
+            <div class="card" id="providerFormCard" style="display:none">
+              <h3 id="providerFormTitle">Add Provider</h3>
+              <div class="field"><label>Provider Type</label><select id="providerType"></select></div>
+              <div class="field"><label>Display Name</label><input id="providerName" /></div>
+              <div class="field" id="providerKeyField"><label>API Key</label><input id="providerKey" type="password" /></div>
+              <div class="field" id="providerBaseField"><label>Base URL</label><input id="providerBaseUrl" /></div>
+              <div class="field"><label>Model</label><div class="actions-row"><input id="providerModel" style="flex:1" /><button class="btn" id="listDraftModels">List Models</button></div><select id="providerModelOptions" style="display:none"></select></div>
+              <div class="actions-row">
+                <button class="btn" id="testProviderBtn">Test Connection</button>
+                <span class="muted" id="providerTestResult"></span>
+              </div>
+              <div class="actions-row"><button class="btn" id="cancelProviderForm">Cancel</button><button class="btn" id="saveProviderBtn">Save Provider</button></div>
+            </div>
+            <div class="card-list" id="providersList"></div>
+          </div>
+          <div class="panel" data-panel="apikeys">
+            <div class="status-line"><div class="panel-title">API KEYS</div><button class="btn" id="showKeyForm">Add Key</button></div>
+            <div class="card" id="keyFormCard" style="display:none">
+              <div class="field"><label>Service Name</label><input id="customKeyService" /></div>
+              <div class="field"><label>Key</label><input id="customKeyValue" /></div>
+              <div class="actions-row"><button class="btn" id="cancelKeyForm">Cancel</button><button class="btn" id="saveCustomKey">Save</button></div>
+            </div>
+            <div class="table" id="apikeyTable"></div>
+          </div>
+          <div class="panel" data-panel="skills">
+            <div class="status-line"><div class="panel-title">SKILLS</div><button class="btn" id="refreshSkills">Refresh</button></div>
+            <div class="card-list" id="skillsList"></div>
+          </div>
+          <div class="panel" data-panel="integrations">
+            <div class="panel-title">INTEGRATIONS</div>
+            <div class="card-list" id="integrationsList"></div>
+          </div>
+          <div class="panel" data-panel="workflows">
+            <div class="status-line"><div class="panel-title">WORKFLOWS</div><button class="btn" id="showWorkflowForm">New Workflow</button></div>
+            <div class="card" id="workflowFormCard" style="display:none">
+              <div class="field"><label>Name</label><input id="workflowName" /></div>
+              <div class="field"><label>Trigger Phrase</label><input id="workflowTrigger" /></div>
+              <div class="field"><label>Prompt/Steps</label><textarea id="workflowPrompt"></textarea></div>
+              <div class="field"><label>Schedule</label><select id="workflowSchedule"><option>Manual</option><option>On startup</option><option>Daily</option><option>Hourly</option></select></div>
+              <div class="actions-row"><button class="btn" id="cancelWorkflowForm">Cancel</button><button class="btn" id="saveWorkflow">Save</button></div>
+            </div>
+            <div class="workflow-list" id="workflowList"></div>
+          </div>
+          <div class="panel" data-panel="activity">
+            <div class="status-line"><div class="panel-title">ACTIVITY LOG</div><div class="actions-row"><button class="btn" id="clearLog">Clear Log</button><button class="btn" id="exportLog">Export</button></div></div>
+            <div class="filter-row">
+              <button class="btn active log-filter" data-filter="all">All</button>
+              <button class="btn log-filter" data-filter="tool_start">tool_start</button>
+              <button class="btn log-filter" data-filter="tool_end">tool_end</button>
+              <button class="btn log-filter" data-filter="error">error</button>
+              <button class="btn log-filter" data-filter="voice">voice</button>
+              <button class="btn log-filter" data-filter="system">system</button>
+            </div>
+            <div class="activity-list" id="eventLog"></div>
+          </div>
+          <div class="panel" data-panel="settings">
+            <div class="panel-title">GENERAL</div>
+            <div class="card">
+              <div class="field"><label>Wake Word</label><input id="settingWakeWord" /></div>
+              <div class="field"><label>Autostart</label><select id="settingAutostart"><option value="true">on</option><option value="false">off</option></select></div>
+              <div class="field"><label>Dashboard Port</label><input id="settingPort" type="number" /></div>
+              <div class="field"><label>Voice</label><select id="settingVoice"><option value="true">on</option><option value="false">off</option></select></div>
+              <div class="actions-row"><button class="btn" id="saveSettings">Save</button></div>
+            </div>
+            <div class="panel-title">SESSIONS</div>
+            <div class="card">
+              <div class="muted" id="activeSessionName">-</div>
+              <div class="actions-row"><button class="btn" id="newSessionBtn">New Session</button><button class="btn" id="loadSessionsBtn">List Sessions</button><button class="btn" id="exportCurrentSession">Export Current Session</button></div>
+              <div class="table" id="sessionsTable"></div>
+            </div>
+            <div class="panel-title">ROUTING RULES</div>
+            <div class="card">
+              <div class="actions-row"><select id="routingType"><option>code</option><option>research</option><option>writing</option><option>computer_control</option><option>devops</option></select><input id="routingProvider" placeholder="provider id" /><button class="btn" id="saveRoutingRule">Save</button></div>
+              <div class="table" id="routingTable"></div>
+            </div>
+            <div class="panel-title">CONTACTS</div>
+            <div class="card">
+              <div class="actions-row"><input id="contactName" placeholder="name" /><input id="contactNumber" placeholder="number" /><button class="btn" id="saveContact">Save</button></div>
+              <div class="table" id="contactsTable"></div>
+            </div>
+            <div class="panel-title">DANGER ZONE</div>
+            <div class="card danger-card">
+              <div class="actions-row"><button class="btn btn-danger" id="rerunSetup">Re-run Setup Wizard</button><button class="btn btn-danger" id="resetSettings">Reset All Settings</button><button class="btn btn-danger" id="revokePcAccess">Revoke PC Access</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="composer" id="composer">
+          <div class="composer-prefix" id="composerPrefix">IMOS</div>
+          <textarea id="composerInput" placeholder="Type a message or command..."></textarea>
+          <button id="composerSend">Send</button>
+        </div>
+      </div>
+    </section>
+    <aside class="rightbar">
+      <div class="rightbar-scroll">
+        <div class="panel-title">SESSION STATS</div>
+        <div class="stats-list">
+          <div class="stat-card"><span class="muted">Tokens</span><strong id="tokens">0</strong></div>
+          <div class="stat-card"><span class="muted">Cost</span><strong id="cost">$0.0000</strong></div>
+          <div class="stat-card"><span class="muted">Tasks</span><strong id="tasks">0</strong></div>
+          <div class="stat-card"><span class="muted">Commands</span><strong id="commands">0</strong></div>
+        </div>
+        <div class="panel-title">QUICK ACTIONS</div>
+        <div class="quick-actions" id="quickActions"></div>
+        <div class="panel-title">ACTIVE OPERATION</div>
+        <div id="activeOperation"></div>
+        <div class="panel-title">RECENT ACTIVITY</div>
+        <div class="activity-list" id="recentActivity"></div>
+      </div>
+    </aside>
   </div>
-  <div class="dashboard">
-    <div class="left">
-      <div class="panel">
-        <div class="panel-title">SYSTEM VITALS</div>
-        <div class="vital-row"><div style="flex:1"><div class="vital-label">CPU LOAD</div><div class="vital-bar"><div class="vital-bar-fill" id="cpu-bar" style="width:0%"></div></div></div><div class="vital-val" id="cpu-val">0%</div></div>
-        <div class="vital-row"><div style="flex:1"><div class="vital-label">MEMORY</div><div class="vital-bar"><div class="vital-bar-fill warn" id="ram-bar" style="width:0%"></div></div></div><div class="vital-val" id="ram-val">0%</div></div>
-        <div class="vital-row"><div style="flex:1"><div class="vital-label">DISK</div><div class="vital-bar"><div class="vital-bar-fill" id="disk-bar" style="width:0%"></div></div></div><div class="vital-val" id="disk-val">0%</div></div>
-        <div class="vital-row"><div class="vital-label">MODEL</div><div class="vital-val" id="provider-model">n/a</div></div>
-        <div class="vital-row"><div class="vital-label">WORKSPACE</div><div class="vital-val" id="workspace-label" style="font-size:11px">...</div></div>
-      </div>
-      <div class="panel"><div class="panel-title">ACTIVE PROCESSES</div><div class="list-area" id="process-list"></div></div>
-      <div class="panel"><div class="panel-title">VOICE ACTIVITY</div><div class="weather-main"><div class="subtle">AUDIO SPECTRUM</div><div class="waveform" id="waveform"></div><div class="meta" id="voice-status">Voice stack ready</div></div></div>
-    </div>
-    <div class="center">
-      <div class="panel arc-panel">
-        <div style="position:absolute;left:30px;top:50%;transform:translateY(-50%);text-align:left"><div class="subtle" style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;margin-bottom:8px">SESSION</div><div style="font-family:'Orbitron';font-size:28px;color:var(--green);text-shadow:0 0 16px var(--green)" id="session-status">LIVE</div><div class="subtle" style="font-family:'Share Tech Mono',monospace;font-size:8px;margin-top:6px">TOOL-GROUNDED</div></div>
-        <div class="arc-reactor"><div class="arc-ring"></div><div class="arc-ring"></div><div class="arc-ring"></div><div class="arc-ring"></div><div class="arc-core"></div><div class="arc-label">CONNECT AI CORE</div></div>
-        <div style="position:absolute;right:30px;top:50%;transform:translateY(-50%);text-align:right"><div class="subtle" style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;margin-bottom:8px">TOKENS</div><div style="font-family:'Orbitron';font-size:28px;color:var(--arc);text-shadow:0 0 16px var(--arc)" id="token-side">0</div><div class="subtle" style="font-family:'Share Tech Mono',monospace;font-size:8px;margin-top:6px" id="cost-side">$0.0000</div></div>
-      </div>
-      <div class="panel chat-panel">
-        <div class="panel-title">COMMUNICATION INTERFACE</div>
-        <div class="chat-messages" id="chat-messages"><div class="msg msg-jarvis"><div class="msg-sender">CONNECT.JARVIS //</div><div class="bubble">Unified runtime online. Claude handles reasoning, Connect handles tools, and this dashboard reflects the real state of the machine.</div></div></div>
-        <div class="chat-input-row"><input class="chat-input" id="chat-input" placeholder="ENTER COMMAND, SIR..." autocomplete="off"/><button class="send-btn" id="send-btn">SEND</button></div>
-      </div>
-    </div>
-    <div class="right">
-      <div class="panel"><div class="panel-title">LOCAL WEATHER</div><div class="weather-main"><div class="temp" id="weather-temp">--</div><div id="weather-city">Resolving...</div><div class="meta" id="weather-meta">Awaiting weather feed</div></div></div>
-      <div class="panel"><div class="panel-title">WORLD NEWS</div><div class="news-main meta" id="news-provider">Loading feed...</div><div id="news-list"></div></div>
-      <div class="panel"><div class="panel-title">QUICK ACTIONS</div><div class="action-grid"><button class="action-btn" data-prompt="Give me a live system summary.">SYSTEM</button><button class="action-btn" data-prompt="Show local weather and world headlines.">BRIEF</button><button class="action-btn" data-prompt="List the top running processes and current tasks.">TASKS</button><button class="action-btn" data-prompt="Clean temp files and report the result.">CLEAN</button></div></div>
-      <div class="panel"><div class="panel-title">ACTIVITY LOG</div><div class="list-area" id="audit-list"></div></div>
-    </div>
-    <div class="bottom">
-      <div class="metric-card"><div class="metric-label">TASKS COMPLETED</div><div class="metric-value" id="tasks-val">0<span class="metric-unit">TOTAL</span></div><div class="metric-sub" id="tasks-sub">No tasks yet</div></div>
-      <div class="metric-card"><div class="metric-label">SHELL COMMANDS RUN</div><div class="metric-value" id="commands-val">0<span class="metric-unit">CMDS</span></div><div class="metric-sub" id="commands-sub">0 failed</div></div>
-      <div class="metric-card"><div class="metric-label">AI TOKENS USED</div><div class="metric-value" id="token-val">0<span class="metric-unit">TOK</span></div><div class="metric-sub" id="token-sub">$0.0000 this session</div></div>
-      <div class="metric-card"><div class="metric-label">FILES MODIFIED</div><div class="metric-value" id="files-val">0<span class="metric-unit">FILES</span></div><div class="metric-sub" id="files-sub">Observed via write events</div></div>
-      <div class="metric-card"><div class="metric-label">PROCESSES MANAGED</div><div class="metric-value" id="procs-val">0<span class="metric-unit">PROCS</span></div><div class="metric-sub" id="procs-sub">0 running</div></div>
-    </div>
-  </div>
+  <div class="tooltip" id="tooltip"></div>
   <script>
-    let activeSessionId = '';
-    function updateClock(){const now=new Date();document.getElementById('clock').textContent=`${now.toTimeString().split(' ')[0]} // ${now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase()}`;}
-    setInterval(updateClock,1000);updateClock();
-    const waveform=document.getElementById('waveform');for(let i=0;i<28;i+=1){const bar=document.createElement('div');bar.className='wave-bar';bar.style.height=`${4+Math.random()*20}px`;bar.style.animationDelay=`${Math.random()}s`;bar.style.animationDuration=`${0.6+Math.random()*0.8}s`;waveform.appendChild(bar);}
-    function addChat(role,text){const wrap=document.createElement('div');wrap.className=`msg ${role==='user'?'msg-user':'msg-jarvis'}`;wrap.innerHTML=`<div class="msg-sender">${role==='user'?'OPERATOR':'CONNECT.JARVIS'} // ${new Date().toTimeString().split(' ')[0]}</div><div class="bubble">${text}</div>`;const root=document.getElementById('chat-messages');root.appendChild(wrap);root.scrollTop=root.scrollHeight;}
-    async function loadJson(url,options){const response=await fetch(url,options);if(!response.ok)throw new Error(`${url} -> ${response.status}`);return response.json();}
-    async function refreshStatus(){const [status,cost,processes,tasks,audit,weather,news]=await Promise.all([loadJson('/api/status'),loadJson('/api/cost'),loadJson('/api/processes'),loadJson('/api/tasks'),loadJson('/api/audit'),loadJson('/api/weather'),loadJson('/api/news')]);document.getElementById('provider-model').textContent=`${status.provider||'n/a'} / ${status.model||'n/a'}`;document.getElementById('workspace-label').textContent=(status.workspace||'').split(/[/\\\\]/).slice(-2).join('/');document.getElementById('token-val').innerHTML=`${(cost.session_total_tokens||0).toLocaleString()}<span class="metric-unit">TOK</span>`;document.getElementById('token-side').textContent=(cost.session_total_tokens||0).toLocaleString();document.getElementById('token-sub').textContent=`$${Number(cost.session_cost_usd||0).toFixed(4)} this session`;document.getElementById('cost-side').textContent=`$${Number(cost.session_cost_usd||0).toFixed(4)}`;const procItems=processes.items||[];const tasksItems=tasks.items||[];const auditItems=audit.items||[];const cpu=Math.min(100,Math.max(0,procItems.reduce((sum,item)=>sum+Number(item.cpu_percent||0),0)));const ram=Math.min(100,Math.max(0,procItems.reduce((sum,item)=>sum+Number(item.memory_percent||0),0)));const disk=40+((tasksItems.length*7)%50);document.getElementById('cpu-bar').style.width=`${cpu.toFixed(0)}%`;document.getElementById('cpu-val').textContent=`${cpu.toFixed(0)}%`;document.getElementById('ram-bar').style.width=`${ram.toFixed(0)}%`;document.getElementById('ram-val').textContent=`${ram.toFixed(0)}%`;document.getElementById('disk-bar').style.width=`${disk.toFixed(0)}%`;document.getElementById('disk-val').textContent=`${disk.toFixed(0)}%`;document.getElementById('process-list').innerHTML=procItems.slice(0,8).map(item=>`<div class="list-item"><strong>${item.name||item.command||'process'}</strong><div class="subtle">pid ${item.pid} // ${item.status||'running'}</div></div>`).join('')||`<div class="list-item subtle">No managed processes yet.</div>`;document.getElementById('procs-val').innerHTML=`${procItems.length}<span class="metric-unit">PROCS</span>`;document.getElementById('procs-sub').textContent=`${procItems.filter(item=>item.status==='running').length} running`;document.getElementById('tasks-val').innerHTML=`${tasksItems.length}<span class="metric-unit">TOTAL</span>`;document.getElementById('tasks-sub').textContent=tasksItems.length?`${tasksItems.filter(item=>item.status==='completed').length} completed`:'No tasks yet';const commandStarts=auditItems.filter(item=>item.kind==='command_start');const commandFailures=auditItems.filter(item=>item.kind==='command_end'&&Number((item.metadata||{}).returncode||0)!==0);const fileWrites=auditItems.filter(item=>item.kind==='tool_result'&&item.message==='write_file');document.getElementById('commands-val').innerHTML=`${commandStarts.length}<span class="metric-unit">CMDS</span>`;document.getElementById('commands-sub').textContent=`${commandFailures.length} failed`;document.getElementById('files-val').innerHTML=`${fileWrites.length}<span class="metric-unit">FILES</span>`;document.getElementById('audit-list').innerHTML=auditItems.slice(-12).reverse().map(item=>`<div class="list-item"><strong>${item.kind}</strong><div class="subtle">${item.message}</div></div>`).join('')||`<div class="list-item subtle">No audit entries yet.</div>`;if(weather.ok){document.getElementById('weather-temp').textContent=`${Math.round(Number(weather.temp_c||0))}°C`;document.getElementById('weather-city').textContent=weather.city||'Current location';document.getElementById('weather-meta').textContent=`${weather.description||'n/a'} // humidity ${weather.humidity ?? 'n/a'}% // via ${weather.provider}`;}else{document.getElementById('weather-temp').textContent='--';document.getElementById('weather-city').textContent='Weather unavailable';document.getElementById('weather-meta').textContent=weather.error||'No weather provider responding';}document.getElementById('news-provider').textContent=news.ok?`provider: ${news.provider}`:(news.error||'No news feed');document.getElementById('news-list').innerHTML=(news.articles||[]).slice(0,4).map(item=>`<div class="news-headline"><div class="title">${item.title}</div><div class="meta">${item.source||'unknown source'}</div></div>`).join('')||`<div class="news-headline"><div class="title">No headlines available.</div></div>`;}
-    async function sendMessage(textOverride){const input=document.getElementById('chat-input');const text=(textOverride||input.value).trim();if(!text)return;input.value='';addChat('user',text);const response=await loadJson('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,session_id:activeSessionId})});if(response.session_id)activeSessionId=response.session_id;addChat('assistant',response.response||'Done.');await refreshStatus();}
-    document.getElementById('send-btn').addEventListener('click',()=>sendMessage());document.getElementById('chat-input').addEventListener('keydown',(event)=>{if(event.key==='Enter')sendMessage();});for(const button of document.querySelectorAll('.action-btn[data-prompt]')){button.addEventListener('click',()=>sendMessage(button.dataset.prompt||''));}
-    refreshStatus().catch((error)=>addChat('assistant',`Dashboard error: ${error.message}`));setInterval(()=>{refreshStatus().catch(()=>{});},15000);
+    const state = {
+      activeTab:"chat",
+      runtime:null,
+      events:[],
+      eventFilter:"all",
+      sidebarCollapsed:localStorage.getItem("imos_sidebar_collapsed")==="true",
+      providerDraftId:"",
+      editingProviderId:"",
+      editingWorkflowId:"",
+      localLog:[]
+    };
+    const providerTypes = {
+      groq:{name:"Groq",base_url:"https://api.groq.com/openai/v1",requires_key:true},
+      anthropic:{name:"Anthropic",base_url:"",requires_key:true},
+      openai:{name:"OpenAI",base_url:"https://api.openai.com/v1",requires_key:true},
+      gemini:{name:"Google Gemini",base_url:"",requires_key:true},
+      openrouter:{name:"OpenRouter",base_url:"https://openrouter.ai/api/v1",requires_key:true},
+      ollama:{name:"Ollama (local)",base_url:"http://localhost:11434/v1",requires_key:false},
+      lmstudio:{name:"LM Studio (local)",base_url:"http://localhost:1234/v1",requires_key:false},
+      together:{name:"Together AI",base_url:"https://api.together.xyz/v1",requires_key:true},
+      mistral:{name:"Mistral",base_url:"https://api.mistral.ai/v1",requires_key:true},
+      cohere:{name:"Cohere",base_url:"https://api.cohere.com/v1",requires_key:true},
+      custom:{name:"Custom (OpenAI-compatible)",base_url:"",requires_key:false}
+    };
+    const quickActions = ["System status","Clean PC","Weather","Tech news","Tell a joke","Processes","See screen","COVID stats"];
+    const chatStream = document.getElementById("chatStream");
+    const shellStream = document.getElementById("shellStream");
+    const composer = document.getElementById("composer");
+    const composerInput = document.getElementById("composerInput");
+    const composerPrefix = document.getElementById("composerPrefix");
+    const tooltip = document.getElementById("tooltip");
+
+    function escapeHtml(value){return String(value ?? "").replace(/[&<>"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));}
+    function setClock(){document.getElementById("clock").textContent = new Date().toLocaleTimeString();}
+    function addChatBubble(text, cls=""){const node=document.createElement("div");node.className=`bubble ${cls}`.trim();node.textContent=text;chatStream.appendChild(node);chatStream.scrollTop=chatStream.scrollHeight;}
+    function addShellRow(html){const node=document.createElement("div");node.className="shell-row";node.innerHTML=html;shellStream.appendChild(node);shellStream.scrollTop=shellStream.scrollHeight;}
+    async function fetchJson(url, options){const response=await fetch(url, options);if(!response.ok){throw new Error(`${url} -> ${response.status}`)}return response.json();}
+    function switchTab(name){
+      state.activeTab=name;
+      document.querySelectorAll(".nav-item").forEach((item)=>item.classList.toggle("active", item.dataset.tab===name));
+      document.querySelectorAll(".panel").forEach((panel)=>panel.classList.toggle("active", panel.dataset.panel===name));
+      const showComposer = name==="chat" || name==="shell";
+      composer.classList.toggle("hidden", !showComposer);
+      composerPrefix.textContent = name==="shell" ? "imos>" : "IMOS";
+      composerInput.placeholder = name==="shell" ? "Run shell-style commands..." : "Type a message or command...";
+    }
+    function applySidebarState(){
+      document.getElementById("sidebar").classList.toggle("collapsed", state.sidebarCollapsed);
+      document.getElementById("layout").classList.toggle("collapsed", state.sidebarCollapsed);
+      document.getElementById("toggleIcon").textContent = state.sidebarCollapsed ? "›" : "‹";
+      document.querySelector("#sidebarToggle .nav-label").textContent = state.sidebarCollapsed ? "Expand" : "Collapse";
+      localStorage.setItem("imos_sidebar_collapsed", String(state.sidebarCollapsed));
+    }
+    async function streamPrompt(prompt){
+      const response=await fetch("/api/prompt",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
+      const reader=response.body.getReader();const decoder=new TextDecoder();let buffer="";let finalText="";
+      while(true){
+        const chunk=await reader.read();if(chunk.done){break;}
+        buffer+=decoder.decode(chunk.value,{stream:true});
+        const parts=buffer.split("\n\n");buffer=parts.pop()||"";
+        for(const part of parts){
+          const lines=part.split("\n").filter((line)=>line.startsWith("data: "));
+          for(const line of lines){
+            const payload=JSON.parse(line.slice(6));
+            if(payload.type==="token"){finalText+=payload.text||"";}
+            if(payload.type==="done"){finalText=payload.response||finalText;}
+            if(payload.type==="error"){throw new Error(payload.error||"Prompt failed");}
+          }
+        }
+      }
+      return finalText;
+    }
+    async function sendComposer(){
+      const text=composerInput.value.trim();if(!text){return;}
+      composerInput.value="";
+      if(state.activeTab==="shell"){addShellRow(`<span class="prompt">imos&gt;</span> ${escapeHtml(text)}`);const result=await streamPrompt(text);addShellRow(escapeHtml(result||"(no output)"));}
+      else{addChatBubble(text,"user");const data=await fetchJson("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});addChatBubble(data.response||"No response.");}
+      loadRuntime().catch(()=>{});
+    }
+    function renderRecentActivity(items){
+      const root=document.getElementById("recentActivity");root.innerHTML="";
+      (items||[]).slice(-10).reverse().forEach((item)=>{const node=document.createElement("div");node.className="activity-item";node.innerHTML=`<div>${escapeHtml(item.name||item.event_type||"event")}</div><span>${escapeHtml(item.input_summary||item.status||item.message||"")}</span>`;root.appendChild(node);});
+    }
+    function renderShellHistory(items){
+      shellStream.innerHTML="";
+      const rows=(items||[]).slice(-100);
+      if(!rows.length){addShellRow("No shell output yet.");return;}
+      rows.forEach((item)=>addShellRow(`<span class="muted">${escapeHtml(item.ts||"")}</span>\n${escapeHtml(item.detail||JSON.stringify(item.metadata||{}))}`));
+    }
+    function renderEvents(){
+      const root=document.getElementById("eventLog");root.innerHTML="";
+      const filtered=state.localLog.filter((event)=>state.eventFilter==="all"||String(event.event_type||"").includes(state.eventFilter)||String(event.payload?.message||"").includes(state.eventFilter));
+      filtered.forEach((event)=>{const node=document.createElement("div");node.className="activity-item";node.innerHTML=`<div>${escapeHtml(event.ts||"")} | <strong>${escapeHtml(event.event_type||"")}</strong></div><span>${escapeHtml(JSON.stringify(event.payload||{}))}</span>`;root.appendChild(node);});
+      root.scrollTop=root.scrollHeight;
+    }
+    function renderActiveOperation(operation){
+      const root=document.getElementById("activeOperation");
+      if(!operation){root.innerHTML=`<div class="card"><div class="muted">No active tool call.</div></div>`;return;}
+      root.innerHTML=`<div class="card"><div class="status-line"><strong>${escapeHtml(operation.tool_name||"tool")}</strong><span class="spinner">◌</span></div><div class="muted">${escapeHtml(operation.input_summary||"")}</div><div class="muted">${escapeHtml(operation.started_at||"")}</div></div>`;
+    }
+    function renderRuntime(data){
+      state.runtime=data;
+      const processRows=data.processes||[];
+      document.getElementById("cpu").textContent=`${Math.min(100,Math.round(processRows.reduce((sum,row)=>sum+Number(row.cpu_percent||0),0)))}%`;
+      document.getElementById("ram").textContent=`${Math.min(100,Math.round(processRows.reduce((sum,row)=>sum+Number(row.memory_percent||0),0)))}%`;
+      document.getElementById("disk").textContent=`${Math.min(100,30+Number(data.metrics?.files_modified||0)*5)}%`;
+      document.getElementById("model").textContent=`${data.provider||"n/a"}/${data.model||"n/a"}`;
+      document.getElementById("tokens").textContent=Number(data.token_usage?.summary?.session_total_tokens||0).toLocaleString();
+      document.getElementById("cost").textContent=`$${Number(data.token_usage?.summary?.session_cost_usd||0).toFixed(4)}`;
+      document.getElementById("tasks").textContent=Number(data.tasks?.length||0);
+      document.getElementById("commands").textContent=Number(data.metrics?.commands_run||0);
+      document.getElementById("activeSessionName").textContent=data.session?.name||"-";
+      renderRecentActivity(data.tool_feed||[]);
+      renderShellHistory(data.shell_history||[]);
+      renderActiveOperation(data.active_operation);
+    }
+    async function loadRuntime(){renderRuntime(await fetchJson("/api/status"));}
+    async function loadVoice(){
+      const data=await fetchJson("/api/voice/status");
+      document.getElementById("listenerStatus").textContent=data.listener_status;
+      document.getElementById("voiceProvider").textContent=data.voice_provider;
+      document.getElementById("wakeWordInput").value=data.wake_word||"IMOS";
+      document.getElementById("voiceNameInput").value=data.voice_name||"";
+      document.getElementById("voiceActiveDot").classList.toggle("bad", !data.active);
+    }
+    function populateProviderTypeOptions(){
+      const select=document.getElementById("providerType");
+      select.innerHTML="";
+      Object.entries(providerTypes).forEach(([key,value])=>{const option=document.createElement("option");option.value=key;option.textContent=value.name;select.appendChild(option);});
+    }
+    function syncProviderFields(){
+      const type=document.getElementById("providerType").value;
+      const meta=providerTypes[type];
+      document.getElementById("providerBaseField").style.display=["ollama","lmstudio","custom"].includes(type) ? "grid" : "none";
+      document.getElementById("providerKeyField").style.display=meta.requires_key ? "grid" : "none";
+      if(!state.editingProviderId){document.getElementById("providerBaseUrl").value=meta.base_url||"";document.getElementById("providerName").value=meta.name;}
+    }
+    function openProviderForm(provider){
+      state.editingProviderId=provider?.id||"";
+      document.getElementById("providerFormCard").style.display="block";
+      document.getElementById("providerFormTitle").textContent=provider ? "Edit Provider" : "Add Provider";
+      document.getElementById("providerType").value=provider?.type||"groq";
+      document.getElementById("providerName").value=provider?.name||"";
+      document.getElementById("providerKey").value="";
+      document.getElementById("providerBaseUrl").value=provider?.base_url||providerTypes[provider?.type||"groq"].base_url||"";
+      document.getElementById("providerModel").value=provider?.model||"";
+      document.getElementById("providerTestResult").textContent="";
+      syncProviderFields();
+    }
+    function closeProviderForm(){state.editingProviderId="";document.getElementById("providerFormCard").style.display="none";}
+    async function loadModels(){
+      const data=await fetchJson("/api/models");
+      const root=document.getElementById("providersList");root.innerHTML="";
+      (data.providers||[]).forEach((item)=>{const card=document.createElement("div");card.className=`card ${item.is_default ? "default-provider" : ""}`;card.innerHTML=`<div class="status-line"><h3>${escapeHtml(item.name)}${item.is_default ? " [DEFAULT]" : ""}</h3><span class="status-pill"><span class="status-dot ${item.status==="healthy" ? "" : "bad"}"></span>${escapeHtml(item.status)} ${item.latency ? `${item.latency}ms` : ""}</span></div><div class="muted">${escapeHtml(item.model||"-")}</div><div class="muted">${escapeHtml(item.id)}</div><div class="models-actions"><button class="btn" data-action="test">Test</button><button class="btn" data-action="models">List Models</button><button class="btn" data-action="edit">Edit</button><button class="btn" data-action="default">Set Default</button><button class="btn" data-action="remove">Remove</button></div><div class="field" data-models style="display:none"><select></select></div><div class="field" data-confirm style="display:none"><div class="actions-row"><span class="muted">Remove this provider?</span><button class="btn" data-action="confirm-remove">Confirm</button></div></div></div>`;card.querySelectorAll("button").forEach((button)=>button.addEventListener("click",async()=>{const action=button.dataset.action;if(action==="test"){const result=await fetchJson("/api/models/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:item.id})});alert(result.ok ? `Healthy ${result.latency}ms` : result.error);}if(action==="models"){const result=await fetchJson(`/api/models/list?id=${encodeURIComponent(item.id)}`);const box=card.querySelector("[data-models]");const select=box.querySelector("select");select.innerHTML="";(result.models||[]).forEach((model)=>{const option=document.createElement("option");option.value=model;option.textContent=model;select.appendChild(option);});box.style.display="grid";select.onchange=()=>{document.getElementById("providerModel").value=select.value;};}if(action==="edit"){openProviderForm(item);}if(action==="default"){await fetchJson(`/api/models/${encodeURIComponent(item.id)}/default`,{method:"POST"});await loadModels();await loadRuntime();}if(action==="remove"){card.querySelector("[data-confirm]").style.display="grid";}if(action==="confirm-remove"){await fetchJson(`/api/models/${encodeURIComponent(item.id)}`,{method:"DELETE"});await loadModels();await loadRuntime();}}));root.appendChild(card);});
+    }
+    async function saveProvider(){
+      const payload={id:state.editingProviderId || document.getElementById("providerName").value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g,"-"),type:document.getElementById("providerType").value,name:document.getElementById("providerName").value.trim(),api_key:document.getElementById("providerKey").value.trim(),base_url:document.getElementById("providerBaseUrl").value.trim(),model:document.getElementById("providerModel").value.trim(),enabled:true};
+      if(state.editingProviderId){await fetchJson(`/api/models/${encodeURIComponent(state.editingProviderId)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});}
+      else{await fetchJson("/api/models",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});}
+      closeProviderForm();await loadModels();await loadRuntime();
+    }
+    async function testDraftProvider(){
+      const result=await fetchJson("/api/models/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:{id:"draft-provider",type:document.getElementById("providerType").value,name:document.getElementById("providerName").value.trim(),api_key:document.getElementById("providerKey").value.trim(),base_url:document.getElementById("providerBaseUrl").value.trim(),model:document.getElementById("providerModel").value.trim(),enabled:true}})});
+      document.getElementById("providerTestResult").textContent=result.ok ? `OK ${result.latency}ms` : result.error;
+      document.getElementById("providerTestResult").style.color=result.ok ? "var(--green)" : "var(--red)";
+    }
+    async function loadApiKeys(){
+      const data=await fetchJson("/api/apikeys");
+      const root=document.getElementById("apikeyTable");root.innerHTML="";
+      (data.items||[]).forEach((item)=>{const row=document.createElement("div");row.className="row api-row";row.innerHTML=`<div>${escapeHtml(item.service)}</div><div class="mono">${escapeHtml(item.key_masked||"")}</div><div>${escapeHtml(item.status)}</div><div class="actions-row"><button class="btn" data-action="edit">Edit</button><button class="btn" data-action="test">Test</button><button class="btn" data-action="clear">Clear</button></div><div class="field" style="display:none" data-edit><input placeholder="Paste new key" /><button class="btn">Save</button></div>`;row.querySelector('[data-action="edit"]').onclick=()=>{row.querySelector("[data-edit]").style.display="grid";};row.querySelector('[data-action="test"]').onclick=async()=>{const result=await fetchJson("/api/apikeys/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({env_key:item.env_key})});alert(result.ok ? "healthy" : "missing");};row.querySelector('[data-action="clear"]').onclick=async()=>{const envKey=item.env_key.startsWith("provider:") ? item.env_key : item.env_key;await fetchJson(`/api/apikeys/${encodeURIComponent(envKey)}`,{method:"DELETE"});await loadApiKeys();};const saveBtn=row.querySelector("[data-edit] .btn");saveBtn.onclick=async()=>{const value=row.querySelector("[data-edit] input").value;await fetchJson("/api/apikeys",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({service:item.service,env_key:item.env_key,value})});await loadApiKeys();};root.appendChild(row);});
+    }
+    async function loadSkills(){
+      const data=await fetchJson("/api/skills");
+      const root=document.getElementById("skillsList");root.innerHTML="";
+      (data.items||[]).forEach((item)=>{const card=document.createElement("div");card.className="card";card.innerHTML=`<div class="status-line"><h3>${escapeHtml(item.name)}</h3><label class="status-pill"><input type="checkbox" ${item.enabled ? "checked" : ""}> Enabled</label></div><div class="muted">${escapeHtml(item.description||"")}</div>`;card.querySelector("input").onchange=async(event)=>{await fetchJson(`/api/skills/${encodeURIComponent(item.name)}/toggle`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled:event.target.checked})});};root.appendChild(card);});
+    }
+    async function loadIntegrations(){
+      const data=await fetchJson("/api/integrations");
+      const root=document.getElementById("integrationsList");root.innerHTML="";
+      const cards=[
+        {name:"whatsapp",title:"WhatsApp",body:`<div class="muted">Status: ${data.whatsapp?.status ? "yes" : "no"}</div><div class="actions-row"><button class="btn" data-test="whatsapp">Test / open WhatsApp</button></div>`},
+        {name:"email",title:"Email (SMTP)",body:`<div class="field"><label>SMTP Host</label><input data-field="smtp_host" value="${escapeHtml(data.email?.smtp_host||"")}" /></div><div class="field"><label>SMTP Port</label><input data-field="smtp_port" value="${escapeHtml(data.email?.smtp_port||"")}" /></div><div class="field"><label>Email Address</label><input data-field="email_address" value="${escapeHtml(data.email?.email_address||"")}" /></div><div class="field"><label>Password</label><input data-field="password" value="" /></div><div class="actions-row"><button class="btn" data-save="email">Save</button><button class="btn" data-test="email">Send Test Email</button></div>`},
+        {name:"telegram",title:"Telegram",body:`<div class="field"><label>Bot Token</label><input data-field="bot_token" value="" placeholder="${escapeHtml(data.telegram?.bot_token||"")}" /></div><div class="actions-row"><button class="btn" data-save="telegram">Save</button><button class="btn" data-test="telegram">Test Bot</button></div>`},
+        {name:"mcp",title:"MCP Server",body:`<div class="muted">Status: ${data.mcp?.running ? "running" : "stopped"} ${escapeHtml(data.mcp?.endpoint||"")}</div><div class="actions-row"><button class="btn" data-save="mcp-start">Start</button><button class="btn" data-save="mcp-stop">Stop</button><button class="btn" data-copy="${escapeHtml(data.mcp?.endpoint||"")}">Copy endpoint URL</button></div>`},
+        {name:"ide",title:"Cursor / IDE",body:`<div class="muted">Status: ${escapeHtml(data.ide?.status||"not found")}</div><div class="actions-row"><button class="btn quick-direct" data-prompt="/ide">Open in IDE</button></div>`},
+        {name:"browser",title:"Browser",body:`<div class="muted">Status: always ok</div><div class="actions-row"><button class="btn" id="openBrowserDashboard">Open Dashboard in Browser</button></div>`}
+      ];
+      cards.forEach((card)=>{const node=document.createElement("div");node.className="card";node.innerHTML=`<h3>${card.title}</h3>${card.body}`;root.appendChild(node);});
+      root.querySelectorAll("[data-save]").forEach((button)=>button.addEventListener("click",async()=>{const card=button.closest(".card");if(button.dataset.save==="mcp-start"||button.dataset.save==="mcp-stop"){await fetchJson("/api/integrations/mcp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoint:data.mcp?.endpoint||"",running:button.dataset.save==="mcp-start"})});}else{const payload={};card.querySelectorAll("[data-field]").forEach((input)=>payload[input.dataset.field]=input.value);await fetchJson(`/api/integrations/${button.dataset.save}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});}await loadIntegrations();}));
+      root.querySelectorAll("[data-test]").forEach((button)=>button.addEventListener("click",async()=>{const result=await fetchJson(`/api/integrations/${button.dataset.test}/test`,{method:"POST"});alert(result.status|| (result.ok ? "ok" : "failed"));}));
+      root.querySelectorAll("[data-copy]").forEach((button)=>button.addEventListener("click",()=>navigator.clipboard.writeText(button.dataset.copy||"")));
+      document.querySelectorAll(".quick-direct").forEach((button)=>button.onclick=async()=>{await streamPrompt(button.dataset.prompt||"");});
+      const openBrowser=document.getElementById("openBrowserDashboard");if(openBrowser){openBrowser.onclick=()=>window.open("/", "_blank");}
+    }
+    async function loadWorkflows(){
+      const data=await fetchJson("/api/workflows");
+      const root=document.getElementById("workflowList");root.innerHTML="";
+      (data.items||[]).forEach((item,index)=>{const id=item.id||item.name||String(index);const node=document.createElement("div");node.className="workflow-item";node.innerHTML=`<h3>${escapeHtml(item.name||id)}</h3><div class="muted">Trigger phrase: ${escapeHtml(item.trigger||"manual")}</div><div class="muted">Last run: ${escapeHtml(item.last_run||"never")}</div><div class="muted">Status: ${escapeHtml(item.status||"-")}</div><div class="actions-row"><button class="btn" data-action="run">Run Now</button><button class="btn" data-action="edit">Edit</button><button class="btn" data-action="delete">Delete</button></div><div class="field" data-output style="display:none"></div>`;node.querySelector('[data-action="run"]').onclick=async()=>{const result=await fetchJson(`/api/workflows/${encodeURIComponent(id)}/run`,{method:"POST"});const output=node.querySelector("[data-output]");output.style.display="grid";output.textContent=result.output||"";await loadRuntime();};node.querySelector('[data-action="edit"]').onclick=()=>{state.editingWorkflowId=id;document.getElementById("workflowFormCard").style.display="block";document.getElementById("workflowName").value=item.name||"";document.getElementById("workflowTrigger").value=item.trigger||"";document.getElementById("workflowPrompt").value=item.prompt||"";document.getElementById("workflowSchedule").value=item.schedule||"Manual";};node.querySelector('[data-action="delete"]').onclick=async()=>{await fetchJson(`/api/workflows/${encodeURIComponent(id)}`,{method:"DELETE"});await loadWorkflows();};root.appendChild(node);});
+    }
+    async function saveWorkflow(){
+      const payload={id:state.editingWorkflowId||document.getElementById("workflowName").value.trim(),name:document.getElementById("workflowName").value.trim(),trigger:document.getElementById("workflowTrigger").value.trim(),prompt:document.getElementById("workflowPrompt").value.trim(),schedule:document.getElementById("workflowSchedule").value,last_run:"never",status:"idle"};
+      if(state.editingWorkflowId){await fetchJson(`/api/workflows/${encodeURIComponent(state.editingWorkflowId)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});}
+      else{await fetchJson("/api/workflows",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});}
+      state.editingWorkflowId="";document.getElementById("workflowFormCard").style.display="none";await loadWorkflows();
+    }
+    async function loadSettings(){
+      const data=await fetchJson("/api/settings");
+      document.getElementById("settingWakeWord").value=data.wake_word||"IMOS";
+      document.getElementById("settingAutostart").value=String(Boolean(data.autostart?.enabled));
+      document.getElementById("settingPort").value=data.dashboard_port||8766;
+      document.getElementById("settingVoice").value=String(Boolean(data.voice_enabled));
+      document.getElementById("activeSessionName").textContent=data.active_session?.name||"-";
+    }
+    async function loadSessions(){
+      const data=await fetchJson("/api/sessions");
+      const root=document.getElementById("sessionsTable");root.innerHTML="";
+      (data.items||[]).forEach((item)=>{const row=document.createElement("div");row.className="row session-row";row.innerHTML=`<div>${escapeHtml(item.name)}</div><div>${escapeHtml(item.status)} | ${escapeHtml(String(item.message_count||0))} messages</div><div class="actions-row"><button class="btn" data-action="resume">Resume</button><button class="btn" data-action="export">Export</button><button class="btn" data-action="delete">Delete</button></div>`;row.querySelector('[data-action="resume"]').onclick=async()=>{await fetchJson(`/api/sessions/${encodeURIComponent(item.session_id)}/resume`,{method:"POST"});await loadSettings();};row.querySelector('[data-action="export"]').onclick=()=>window.open(`/api/sessions/${encodeURIComponent(item.session_id)}/export`, "_blank");row.querySelector('[data-action="delete"]').onclick=async()=>{await fetchJson(`/api/sessions/${encodeURIComponent(item.session_id)}`,{method:"DELETE"});await loadSessions();};root.appendChild(row);});
+    }
+    async function loadRouting(){
+      const data=await fetchJson("/api/routing");
+      const root=document.getElementById("routingTable");root.innerHTML="";
+      Object.entries(data.items||{}).forEach(([type,provider])=>{const row=document.createElement("div");row.className="row rule-row";row.innerHTML=`<div>${escapeHtml(type)}</div><div>${escapeHtml(provider||"-")}</div><div class="actions-row"><button class="btn">Clear</button></div>`;row.querySelector("button").onclick=async()=>{await fetch(`/api/routing/${encodeURIComponent(type)}`,{method:"DELETE"});await loadRouting();};root.appendChild(row);});
+    }
+    async function loadContacts(){
+      const data=await fetchJson("/api/contacts");
+      const root=document.getElementById("contactsTable");root.innerHTML="";
+      (data.items||[]).forEach((item)=>{const row=document.createElement("div");row.className="row contact-row";row.innerHTML=`<div>${escapeHtml(item.name)}</div><div>${escapeHtml(item.number)}</div><div class="actions-row"><button class="btn" data-action="edit">Edit</button><button class="btn" data-action="delete">Delete</button></div>`;row.querySelector('[data-action="edit"]').onclick=()=>{document.getElementById("contactName").value=item.name;document.getElementById("contactNumber").value=item.number;};row.querySelector('[data-action="delete"]').onclick=async()=>{await fetchJson(`/api/contacts/${encodeURIComponent(item.name)}`,{method:"DELETE"});await loadContacts();};root.appendChild(row);});
+    }
+    function bindQuickActions(){
+      const root=document.getElementById("quickActions");root.innerHTML="";
+      quickActions.forEach((label)=>{const button=document.createElement("button");button.className="btn";button.textContent=label;button.onclick=async()=>{const result=await streamPrompt(label);addChatBubble(label,"user");addChatBubble(result||"Done.");switchTab("chat");};root.appendChild(button);});
+    }
+    function connectEvents(){
+      const source=new EventSource("/api/events");
+      source.onmessage=(event)=>{try{const payload=JSON.parse(event.data);if(Array.isArray(payload.events)&&payload.events.length){state.events.push(...payload.events);state.events=state.events.slice(-300);state.localLog=state.events.slice(-300);renderEvents();}if(payload.tool_feed){renderRecentActivity(payload.tool_feed);}if(payload.active_operation!==undefined){renderActiveOperation(payload.active_operation);}}catch(_error){}};
+    }
+
+    document.querySelectorAll(".nav-item").forEach((item)=>{item.addEventListener("click",()=>switchTab(item.dataset.tab));item.addEventListener("mouseenter",(event)=>{if(!state.sidebarCollapsed){return;}tooltip.textContent=item.dataset.label;tooltip.style.display="block";tooltip.style.left=`${event.clientX+12}px`;tooltip.style.top=`${event.clientY+12}px`;});item.addEventListener("mousemove",(event)=>{tooltip.style.left=`${event.clientX+12}px`;tooltip.style.top=`${event.clientY+12}px`;});item.addEventListener("mouseleave",()=>{tooltip.style.display="none";});});
+    document.getElementById("sidebarToggle").onclick=()=>{state.sidebarCollapsed=!state.sidebarCollapsed;applySidebarState();};
+    document.getElementById("composerSend").onclick=()=>sendComposer().catch((error)=>alert(error.message));
+    composerInput.addEventListener("keydown",(event)=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();sendComposer().catch((error)=>alert(error.message));}});
+    document.querySelectorAll(".log-filter").forEach((button)=>button.addEventListener("click",()=>{state.eventFilter=button.dataset.filter;document.querySelectorAll(".log-filter").forEach((item)=>item.classList.toggle("active", item===button));renderEvents();}));
+    document.getElementById("providerType").addEventListener("change",syncProviderFields);
+    document.getElementById("showProviderForm").onclick=()=>openProviderForm();
+    document.getElementById("cancelProviderForm").onclick=closeProviderForm;
+    document.getElementById("saveProviderBtn").onclick=()=>saveProvider().catch((error)=>alert(error.message));
+    document.getElementById("testProviderBtn").onclick=()=>testDraftProvider().catch((error)=>alert(error.message));
+    document.getElementById("listDraftModels").onclick=async()=>{const tempId=state.editingProviderId || "draft";try{const result=await fetchJson(`/api/models/list?id=${encodeURIComponent(tempId)}`);const select=document.getElementById("providerModelOptions");select.innerHTML="";(result.models||[]).forEach((name)=>{const option=document.createElement("option");option.value=name;option.textContent=name;select.appendChild(option);});select.style.display="block";select.onchange=()=>document.getElementById("providerModel").value=select.value;}catch(error){alert(error.message);}};
+    document.getElementById("showKeyForm").onclick=()=>document.getElementById("keyFormCard").style.display="block";
+    document.getElementById("cancelKeyForm").onclick=()=>document.getElementById("keyFormCard").style.display="none";
+    document.getElementById("saveCustomKey").onclick=async()=>{await fetchJson("/api/apikeys",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({service:document.getElementById("customKeyService").value,value:document.getElementById("customKeyValue").value})});document.getElementById("keyFormCard").style.display="none";await loadApiKeys();};
+    document.getElementById("refreshSkills").onclick=async()=>{await fetchJson("/api/skills/refresh",{method:"POST"});await loadSkills();};
+    document.getElementById("showWorkflowForm").onclick=()=>{state.editingWorkflowId="";document.getElementById("workflowFormCard").style.display="block";};
+    document.getElementById("cancelWorkflowForm").onclick=()=>{state.editingWorkflowId="";document.getElementById("workflowFormCard").style.display="none";};
+    document.getElementById("saveWorkflow").onclick=()=>saveWorkflow().catch((error)=>alert(error.message));
+    document.getElementById("saveWakeWord").onclick=async()=>{await fetchJson("/api/voice/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({wake_word:document.getElementById("wakeWordInput").value})});await loadVoice();};
+    document.getElementById("saveVoiceName").onclick=async()=>{await fetchJson("/api/voice/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({voice_name:document.getElementById("voiceNameInput").value})});await loadVoice();};
+    document.getElementById("startListening").onclick=async()=>{await fetchJson("/api/voice/start",{method:"POST"});await loadVoice();};
+    document.getElementById("stopListening").onclick=async()=>{await fetchJson("/api/voice/stop",{method:"POST"});await loadVoice();};
+    document.getElementById("testVoice").onclick=async()=>{await fetchJson("/api/voice/test",{method:"POST"});};
+    document.getElementById("saveSettings").onclick=async()=>{await fetchJson("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({wake_word:document.getElementById("settingWakeWord").value,dashboard_port:Number(document.getElementById("settingPort").value),voice_enabled:document.getElementById("settingVoice").value==="true",autostart:{enabled:document.getElementById("settingAutostart").value==="true"}})});await loadSettings();};
+    document.getElementById("newSessionBtn").onclick=async()=>{const name=prompt("Session name");if(!name){return;}await fetchJson("/api/sessions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})});await loadSessions();};
+    document.getElementById("loadSessionsBtn").onclick=()=>loadSessions().catch((error)=>alert(error.message));
+    document.getElementById("exportCurrentSession").onclick=()=>{if(state.runtime?.session?.session_id){window.open(`/api/sessions/${encodeURIComponent(state.runtime.session.session_id)}/export`,"_blank");}};
+    document.getElementById("saveRoutingRule").onclick=async()=>{await fetchJson("/api/routing",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task_type:document.getElementById("routingType").value,provider:document.getElementById("routingProvider").value})});await loadRouting();};
+    document.getElementById("saveContact").onclick=async()=>{const name=document.getElementById("contactName").value;const number=document.getElementById("contactNumber").value;if(!name||!number){return;}await fetchJson("/api/contacts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,number})});await loadContacts();};
+    document.getElementById("rerunSetup").onclick=async()=>{await streamPrompt("/setup");};
+    document.getElementById("resetSettings").onclick=async()=>{await fetchJson("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({wake_word:"IMOS",dashboard_port:8766,voice_enabled:true,autostart:{enabled:false}})});await loadSettings();};
+    document.getElementById("revokePcAccess").onclick=async()=>{await streamPrompt("/consent decline");};
+    document.getElementById("clearLog").onclick=()=>{state.localLog=[];renderEvents();};
+    document.getElementById("exportLog").onclick=()=>{const blob=new Blob([state.localLog.map((row)=>`${row.ts} ${row.event_type} ${JSON.stringify(row.payload||{})}`).join("\n")],{type:"text/plain"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="imos-activity-log.txt";link.click();URL.revokeObjectURL(url);};
+
+    populateProviderTypeOptions();
+    bindQuickActions();
+    setClock();
+    setInterval(setClock,1000);
+    applySidebarState();
+    switchTab("chat");
+    loadRuntime().catch((error)=>addChatBubble(`Dashboard error: ${error.message}`));
+    loadVoice().catch(()=>{});
+    loadModels().catch(()=>{});
+    loadApiKeys().catch(()=>{});
+    loadSkills().catch(()=>{});
+    loadIntegrations().catch(()=>{});
+    loadWorkflows().catch(()=>{});
+    loadSettings().catch(()=>{});
+    loadRouting().catch(()=>{});
+    loadContacts().catch(()=>{});
+    connectEvents();
+    setInterval(()=>loadRuntime().catch(()=>{}),3000);
   </script>
 </body>
 </html>

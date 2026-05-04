@@ -22,6 +22,10 @@ source venv/bin/activate
 # Install dependencies
 echo "[*] Installing dependencies..."
 pip install -r requirements.txt
+pip install faster-whisper sounddevice numpy scipy
+pip install pystray pillow
+pip install elevenlabs
+pip install pyttsx3
 
 echo "[*] Installing Playwright Chromium..."
 playwright install chromium
@@ -39,6 +43,9 @@ fi
 
 echo "[*] Installing global CONNECT command..."
 bash ./install_connect_command.sh
+
+echo "[*] Installing IMOS background service..."
+python3 setup/install_service.py
 
 echo ""
 echo "========================================"

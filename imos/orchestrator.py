@@ -100,6 +100,18 @@ class IMOSOrchestrator:
 
     def _is_high_risk(self, prompt: str) -> bool:
         lowered = prompt.lower()
+        cleanup_delete = any(token in lowered for token in [
+            "remove unwanted files",
+            "delete unwanted files",
+            "clean unwanted files",
+            "clean my pc",
+            "remove junk files",
+            "delete junk files",
+            "remove temporary files",
+            "delete temporary files",
+        ])
+        if cleanup_delete:
+            return False
         return any(token in lowered for token in ["delete", "shutdown", "restart", "charge", "pay", "kill process", "registry"])
 
     async def _fan_out_notifications(self, message: str) -> None:

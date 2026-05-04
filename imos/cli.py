@@ -6,13 +6,17 @@ import subprocess
 import sys
 import time
 import webbrowser
+import shutil
+from pathlib import Path
 
 import click
 import httpx
 from imos.config import list_configured_adapters, remove_adapter_config, save_adapter_config
 from imos.mcp_server import install_mcp_configs
+from imos.models import IMOSTask
 from imos.orchestrator import IMOSOrchestrator
 from imos.registry import AdapterRegistry
+from imos.router import TaskRouter
 from imos.session_runtime import IMOSSessionRuntime
 from imos.ui import get_ui_config, save_ui_config
 from imos.wake_service import _install_autostart_file, start_background as start_wake_service, status as wake_status, stop_background as stop_wake_service, uninstall_autostart
@@ -32,7 +36,12 @@ def _launch_legacy_shell() -> None:
     original_argv = sys.argv[:]
     try:
         sys.argv = ["imos"]
-        ai_assistant.main()
+        try:
+            ai_assistant.main()
+        except Exception as exc:
+            if exc.__class__.__name__ != "NoConsoleScreenBufferError":
+                raise
+            _interactive_shell("default")
     finally:
         sys.argv = original_argv
 
@@ -56,13 +65,16 @@ def _interactive_shell(session_name: str, beast_mode: bool = False) -> None:
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     if ctx.invoked_subcommand is None:
-        _interactive_shell("default")
+        _launch_legacy_shell()
 
 
 @cli.command()
 @click.option("--session", "session_name", default="default", help="Session name")
 @click.option("--beast", "beast_mode", is_flag=True, help="Fan the prompt out to all configured model and IDE adapters")
 def shell(session_name: str, beast_mode: bool) -> None:
+    if session_name == "default" and not beast_mode:
+        _launch_legacy_shell()
+        return
     _interactive_shell(session_name, beast_mode=beast_mode)
 
 
@@ -221,6 +233,140 @@ def status() -> None:
         )
 
     asyncio.run(_status())
+
+
+@cli.command("self-test")
+def self_test() -> None:
+    async def _self_test():
+        orchestrator = await _build_orchestrator()
+        runtime = IMOSSessionRuntime(orchestrator)
+        router = TaskRouter(orchestrator.registry, orchestrator.settings, synthesis_adapter=orchestrator.synthesis_adapter)
+        report: dict[str, object] = {"checks": []}
+
+        def add_check(name: str, ok: bool, details: object) -> None:
+            report["checks"].append({"name": name, "ok": ok, "details": details})
+
+        adapters = orchestrator.registry.get_all()
+        add_check(
+            "adapter_registry",
+            True,
+            [{"name": item.name, "type": item.adapter_type, "status": item.status} for item in adapters],
+        )
+
+        scan_task = router._heuristic_decompose("scan my pc for unwanted files")[0].subtasks[0]
+        add_check(
+            "router_scan_unwanted_files",
+            scan_task.subtask_type == "search_files" and scan_task.metadata.get("action") == "scan_unwanted_files",
+            {"subtask_type": scan_task.subtask_type, "action": scan_task.metadata.get("action")},
+        )
+
+        cleanup_task = router._heuristic_decompose("remove all unwanted files from my pc")[0].subtasks[0]
+        add_check(
+            "router_delete_unwanted_files",
+            cleanup_task.subtask_type == "cleanup_files" and cleanup_task.metadata.get("action") == "delete_unwanted_files",
+            {"subtask_type": cleanup_task.subtask_type, "action": cleanup_task.metadata.get("action"), "params": cleanup_task.metadata.get("params", {})},
+        )
+
+        os_adapter = orchestrator.registry.get("local_os")
+        if os_adapter is not None:
+            system_info = await os_adapter.send(
+                IMOSTask(
+                    task_id="selftest-system-info",
+                    prompt="show system info",
+                    subtask_type="system_info",
+                    target_adapter=os_adapter.name,
+                    metadata={"action": "system_info"},
+                )
+            )
+            add_check("local_os_system_info", system_info.success, system_info.output if system_info.success else system_info.error)
+
+            scan_result = await os_adapter.send(
+                IMOSTask(
+                    task_id="selftest-scan",
+                    prompt="scan my pc for unwanted files",
+                    subtask_type="search_files",
+                    target_adapter=os_adapter.name,
+                    metadata={"action": "scan_unwanted_files", "params": {}},
+                )
+            )
+            add_check(
+                "local_os_scan_unwanted_files",
+                scan_result.success and isinstance(scan_result.output, dict) and "matches" in scan_result.output,
+                scan_result.output if scan_result.success else scan_result.error,
+            )
+
+            cleanup_root = Path.cwd() / ".imos_selftest_cleanup"
+            if cleanup_root.exists():
+                shutil.rmtree(cleanup_root, ignore_errors=True)
+            cleanup_root.mkdir(parents=True, exist_ok=True)
+            junk = cleanup_root / "junk.tmp"
+            keep = cleanup_root / "keep.txt"
+            junk.write_text("junk", encoding="utf-8")
+            keep.write_text("keep", encoding="utf-8")
+            try:
+                cleanup_result = await os_adapter.send(
+                    IMOSTask(
+                        task_id="selftest-cleanup",
+                        prompt="remove all unwanted files from my pc",
+                        subtask_type="cleanup_files",
+                        target_adapter=os_adapter.name,
+                        metadata={"action": "delete_unwanted_files", "params": {"root": str(cleanup_root), "confirm": True}},
+                    )
+                )
+                ok = (
+                    cleanup_result.success
+                    and isinstance(cleanup_result.output, dict)
+                    and cleanup_result.output.get("deleted_count") == 1
+                    and keep.exists()
+                    and not junk.exists()
+                )
+                add_check("local_os_delete_unwanted_files", ok, cleanup_result.output if cleanup_result.success else cleanup_result.error)
+            finally:
+                shutil.rmtree(cleanup_root, ignore_errors=True)
+
+        ide_adapter = orchestrator.registry.get("local_ide")
+        if ide_adapter is not None:
+            ide_root = Path.cwd() / ".imos_selftest_ide"
+            if ide_root.exists():
+                shutil.rmtree(ide_root, ignore_errors=True)
+            ide_root.mkdir(parents=True, exist_ok=True)
+            original_workspace = getattr(ide_adapter, "workspace", None)
+            try:
+                ide_adapter.workspace = ide_root
+                delegated = await ide_adapter.send(
+                    IMOSTask(
+                        task_id="selftest-ide-delegate",
+                        prompt="write a sample file",
+                        subtask_type="code_generation",
+                        target_adapter=ide_adapter.name,
+                        metadata={"action": "delegate_prompt", "params": {"prompt": "write a sample file"}},
+                    )
+                )
+                delegated_path = None
+                if delegated.success and isinstance(delegated.output, dict):
+                    delegated_path = delegated.output.get("inbox_path")
+                add_check("local_ide_delegate_prompt", delegated.success and bool(delegated_path) and Path(str(delegated_path)).exists(), delegated.output if delegated.success else delegated.error)
+            finally:
+                if original_workspace is not None:
+                    ide_adapter.workspace = original_workspace
+                shutil.rmtree(ide_root, ignore_errors=True)
+
+        model_adapter = orchestrator.registry.get("default_model")
+        if model_adapter is not None:
+            healthy = await model_adapter.health_check()
+            add_check("default_model_health", healthy and model_adapter.status == "connected", {"status": model_adapter.status})
+
+        browser_adapter = orchestrator.registry.get("local_browser")
+        if browser_adapter is not None:
+            healthy = await browser_adapter.health_check()
+            add_check("local_browser_health", healthy and browser_adapter.status == "connected", {"status": browser_adapter.status})
+
+        session_id = runtime.ensure_session("self-test")
+        add_check("session_runtime", bool(session_id), {"session_id": session_id})
+
+        click.echo(json.dumps(report, indent=2))
+
+    asyncio.run(_self_test())
 
 
 @cli.group(invoke_without_command=True)

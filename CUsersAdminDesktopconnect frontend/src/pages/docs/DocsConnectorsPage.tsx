@@ -3,8 +3,8 @@ import { DocsShell } from '../../components/DocsShell'
 export function DocsConnectorsPage() {
   return (
     <DocsShell
-      title="Connectors only matter if they remain visible and accountable."
-      description="IMOS keeps messaging, workflow, social, deployment, and trigger surfaces tied to one runtime so their behavior stays debuggable and operator-visible."
+      title="Integrations and Connectors"
+      description="Messaging, workflow, deployment, and trigger surfaces stay tied to one runtime so their behavior remains visible, debuggable, and operator-controlled."
     >
       <div className="space-y-6 text-sm leading-8 text-neutral-400">
         <p>
@@ -15,7 +15,7 @@ export function DocsConnectorsPage() {
         </p>
         <p>
           Workflows and scheduled jobs can also inject prompts into sessions without direct human intervention.
-          Connectors are useful only if they map cleanly into sessions and visible runtime state.
+          Integrations are useful only if they map cleanly into sessions, routing, and visible runtime state.
         </p>
       </div>
     </DocsShell>

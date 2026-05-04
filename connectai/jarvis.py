@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from config.config import get_model_config, load_config
+from config.config import get_model_config, load_config, resolve_runtime_state_root
 from connectai.command_router import CommandRouter
 from connectai.gateway import ConnectAIGateway
 from connectai.memory import ConnectMemoryStore
@@ -22,8 +22,7 @@ def build_jarvis_runtime(workspace: Path | None = None) -> ConnectAIGateway:
     workspace_path = (workspace or _workspace_root()).resolve()
     workspace_path.mkdir(parents=True, exist_ok=True)
 
-    state_root = Path.home() / ".connectai"
-    state_root.mkdir(parents=True, exist_ok=True)
+    state_root = resolve_runtime_state_root(workspace_path)
 
     audit_logger = AuditLogger(state_root / "audit")
     approval_policy = ApprovalPolicy(load_config, audit_logger)

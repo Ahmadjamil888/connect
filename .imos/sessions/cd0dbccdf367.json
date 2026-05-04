@@ -1,0 +1,22 @@
+{
+  "id": "cd0dbccdf367",
+  "name": "anthropic_worker",
+  "created_at": "2026-05-03T15:15:35.200127",
+  "updated_at": "2026-05-03T15:15:35.253098",
+  "status": "error",
+  "profile": "delegate",
+  "parent_id": "2593ae8b7ea6",
+  "target": "",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hello",
+      "ts": "2026-05-03T15:15:35.212668"
+    },
+    {
+      "role": "assistant",
+      "content": "\"Could not resolve authentication method. Expected either api_key or auth_token to be set. Or for one of the `X-Api-Key` or `Authorization` headers to be explicitly omitted\"",
+      "ts": "2026-05-03T15:15:35.238857"
+    }
+  ]
+}

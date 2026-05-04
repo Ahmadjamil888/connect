@@ -1,9 +1,11 @@
 import json
 import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
 import yaml
+from core import model_manager
 
 CONFIG_DIR = Path.home() / ".connectai"
 CONFIG_PATH = CONFIG_DIR / "config.yaml"
@@ -166,7 +168,49 @@ def save_config(cfg: dict[str, Any]):
         )
 
 
+def _writable_root(path: Path) -> Path | None:
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        probe = path / ".write_probe"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        return path
+    except Exception:
+        return None
+
+
+def resolve_runtime_state_root(workspace: str | Path | None = None) -> Path:
+    cfg = load_config()
+    existing = str(cfg.get("runtime_state_root", "")).strip()
+    if existing:
+        resolved = _writable_root(Path(existing))
+        if resolved is not None:
+            return resolved
+
+    workspace_root = Path(workspace) if workspace else Path(cfg.get("workspace", str(Path.home() / "imos_workspace")))
+    candidates = [
+        workspace_root / ".connectai",
+        Path(os.getenv("APPDATA", str(Path.home() / "AppData" / "Roaming"))) / "connectai",
+        Path(tempfile.gettempdir()) / "connectai",
+    ]
+    for candidate in candidates:
+        resolved = _writable_root(candidate)
+        if resolved is not None:
+            cfg["runtime_state_root"] = str(resolved)
+            save_config(cfg)
+            return resolved
+
+    fallback = Path.cwd() / ".connectai"
+    fallback.mkdir(parents=True, exist_ok=True)
+    cfg["runtime_state_root"] = str(fallback)
+    save_config(cfg)
+    return fallback
+
+
 def _env_default_model() -> dict[str, Any]:
+    migrated_default = model_manager.get_default()
+    if migrated_default is not None:
+        return dict(migrated_default)
     provider = os.getenv("AI_PROVIDER", "anthropic").strip().lower() or "anthropic"
     defaults = dict(PROVIDER_DEFAULTS.get(provider, PROVIDER_DEFAULTS["anthropic"]))
     defaults["provider"] = provider
@@ -185,6 +229,9 @@ def _env_default_model() -> dict[str, Any]:
 
 
 def get_model_config() -> dict[str, Any]:
+    migrated_default = model_manager.get_default()
+    if migrated_default is not None:
+        return dict(migrated_default)
     cfg = load_config()
     model = cfg.get("model", {})
     if model and model.get("provider"):
@@ -223,10 +270,16 @@ def get_tokens() -> dict[str, Any]:
 
 
 def list_providers():
+    configured = [item["id"] for item in model_manager.load_providers()]
+    if configured:
+        return configured
     return list(PROVIDER_DEFAULTS.keys())
 
 
 def get_provider_defaults(provider: str) -> dict[str, Any]:
+    provider_row = next((item for item in model_manager.load_providers() if item["id"] == provider or item["type"] == provider), None)
+    if provider_row is not None:
+        return dict(provider_row)
     return dict(PROVIDER_DEFAULTS.get(provider, {}))
 
 
@@ -236,8 +289,14 @@ def _require_api_key(provider: str, api_key: str):
 
 
 def get_client(model_config: dict[str, Any]):
-    provider = model_config.get("provider", "anthropic")
+    effective = dict(model_manager.get_default() or {})
+    effective.update(model_config or {})
+    provider = effective.get("type") or effective.get("provider", "anthropic")
+    effective["provider"] = provider
     api_key = str(model_config.get("api_key", "")).strip()
+    if not api_key:
+        api_key = str(effective.get("api_key", "")).strip()
+    model_config = effective
 
     if provider == "anthropic":
         import anthropic
@@ -258,7 +317,10 @@ def get_client(model_config: dict[str, Any]):
         import openai
 
         _require_api_key("OpenAI", api_key)
-        return openai.OpenAI(api_key=api_key)
+        kwargs = {"api_key": api_key}
+        if model_config.get("base_url"):
+            kwargs["base_url"] = model_config.get("base_url")
+        return openai.OpenAI(**kwargs)
 
     if provider == "openrouter":
         import openai
@@ -291,7 +353,45 @@ def get_client(model_config: dict[str, Any]):
         import openai
 
         base = model_config.get("base_url", PROVIDER_DEFAULTS["ollama"]["base_url"])
-        return openai.OpenAI(api_key="ollama", base_url=f"{base}/v1")
+        base_url = str(base).rstrip("/")
+        if not base_url.endswith("/v1"):
+            base_url = f"{base_url}/v1"
+        return openai.OpenAI(api_key="ollama", base_url=base_url)
+
+    if provider == "lmstudio":
+        import openai
+
+        base = model_config.get("base_url", "http://localhost:1234/v1")
+        base_url = str(base).rstrip("/")
+        if not base_url.endswith("/v1"):
+            base_url = f"{base_url}/v1"
+        return openai.OpenAI(api_key="lmstudio", base_url=base_url)
+
+    if provider == "together":
+        import openai
+
+        _require_api_key("Together", api_key)
+        return openai.OpenAI(api_key=api_key, base_url=model_config.get("base_url", "https://api.together.xyz/v1"))
+
+    if provider == "mistral":
+        import openai
+
+        _require_api_key("Mistral", api_key)
+        return openai.OpenAI(api_key=api_key, base_url=model_config.get("base_url", "https://api.mistral.ai/v1"))
+
+    if provider == "cohere":
+        import openai
+
+        _require_api_key("Cohere", api_key)
+        return openai.OpenAI(api_key=api_key, base_url=model_config.get("base_url", "https://api.cohere.com/v1"))
+
+    if provider == "custom":
+        import openai
+
+        custom_base = str(model_config.get("base_url", "")).strip()
+        if not custom_base:
+            raise ValueError("Custom provider base_url is empty.")
+        return openai.OpenAI(api_key=api_key or "custom", base_url=custom_base)
 
     if provider == "azure":
         import openai
@@ -336,13 +436,15 @@ def get_client(model_config: dict[str, Any]):
 def is_configured() -> bool:
     try:
         cfg = get_model_config()
-        provider = cfg.get("provider", "")
+        provider = cfg.get("provider") or cfg.get("type", "")
         if not provider:
             return False
-        if provider in {"anthropic", "groq", "openai", "openrouter", "gemini", "huggingface", "nvidia"}:
+        if provider in {"anthropic", "groq", "openai", "openrouter", "gemini", "huggingface", "nvidia", "together", "mistral", "cohere"}:
             return bool(str(cfg.get("api_key", "")).strip())
-        if provider == "ollama":
+        if provider in {"ollama", "lmstudio"}:
             return True
+        if provider == "custom":
+            return bool(str(cfg.get("base_url", "")).strip())
         if provider == "azure":
             return bool(str(cfg.get("api_key", "")).strip() and str(cfg.get("base_url", "")).strip())
         if provider == "bedrock":

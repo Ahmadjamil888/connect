@@ -4,6 +4,8 @@ import asyncio
 from pathlib import Path
 from typing import Dict
 
+from config.config import get_model_config, get_provider_defaults
+
 from connectai.channels import MessageEnvelope
 from connectai.command_router import CommandResult
 
@@ -37,10 +39,49 @@ class ConnectAIGateway:
         result = self.handle_with_meta(envelope, workspace, model_config)
         return CommandResult(handled=True, output=str(result.get("output", "")))
 
+    def _prefer_verified_runtime(self, text: str) -> bool:
+        lowered = (text or "").strip().lower()
+        build_terms = ("build", "create", "make", "scaffold")
+        website_terms = (
+            "website",
+            "web app",
+            "webapp",
+            "landing page",
+            "homepage",
+            "portfolio site",
+            "professional website",
+            "professional site",
+        )
+        return any(term in lowered for term in build_terms) and any(term in lowered for term in website_terms)
+
+    def _routed_model_config(self, prompt: str, model_config: dict) -> tuple[dict, str]:
+        base_config = get_model_config()
+        routing_rules = getattr(self.command_router, "routing_rules", None)
+        if routing_rules is None:
+            return dict(base_config), "default"
+        fallback_provider = str(base_config.get("type") or base_config.get("provider", "anthropic"))
+        task_type, provider = routing_rules.resolve_provider(prompt, fallback_provider)
+        resolved = dict(base_config)
+        current_provider = str(resolved.get("type") or resolved.get("provider", "")).strip().lower()
+        if provider and provider != current_provider:
+            defaults = get_provider_defaults(provider)
+            merged = dict(defaults)
+            merged["provider"] = provider
+            merged["type"] = defaults.get("type", provider)
+            resolved = merged
+        return resolved, task_type
+
     def handle_with_meta(self, envelope: MessageEnvelope, workspace: str, model_config: dict, on_text_delta=None) -> Dict[str, object]:
         command_result = self.command_router.route(envelope.text)
         if command_result.handled:
-            return {"output": command_result.output, "should_exit": command_result.should_exit, "handled_command": True, "usage": {}}
+            return {
+                "output": command_result.output,
+                "should_exit": command_result.should_exit,
+                "handled_command": True,
+                "usage": {},
+                "updated_model_config": command_result.updated_model_config,
+                "updated_workspace": command_result.updated_workspace,
+            }
 
         lowered = envelope.text.strip().lower()
         if lowered in {
@@ -66,7 +107,48 @@ class ConnectAIGateway:
             channel=envelope.channel,
             user_id=envelope.user_id,
         )
+        active_model_config, task_type = self._routed_model_config(envelope.text, model_config)
+        if hasattr(self.session_manager, "set_active") and hasattr(session, "name"):
+            self.session_manager.set_active(session.name)
+        if hasattr(self.session_manager, "set_provider_and_routing"):
+            self.session_manager.set_provider_and_routing(session.session_id, str(active_model_config.get("provider", "")), getattr(self.command_router, "routing_rules", None).list_rules() if getattr(self.command_router, "routing_rules", None) is not None else {})
         self.session_manager.append_message(session, "user", envelope.text, envelope.metadata)
+        if self._prefer_verified_runtime(envelope.text):
+            response = self.runtime.run(
+                user_text=envelope.text,
+                session_history=self.session_manager.history(session, limit=20),
+                session_id=session.session_id,
+                workspace=workspace,
+                model_config=active_model_config,
+                on_text_delta=on_text_delta,
+                return_meta=True,
+            )
+            response_text = self._dedupe_response(str(response.get("text", "")))
+            self.session_manager.append_message(session, "assistant", response_text)
+            self.memory_store.remember(
+                content=envelope.text,
+                kind="user",
+                session_id=session.session_id,
+                metadata={"channel": envelope.channel, "user_id": envelope.user_id},
+            )
+            if response_text:
+                self.memory_store.remember(
+                        content=response_text[:500],
+                        kind="assistant",
+                        session_id=session.session_id,
+                        metadata={"channel": envelope.channel},
+                    )
+            usage = response.get("usage", {}) or {}
+            if hasattr(self.session_manager, "add_token_usage"):
+                self.session_manager.add_token_usage(
+                    session.session_id,
+                    str(active_model_config.get("provider", "")),
+                    int(usage.get("input_tokens", 0) or 0),
+                    int(usage.get("output_tokens", 0) or 0),
+                )
+            if hasattr(self.session_manager, "record_memory_snapshot") and hasattr(self.memory_store, "recent_entries"):
+                self.session_manager.record_memory_snapshot(session.session_id, self.memory_store.recent_entries(20), self.memory_store.recent_entries(100))
+            return {"output": response_text, "session_id": session.session_id, "usage": response.get("usage", {})}
         if self.imos_orchestrator is not None:
             try:
                 result = asyncio.run(
@@ -77,8 +159,9 @@ class ConnectAIGateway:
                             "session_key": envelope.session_key,
                             "channel": envelope.channel,
                             "user_id": envelope.user_id,
-                            "preferred_provider": model_config.get("provider"),
-                            "preferred_model": model_config.get("model"),
+                            "preferred_provider": active_model_config.get("provider"),
+                            "preferred_model": active_model_config.get("model"),
+                            "task_type": task_type,
                         },
                     )
                 )
@@ -101,6 +184,8 @@ class ConnectAIGateway:
                             "duration_ms": result.duration_ms,
                         },
                     )
+                if hasattr(self.session_manager, "record_memory_snapshot") and hasattr(self.memory_store, "recent_entries"):
+                    self.session_manager.record_memory_snapshot(session.session_id, self.memory_store.recent_entries(20), self.memory_store.recent_entries(100))
                 return {
                     "output": response_text,
                     "session_id": session.session_id,
@@ -114,7 +199,7 @@ class ConnectAIGateway:
             session_history=self.session_manager.history(session, limit=20),
             session_id=session.session_id,
             workspace=workspace,
-            model_config=model_config,
+            model_config=active_model_config,
             on_text_delta=on_text_delta,
             return_meta=True,
         )
@@ -133,4 +218,14 @@ class ConnectAIGateway:
                 session_id=session.session_id,
                 metadata={"channel": envelope.channel},
             )
+        usage = response.get("usage", {}) or {}
+        if hasattr(self.session_manager, "add_token_usage"):
+            self.session_manager.add_token_usage(
+                session.session_id,
+                str(active_model_config.get("provider", "")),
+                int(usage.get("input_tokens", 0) or 0),
+                int(usage.get("output_tokens", 0) or 0),
+            )
+        if hasattr(self.session_manager, "record_memory_snapshot") and hasattr(self.memory_store, "recent_entries"):
+            self.session_manager.record_memory_snapshot(session.session_id, self.memory_store.recent_entries(20), self.memory_store.recent_entries(100))
         return {"output": response_text, "session_id": session.session_id, "usage": response.get("usage", {})}

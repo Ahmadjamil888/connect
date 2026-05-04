@@ -5,9 +5,10 @@ import shlex
 import subprocess
 import time
 import webbrowser
+import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 from urllib.parse import unquote
 from urllib.request import urlopen
 
@@ -19,6 +20,7 @@ from InquirerPy import get_style, inquirer
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
 from prompt_toolkit import PromptSession
+from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
@@ -42,16 +44,71 @@ from connectai.runtime import ConnectAIRuntime
 from connectai.sessions import ConnectSessionManager
 from connectai.skills import SkillRegistry
 from connectai.workflows import WorkflowRegistry
+from core.events import EventBus
+from core.confirm import ConfirmationPolicy
+from core.contacts import ContactBook
+from core.listener import VoiceListenerService
+from core.voice import VoiceManager
+from core.router import RoutingRules
+from core import model_manager
+from dashboard.server import DashboardContext, DashboardService
+from setup.autostart import autostart_status, disable_autostart, enable_autostart
+from setup.consent import ConsentManager
+from setup.wizard import ensure_first_run_setup, force_run_setup_wizard
 from agents.orchestrator import run_orchestrator
 from config.config import (
     get_model_config, load_config, save_config, save_model_config,
     list_providers, get_provider_defaults, is_configured, CONFIG_PATH,
     PROVIDER_DEFAULTS,
+    resolve_runtime_state_root,
+)
+
+try:
+    from colorama import init as colorama_init
+except Exception:
+    def colorama_init(*_args, **_kwargs):
+        return None
+from tools.agent_bridges import (
+    chat_with_claude_code,
+    chat_with_gemini,
+    chat_with_openai,
+    cursor_mcp_http_snippet,
+    open_claude_code_interactive,
+    open_cursor_workspace,
+    open_ide_with_fallback,
+    open_prompt_url,
+    open_workspace_in_app,
+    run_cli_agent,
+    send_email_smtp,
+    start_imos_mcp_server_http,
+    start_imos_mcp_server_http_on,
 )
 
 console = Console(highlight=False)
+colorama_init(autoreset=True)
+
+ORANGE = "\033[38;5;208m"
+WHITE = "\033[97m"
+DIM = "\033[90m"
+BOLD = "\033[1m"
+RESET = "\033[0m"
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+RICH_TAG_RE = re.compile(r"\[/?[^\]]+\]")
+
+IMOS_LOGO = [
+    "██╗███╗   ███╗ ██████╗ ███████╗",
+    "██║████╗ ████║██╔═══██╗██╔════╝",
+    "██║██╔████╔██║██║   ██║███████╗",
+    "██║██║╚██╔╝██║██║   ██║╚════██║",
+    "██║██║ ╚═╝ ██║╚██████╔╝███████║",
+    "╚═╝╚═╝     ╚═╝ ╚═════╝ ╚══════╝",
+]
 
 HISTORY_PATH = Path.home() / ".imos" / "history"
+_DASHBOARD_SERVICE: DashboardService | None = None
+_LISTENER_SERVICE: VoiceListenerService | None = None
+_VOICE_MANAGER: VoiceManager | None = None
 
 PROVIDER_MODELS = {
     "anthropic": [
@@ -165,17 +222,19 @@ WELCOME_ART = [
 ]
 
 HELP = """
-  [bold bright_white]IMOS Shell[/bold bright_white]
+  [bold bright_white]IMOS Shell Commands[/bold bright_white]
 
   [#ff6b00]/setup[/#ff6b00]                    re-run the setup wizard
   [#ff6b00]/status[/#ff6b00]                   show IMOS runtime status
   [#ff6b00]/history[/#ff6b00]                  show recent IMOS run history
   [#ff6b00]/adapters[/#ff6b00]                 show connected adapter registry
   [#ff6b00]/sessions[/#ff6b00]                 list local runtime sessions
+  [#ff6b00]/session[/#ff6b00] [dim]new|list|resume|save|export[/dim]
   [#ff6b00]/tasks[/#ff6b00]                    list long-running task records
   [#ff6b00]/workflows[/#ff6b00]                list YAML workflows
   [#ff6b00]/runflow[/#ff6b00] [dim]<name>[/dim]              run a workflow by name
   [#ff6b00]/dashboard[/#ff6b00]                launch local dashboard
+  [#ff6b00]/dashboard stop[/#ff6b00]           stop local dashboard
   [#ff6b00]/wake[/#ff6b00] [dim]status|start|stop|install|uninstall[/dim]
   [#ff6b00]/palette[/#ff6b00] [dim]list|set shell <name>|set dashboard <name>[/dim]
   [#ff6b00]/model[/#ff6b00]                    show current model config
@@ -187,6 +246,31 @@ HELP = """
   [#ff6b00]/setkey[/#ff6b00] [dim]<provider> <key>[/dim]    set API key directly
   [#ff6b00]/settoken[/#ff6b00] [dim]<svc> <tok>[/dim]       set deploy token
   [#ff6b00]/mcp[/#ff6b00]                      list MCP servers and discovered tools
+  [#ff6b00]/mcp[/#ff6b00] [dim]install[/dim]              install Cursor/Windsurf MCP config files
+  [#ff6b00]/mcp[/#ff6b00] [dim]serve[/dim]                start IMOS MCP server on http://127.0.0.1:8767/mcp
+  [#ff6b00]/claude-code[/#ff6b00] [dim]<prompt>[/dim]     send one task to Claude Code CLI
+  [#ff6b00]/claude-code[/#ff6b00]            open Claude Code interactive shell
+  [#ff6b00]/openai[/#ff6b00] [dim]<prompt>[/dim]          send one prompt directly to OpenAI
+  [#ff6b00]/codex[/#ff6b00] [dim]<prompt>[/dim]           alias for /openai
+  [#ff6b00]/cursor[/#ff6b00]                   open workspace in Cursor, start MCP on :8765, print config snippet
+  [#ff6b00]/ide[/#ff6b00] [dim]<prompt>[/dim]             open the best available IDE, else open vibe coding tools in browser
+  [#ff6b00]/vscode[/#ff6b00]                   open workspace in VS Code and print MCP setup note
+  [#ff6b00]/windsurf[/#ff6b00] [dim]<prompt>[/dim]        send one task to Windsurf CLI, or open workspace with no prompt
+  [#ff6b00]/aider[/#ff6b00] [dim]<prompt>[/dim]           send one task to aider CLI
+  [#ff6b00]/continue[/#ff6b00] [dim]<prompt>[/dim]        send one task to Continue CLI
+  [#ff6b00]/gemini[/#ff6b00] [dim]<prompt>[/dim]          send one prompt directly to Gemini
+  [#ff6b00]/email[/#ff6b00] [dim]<to>|<subject>|<body>[/dim] send email through SMTP env vars
+  [#ff6b00]/whatsapp[/#ff6b00] [dim]<contact>|<message>[/dim] best-effort desktop/web handoff
+  [#ff6b00]/telegram[/#ff6b00] [dim]<contact>|<message>[/dim] best-effort desktop/web handoff
+  [#ff6b00]/v0[/#ff6b00] [dim]<prompt>[/dim]              open v0.dev with the prompt
+  [#ff6b00]/lovable[/#ff6b00] [dim]<prompt>[/dim]         open lovable.dev with the prompt
+  [#ff6b00]/bolt[/#ff6b00] [dim]<prompt>[/dim]            open bolt.new with the prompt
+  [#ff6b00]/doctor[/#ff6b00]                   run IMOS doctor report
+  [#ff6b00]/route[/#ff6b00] [dim]set <type> <provider>|list[/dim]
+  [#ff6b00]/contact[/#ff6b00] [dim]add <name> <number>|list|remove <name>[/dim]
+  [#ff6b00]/listen[/#ff6b00] [dim]start|stop|status|wake "phrase"[/dim]
+  [#ff6b00]/voice[/#ff6b00] [dim]set <voice_id>|test|off|on|status[/dim]
+  [#ff6b00]/autostart[/#ff6b00] [dim]enable|disable|status[/dim]
   [#ff6b00]/terminal[/#ff6b00]                 list managed terminal sessions
   [#ff6b00]/processes[/#ff6b00]                list managed background processes
   [#ff6b00]/audit[/#ff6b00]                    show recent audit log entries
@@ -204,7 +288,7 @@ HELP = """
   [#ff6b00]/help[/#ff6b00]                     show this
   [#ff6b00]/exit[/#ff6b00]                     quit
 
-  [bold bright_white]CLI Commands[/bold bright_white]
+  [bold bright_white]IMOS CLI Commands[/bold bright_white]
 
   [#ff6b00]imos[/#ff6b00]                               start IMOS shell
   [#ff6b00]imos shell[/#ff6b00] [dim]--session main[/dim]        open a named shell session
@@ -232,7 +316,14 @@ HELP = """
 
 def _home_title():
     title = Text()
-    for line in WELCOME_ART:
+    safe_art = [
+        "██╗███╗   ███╗ ██████╗ ███████╗",
+        "██║████╗ ████║██╔═══██╗██╔════╝",
+        "██║██╔████╔██║██║   ██║███████╗",
+        "██║██║╚██╔╝██║██║   ██║╚════██║",
+        "██║██║ ╚═╝ ██║╚██████╔╝███████║",
+    ]
+    for line in safe_art:
         title.append(line + "\n", style="bold #ff8c1a")
     return title
 
@@ -240,22 +331,161 @@ def _home_title():
 def render_home_screen(model_config, workspace):
     provider = model_config.get("provider", "?")
     model = model_config.get("model", "?")
+    for line in IMOS_LOGO:
+        print(f"{ORANGE}{line}{RESET}")
+    print(f"{WHITE}Intelligent Machine Operating System  {DIM}v1.0.0{RESET}")
+    print(f"{WHITE}Dashboard  http://localhost:8766{RESET}")
+    print()
+    print(f"{WHITE}Server already running on port 8766{RESET}")
+    print(f"{WHITE}Type /help for all commands. Type /dashboard to open browser.{RESET}")
+    print()
+    print(f"{WHITE}Loading IMOS runtime...{RESET}")
+    print()
+    print(f"{WHITE}Provider:   {ORANGE}{provider}/{model}{RESET}")
+    print(f"{WHITE}Workspace:  {ORANGE}{workspace}{RESET}")
+    print(f"{WHITE}Type anything  natural language or shell commands.{RESET}")
+    print(f"{WHITE}Type /help for all commands.{RESET}")
+    print()
 
-    console.print()
-    console.print(Align.left(_home_title()))
-    subtitle = Text()
-    subtitle.append("CLI-first orchestration runtime ", style="bold white")
-    subtitle.append("v1.0.0", style="dim")
-    console.print(subtitle)
-    console.print("Dashboard -> [dim]http://127.0.0.1:8765/imos[/dim]")
-    console.print()
-    console.print("Loading IMOS shell...")
-    console.print()
-    console.print(f"Provider: [#ff9b73]{provider}/{model}[/#ff9b73]")
-    console.print(f"Workspace: [dim]{workspace}[/dim]")
-    console.print("[dim]One runtime. One session. Natural language, workflows, shell, and adapter routing from one CLI.[/dim]")
-    console.print("[dim]Type [/dim][#ff8c1a]/help[/#ff8c1a][dim] for the public command surface.[/dim]")
-    console.print()
+
+def _plain(text: object) -> str:
+    value = str(text)
+    value = ANSI_RE.sub("", value)
+    value = RICH_TAG_RE.sub("", value)
+    return (
+        value.replace("â€”", "-")
+        .replace("â–ˆ", "█")
+        .replace("â•‘", "║")
+        .replace("â•”", "╔")
+        .replace("â•", "═")
+        .replace("â•", "╝")
+        .replace("â•š", "╚")
+    )
+
+
+def _orange(text: object) -> str:
+    return f"{ORANGE}{_plain(text)}{RESET}"
+
+
+def _white(text: object) -> str:
+    return f"{WHITE}{_plain(text)}{RESET}"
+
+
+def _dim(text: object) -> str:
+    return f"{DIM}{_plain(text)}{RESET}"
+
+
+def _imos_prompt() -> str:
+    return f"{ORANGE}imos>{RESET} "
+
+
+def _print_command_output(text: object) -> None:
+    output = str(text).rstrip()
+    if not output:
+        return
+    print(output)
+
+
+def _print_assistant_output(text: object) -> None:
+    output = _plain(text).rstrip()
+    if not output:
+        return
+    lines = output.splitlines() or [output]
+    print(f"{ORANGE}IMOS:{RESET} {WHITE}{lines[0]}{RESET}")
+    for line in lines[1:]:
+        print(f"{' ' * 6}{WHITE}{line}{RESET}")
+
+
+def _help_output() -> str:
+    sections = [
+        (
+            "RUNTIME",
+            [
+                ("imos", "Start server + dashboard + shell"),
+                ("imos --setup", "Run first-time setup wizard"),
+                ("imos --shell", "Interactive shell only"),
+                ("imos --server", "Server only"),
+                ("imos --status", "Show system status"),
+            ],
+        ),
+        (
+            "SESSIONS",
+            [
+                ("/session new <name>", "Create and switch to session"),
+                ("/session list", "List all sessions"),
+                ("/session resume <name>", "Resume a session"),
+                ("/session save", "Save current session"),
+                ("/session export <name>", "Export session to file"),
+            ],
+        ),
+        (
+            "ROUTING",
+            [
+                ("/route set <type> <provider>", "Set routing rule"),
+                ("/route list", "Show all routing rules"),
+            ],
+        ),
+        (
+            "VOICE",
+            [
+                ("/listen start", "Start wake word listener"),
+                ("/listen stop", "Stop listener"),
+                ("/listen status", "Show listener status"),
+                ("/voice test", "Speak test phrase"),
+                ("/voice set <name>", "Change voice"),
+                ("/voice off / on", "Mute toggle"),
+            ],
+        ),
+        (
+            "INTEGRATIONS",
+            [
+                ("/ide", "Open project in best available IDE"),
+                ("/mcp serve", "Start MCP server"),
+                ("/mcp install", "Write Cursor/Windsurf MCP config"),
+                ("/claude-code <prompt>", "Send task to Claude Code CLI"),
+                ("/codex <prompt>", "Send task to OpenAI"),
+            ],
+        ),
+        (
+            "CONTACTS",
+            [
+                ("/contact add <name> <number>", "Add contact"),
+                ("/contact list", "List contacts"),
+                ("/contact remove <name>", "Remove contact"),
+            ],
+        ),
+        (
+            "SYSTEM",
+            [
+                ("/dashboard", "Open dashboard in browser"),
+                ("/dashboard stop", "Stop dashboard server"),
+                ("/doctor", "Show full system health"),
+                ("/autostart enable", "Enable Windows autostart"),
+                ("/autostart disable", "Disable autostart"),
+                ("/consent", "Re-show consent screen"),
+            ],
+        ),
+        (
+            "NATURAL LANGUAGE (no slash needed)",
+            [
+                ('open [app]', "Open any application"),
+                ('message [contact] [text]', "Send WhatsApp message"),
+                ('email [person] about [topic]', "Draft and send email"),
+                ('create folder [name]', "Create folder"),
+                ('screenshot', "Take screenshot"),
+                ('shut down / restart', "System power commands"),
+                ('build [project]', "Scaffold + open in IDE"),
+                ('find clients in [niche]', "Prospect and outreach"),
+            ],
+        ),
+    ]
+    lines = [f"{ORANGE}IMOS  Intelligent Machine Operating System{RESET}", ""]
+    for title, rows in sections:
+        lines.append(f"{ORANGE}{title}{RESET}")
+        for command, description in rows:
+            lines.append(f"  {ORANGE}{command:<30}{RESET}  {WHITE}{description}{RESET}")
+        lines.append("")
+    return "\n".join(lines).rstrip()
 
 
 def _workspace_root_from_cfg(cfg: dict | None = None) -> Path:
@@ -1203,395 +1433,11 @@ def _jarvis_dashboard_html() -> str:
 
 
 def launch_dashboard():
-    try:
-        port = int(load_config().get("dashboard", {}).get("port", 5000) or 5000)
-    except Exception:
-        port = 5000
-    dashboard_url = f"http://127.0.0.1:{port}/"
-    healthy = False
-    try:
-        with urlopen(f"{dashboard_url}api/status", timeout=2) as response:
-            healthy = int(getattr(response, "status", 200)) < 500
-    except Exception:
-        healthy = False
-
-    if not healthy:
-        subprocess.Popen(
-            [sys.executable, "imos_server.py", "--no-browser"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        for _ in range(20):
-            try:
-                with urlopen(f"{dashboard_url}api/status", timeout=2) as response:
-                    if int(getattr(response, "status", 200)) < 500:
-                        healthy = True
-                        break
-            except Exception:
-                time.sleep(0.5)
-    webbrowser.open(dashboard_url)
-    console.print("  [#ff9b73]Opened IMOS dashboard[/#ff9b73]" if healthy else "  [#ff9b73]Started IMOS dashboard[/#ff9b73]")
-    return
-
-    cfg = load_config()
-    workspace = _workspace_root_from_cfg(cfg)
-    model_config = get_model_config()
-    auth = _auth_manager_for_workspace(workspace)
-    if not ensure_authenticated(workspace):
-        return
-    gateway, cli_channel, skill_registry = build_gateway(str(workspace))
-    state_root = workspace / ".connectai"
-    session_manager = ConnectSessionManager(state_root / "sessions")
-    memory_store = ConnectMemoryStore(state_root / "memory")
-    audit_logger = AuditLogger(state_root / "audit")
-    cost_tracker = CostTracker(state_root / "cost")
-    approval_policy = ApprovalPolicy(load_config, audit_logger)
-    shell_runner = ShellRunner(state_root / "commands", audit_logger, approval_policy)
-    process_manager = ProcessRegistry(state_root / "processes", audit_logger)
-    task_manager = TaskManager(state_root / "tasks", audit_logger)
-    terminal_manager = TerminalSessionManager(state_root / "terminals", audit_logger)
-    mcp_runtime = MCPRuntime()
-    for row in load_config().get("mcp", {}).get("servers", []):
-        try:
-            mcp_runtime.register_server(MCPServer(name=row["name"], url=row["url"], enabled=bool(row.get("enabled", True))))
-        except Exception:
-            continue
-    workflow_registry = WorkflowRegistry(workspace)
-
-    class Handler(BaseHTTPRequestHandler):
-        def _run_skill(self, name: str, args: dict):
-            skill = next((item for item in skill_registry.load_all() if item.name == name), None)
-            if skill is None:
-                return {"ok": False, "error": f"Unknown skill: {name}"}
-            try:
-                return skill.handler(
-                    args,
-                    workspace=str(workspace),
-                    memory_store=memory_store,
-                    session_id="dashboard",
-                    model_config=get_model_config(),
-                    shell_runner=shell_runner,
-                    process_manager=process_manager,
-                    audit_logger=audit_logger,
-                )
-            except Exception as exc:
-                return {"ok": False, "error": str(exc)}
-
-        def _send_json(self, payload: dict, status: int = 200):
-            raw = json.dumps(payload).encode("utf-8")
-            self.send_response(status)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
-
-        def _send_html(self, html: str, status: int = 200):
-            raw = html.encode("utf-8")
-            self.send_response(status)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
-
-        def _send_sse_headers(self):
-            self.send_response(200)
-            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-            self.send_header("Cache-Control", "no-cache")
-            self.send_header("Connection", "keep-alive")
-            self.send_header("X-Accel-Buffering", "no")
-            self.end_headers()
-
-        def _send_sse_event(self, payload: dict):
-            raw = f"data: {json.dumps(payload, ensure_ascii=False)}\n\n".encode("utf-8")
-            self.wfile.write(raw)
-            self.wfile.flush()
-
-        def _read_json(self):
-            try:
-                length = int(self.headers.get("Content-Length", "0"))
-                return json.loads(self.rfile.read(length).decode("utf-8") or "{}")
-            except Exception:
-                return {}
-
-        def do_GET(self):
-            parsed = urlparse(self.path)
-            if parsed.path == "/api/status":
-                self._send_json({
-                    "provider": model_config.get("provider", ""),
-                    "model": model_config.get("model", ""),
-                    "workspace": str(workspace),
-                    "auth": auth.current_user(),
-                    "providers": list_providers(),
-                })
-                return
-            if parsed.path == "/api/skills":
-                self._send_json({
-                    "items": [
-                        {
-                            "name": item.name,
-                            "description": item.description,
-                            "source": item.source,
-                        }
-                        for item in skill_registry.load_all()
-                    ]
-                })
-                return
-            if parsed.path == "/api/workflows":
-                self._send_json({"items": workflow_registry.list_workflows()})
-                return
-            if parsed.path == "/api/sessions":
-                self._send_json({
-                    "items": [
-                        {
-                            "session_id": item.session_id,
-                            "session_key": item.session_key,
-                            "title": item.title,
-                            "channel": item.channel,
-                            "message_count": item.message_count,
-                            "updated_at": item.updated_at,
-                        }
-                        for item in session_manager.list_sessions()
-                    ]
-                })
-                return
-            if parsed.path.startswith("/api/sessions/"):
-                requested = parsed.path.rsplit("/", 1)[-1]
-                if requested == "default":
-                    items = []
-                else:
-                    items = session_manager.history_by_id(requested, limit=200)
-                self._send_json({"items": items})
-                return
-            if parsed.path == "/api/memory":
-                self._send_json({"items": memory_store.recent_entries(40)})
-                return
-            if parsed.path == "/api/tasks":
-                self._send_json({"items": task_manager.list(50)})
-                return
-            if parsed.path == "/api/processes":
-                items = process_manager.list()
-                for item in items:
-                    item["log_tail"] = process_manager.tail_log(item["process_id"], 1200)
-                self._send_json({"items": items})
-                return
-            if parsed.path == "/api/terminals":
-                self._send_json({"items": terminal_manager.list()})
-                return
-            if parsed.path == "/api/mcp":
-                self._send_json({"servers": mcp_runtime.list_servers(), "tools": mcp_runtime.list_tools()})
-                return
-            if parsed.path == "/api/audit":
-                self._send_json({"items": audit_logger.tail(80)})
-                return
-            if parsed.path == "/api/cost":
-                self._send_json(cost_tracker.summary())
-                return
-            if parsed.path == "/api/weather":
-                self._send_json(self._run_skill("weather", {}))
-                return
-            if parsed.path == "/api/news":
-                self._send_json(self._run_skill("news", {"limit": 4}))
-                return
-            if parsed.path == "/api/stream":
-                self._send_sse_headers()
-                path = audit_logger.path
-                path.touch(exist_ok=True)
-                with path.open("r", encoding="utf-8", errors="replace") as handle:
-                    handle.seek(0, os.SEEK_END)
-                    try:
-                        while True:
-                            line = handle.readline()
-                            if not line:
-                                time.sleep(0.4)
-                                continue
-                            try:
-                                payload = json.loads(line)
-                            except Exception:
-                                continue
-                            if payload.get("kind") in {"command_output", "process_output", "command_start", "command_end", "process_start", "process_end", "task_create", "task_complete"}:
-                                self._send_sse_event(payload)
-                    except (BrokenPipeError, ConnectionResetError):
-                        return
-            if parsed.path == "/api/integrations":
-                cfg_local = load_config()
-                publishable, secret = _clerk_env()
-                self._send_json(
-                    {
-                        "tokens": cfg_local.get("tokens", {}),
-                        "messaging": cfg_local.get("messaging", {}),
-                        "clerk_publishable_key": bool(publishable),
-                        "clerk_secret_key": bool(secret),
-                    }
-                )
-                return
-            self._send_html(_jarvis_dashboard_html())
-
-        def do_POST(self):
-            parsed = urlparse(self.path)
-            if parsed.path == "/api/chat":
-                payload = self._read_json()
-                text = str(payload.get("text", "")).strip()
-                if not text:
-                    self._send_json({"ok": False, "error": "Missing text"}, status=400)
-                    return
-                session_id = str(payload.get("session_id", "")).strip()
-                session_hint = ""
-                if session_id and session_manager.get_by_id(session_id):
-                    existing = session_manager.get_by_id(session_id)
-                    session_hint = existing.session_key if existing else ""
-                envelope = cli_channel.normalize(
-                    user_id="dashboard-user",
-                    text=text,
-                    session_hint=session_hint,
-                    source="dashboard",
-                )
-                result = gateway.handle(envelope, str(workspace), get_model_config())
-                selected_id = session_id
-                if session_hint:
-                    existing = session_manager.get_or_create(session_hint, "cli", "dashboard-user")
-                    selected_id = existing.session_id
-                elif session_manager.list_sessions():
-                    selected_id = session_manager.list_sessions()[-1].session_id
-                self._send_json({"ok": True, "response": result.output, "session_id": selected_id})
-                return
-            if parsed.path == "/api/chat/stream":
-                payload = self._read_json()
-                text = str(payload.get("text", "")).strip()
-                if not text:
-                    self.send_response(400)
-                    self.end_headers()
-                    return
-                session_id = str(payload.get("session_id", "")).strip()
-                session_hint = ""
-                if session_id and session_manager.get_by_id(session_id):
-                    existing = session_manager.get_by_id(session_id)
-                    session_hint = existing.session_key if existing else ""
-                envelope = cli_channel.normalize(
-                    user_id="dashboard-user",
-                    text=text,
-                    session_hint=session_hint,
-                    source="dashboard",
-                )
-                self._send_sse_headers()
-
-                def emit_token(token: str):
-                    self._send_sse_event({"type": "token", "text": token})
-
-                try:
-                    result = gateway.handle_with_meta(envelope, str(workspace), get_model_config(), on_text_delta=emit_token)
-                    selected_id = session_id
-                    if session_hint:
-                        existing = session_manager.get_or_create(session_hint, "cli", "dashboard-user")
-                        selected_id = existing.session_id
-                    elif session_manager.list_sessions():
-                        selected_id = session_manager.list_sessions()[-1].session_id
-                    self._send_sse_event({
-                        "type": "done",
-                        "response": result.get("output", ""),
-                        "session_id": selected_id,
-                        "usage": result.get("usage", {}),
-                        "cost": cost_tracker.summary(),
-                    })
-                except Exception as exc:
-                    self._send_sse_event({"type": "error", "error": str(exc)})
-                return
-            if parsed.path == "/api/workflows/run":
-                payload = self._read_json()
-                name = str(payload.get("name", "")).strip()
-                if not name:
-                    self._send_json({"ok": False, "error": "Missing workflow name"}, status=400)
-                    return
-                try:
-                    result = workflow_registry.run(
-                        name,
-                        tool_executor=lambda tool_name, args: next(
-                            item for item in skill_registry.load_all() if item.name == tool_name
-                        ).handler(args, workspace=str(workspace), memory_store=memory_store, session_id="workflow", model_config=get_model_config()),
-                        sender=lambda content: content,
-                    )
-                    self._send_json({"ok": True, "result": result})
-                except Exception as exc:
-                    self._send_json({"ok": False, "error": str(exc)}, status=500)
-                return
-            if parsed.path == "/api/model":
-                payload = self._read_json()
-                provider = str(payload.get("provider", "")).strip().lower()
-                model = str(payload.get("model", "")).strip()
-                if not provider or not model:
-                    self._send_json({"ok": False, "error": "Missing provider or model"}, status=400)
-                    return
-                cfg_local = load_config()
-                selected = get_provider_defaults(provider)
-                existing = cfg_local.get("model", {})
-                if existing.get("provider") == provider:
-                    selected.update(existing)
-                selected["provider"] = provider
-                selected["model"] = model
-                cfg_local["model"] = selected
-                save_config(cfg_local)
-                self._send_json({"ok": True})
-                return
-            if parsed.path == "/api/terminal/open":
-                payload = self._read_json()
-                cwd = str(payload.get("cwd", workspace)).strip() or str(workspace)
-                self._send_json(terminal_manager.open(cwd))
-                return
-            if parsed.path == "/api/terminal/read":
-                payload = self._read_json()
-                self._send_json(terminal_manager.read(str(payload.get("session_id", "")).strip()))
-                return
-            if parsed.path == "/api/terminal/write":
-                payload = self._read_json()
-                self._send_json(terminal_manager.write(str(payload.get("session_id", "")).strip(), str(payload.get("data", ""))))
-                return
-            if parsed.path == "/api/terminal/close":
-                payload = self._read_json()
-                self._send_json(terminal_manager.close(str(payload.get("session_id", "")).strip()))
-                return
-            if parsed.path == "/api/mcp/register":
-                payload = self._read_json()
-                name = str(payload.get("name", "")).strip()
-                url = str(payload.get("url", "")).strip()
-                if not name or not url:
-                    self._send_json({"ok": False, "error": "Missing MCP name or url"}, status=400)
-                    return
-                server = MCPServer(name=name, url=url, enabled=True)
-                try:
-                    mcp_runtime.register_server(server)
-                except Exception as exc:
-                    self._send_json({"ok": False, "error": str(exc)}, status=500)
-                    return
-                cfg_local = load_config()
-                cfg_local.setdefault("mcp", {}).setdefault("servers", [])
-                cfg_local["mcp"]["servers"] = [row for row in cfg_local["mcp"]["servers"] if row.get("name") != name]
-                cfg_local["mcp"]["servers"].append({"name": name, "url": url, "enabled": True})
-                save_config(cfg_local)
-                self._send_json({"ok": True})
-                return
-            self._send_json({"ok": False, "error": "Not found"}, status=404)
-
-        def log_message(self, format, *args):
-            return
-
-    host = "127.0.0.1"
-    preferred_port = 18890
-    try:
-        server = ThreadingHTTPServer((host, preferred_port), Handler)
-    except OSError:
-        server = ThreadingHTTPServer((host, 0), Handler)
-    url = f"http://{host}:{server.server_address[1]}/"
-    console.print(f"  [bright_cyan]Dashboard[/bright_cyan]  [dim]{url}[/dim]")
-    console.print("  [dim]Press Ctrl+C to stop the dashboard server.[/dim]\n")
-    try:
-        webbrowser.open(url)
-    except Exception:
-        pass
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        console.print("\n  [dim]dashboard stopped[/dim]")
-    finally:
-        server.server_close()
+    global _DASHBOARD_SERVICE
+    if _DASHBOARD_SERVICE is None:
+        raise RuntimeError("Dashboard service is not initialized.")
+    url = _DASHBOARD_SERVICE.start(open_browser=True)
+    console.print(f"  [#ff9b73]Opened IMOS dashboard[/#ff9b73] [dim]{url}/[/dim]")
 
 
 def run_login():
@@ -1637,26 +1483,44 @@ class CLIChannel(ChannelAdapter):
     name = "cli"
 
 
+def _mask_secret(value: str) -> str:
+    clean = str(value or "").strip()
+    if not clean:
+        return ""
+    if len(clean) <= 8:
+        return "*" * len(clean)
+    return f"{clean[:4]}{'*' * max(4, len(clean) - 8)}{clean[-4:]}"
+
+
+def _provider_to_model_config(provider: dict) -> dict:
+    payload = dict(provider)
+    payload["provider"] = provider.get("type", provider.get("provider", ""))
+    return payload
+
+
 def _save_provider(provider: str, preserve_model: bool = False) -> dict:
-    cfg = load_config()
     defaults = get_provider_defaults(provider)
-    current = cfg.get("model", {}) if preserve_model else {}
-    merged = dict(defaults)
-    merged.update(current)
-    merged["provider"] = provider
-    if not preserve_model:
-        merged["model"] = defaults.get("model", merged.get("model", ""))
-    cfg["model"] = merged
-    save_config(cfg)
+    existing = model_manager.get_default() if preserve_model else None
+    payload = dict(defaults)
+    if existing is not None:
+        payload.update({"api_key": existing.get("api_key", ""), "base_url": existing.get("base_url", ""), "model": existing.get("model", payload.get("model", ""))})
+    payload["id"] = defaults.get("id", provider)
+    payload["name"] = defaults.get("name", provider.title())
+    payload["type"] = defaults.get("type", provider)
+    payload["is_default"] = True
+    payload["enabled"] = True
+    model_manager.add_provider(payload)
     return get_model_config()
 
 
 def _save_model_name(model_name: str) -> dict:
-    cfg = load_config()
-    current = get_model_config()
-    current["model"] = model_name
-    cfg["model"] = current
-    save_config(cfg)
+    current = model_manager.get_default()
+    if current is None:
+        cfg = get_model_config()
+        cfg["model"] = model_name
+        save_model_config(cfg)
+        return get_model_config()
+    model_manager.update_provider(current["id"], {"model": model_name})
     return get_model_config()
 
 
@@ -1666,18 +1530,26 @@ def build_gateway(workspace: str):
     from imos.registry import AdapterRegistry
 
     workspace_path = Path(workspace)
-    state_root = workspace_path / ".connectai"
+    cfg = load_config()
+    state_root = resolve_runtime_state_root(workspace_path)
+    consent_manager = ConsentManager(state_root)
+    consent_record = consent_manager.ensure()
     session_manager = ConnectSessionManager(state_root / "sessions")
+    session_manager.ensure_default()
     memory_store = ConnectMemoryStore(state_root / "memory")
     audit_logger = AuditLogger(state_root / "audit")
     cost_tracker = CostTracker(state_root / "cost")
+    event_bus = EventBus(state_root / "events")
+    routing_rules = RoutingRules(PROJECT_ROOT / "config" / "routing.json")
     approval_policy = ApprovalPolicy(load_config, audit_logger)
+    confirm_policy = ConfirmationPolicy()
+    contact_book = ContactBook(state_root)
     shell_runner = ShellRunner(state_root / "commands", audit_logger, approval_policy)
     process_manager = ProcessRegistry(state_root / "processes", audit_logger)
     task_manager = TaskManager(state_root / "tasks", audit_logger)
     terminal_manager = TerminalSessionManager(state_root / "terminals", audit_logger)
     mcp_runtime = MCPRuntime()
-    for row in load_config().get("mcp", {}).get("servers", []):
+    for row in cfg.get("mcp", {}).get("servers", []):
         try:
             mcp_runtime.register_server(MCPServer(name=row["name"], url=row["url"], enabled=bool(row.get("enabled", True))))
         except Exception:
@@ -1693,7 +1565,10 @@ def build_gateway(workspace: str):
         task_manager=task_manager,
         cost_tracker=cost_tracker,
         mcp_runtime=mcp_runtime,
+        event_bus=event_bus,
+        session_manager=session_manager,
     )
+    runtime.consent_manager = consent_manager
     registry = AdapterRegistry()
     try:
         asyncio.run(registry.auto_discover())
@@ -1701,6 +1576,28 @@ def build_gateway(workspace: str):
     except Exception:
         imos_orchestrator = None
     cli_channel = CLIChannel()
+    global _LISTENER_SERVICE, _VOICE_MANAGER
+    if _VOICE_MANAGER is None:
+        _VOICE_MANAGER = VoiceManager(state_root / "voice")
+    else:
+        _VOICE_MANAGER.state_root = state_root / "voice"
+        _VOICE_MANAGER.state_root.mkdir(parents=True, exist_ok=True)
+        _VOICE_MANAGER.path = _VOICE_MANAGER.state_root / "voice.json"
+    if _LISTENER_SERVICE is None:
+        _LISTENER_SERVICE = VoiceListenerService(
+            state_root / "listener",
+            event_bus=event_bus,
+            audit_logger=audit_logger,
+            speaker=_VOICE_MANAGER,
+        )
+    else:
+        _LISTENER_SERVICE.state_root = state_root / "listener"
+        _LISTENER_SERVICE.state_root.mkdir(parents=True, exist_ok=True)
+        _LISTENER_SERVICE.path = _LISTENER_SERVICE.state_root / "listener.json"
+        _LISTENER_SERVICE.event_bus = event_bus
+        _LISTENER_SERVICE.audit_logger = audit_logger
+        _LISTENER_SERVICE.speaker = _VOICE_MANAGER
+    _LISTENER_SERVICE.maybe_start_from_config(cfg)
 
     def _tool_executor(name: str, args: dict):
         skill = next((item for item in skill_registry.load_all() if item.name == name), None)
@@ -1715,6 +1612,25 @@ def build_gateway(workspace: str):
             shell_runner=shell_runner,
             process_manager=process_manager,
             audit_logger=audit_logger,
+        )
+
+    def _doctor_output() -> str:
+        from imos.doctor import doctor_report
+        import asyncio
+
+        return asyncio.run(
+            doctor_report(
+                session_manager=session_manager,
+                dashboard_service=_DASHBOARD_SERVICE,
+                routing_rules=routing_rules,
+                event_bus=event_bus,
+                process_manager=process_manager,
+                listener_service=_LISTENER_SERVICE,
+                consent_manager=consent_manager,
+                contact_book=contact_book,
+                voice_manager=_VOICE_MANAGER,
+                state_root=state_root,
+            )
         )
 
     def _set_nested_value(data: dict, path: str, value):
@@ -1737,8 +1653,32 @@ def build_gateway(workspace: str):
             node = node[key]
         return node
 
+    def _mutation_blocked(action: str) -> CommandResult | None:
+        if consent_manager.is_granted():
+            return None
+        return CommandResult(True, f"Read-only mode: {action} requires /consent first.")
+
+    def _prompt_contact_resolution(query: str) -> str | None:
+        if not sys.stdin or not sys.stdin.isatty():
+            return None
+        console.print(f"I don't have a contact for '{query}'.")
+        answer = input("What's their name or number? ").strip()
+        if not answer:
+            return None
+        contact_book.add(query, answer)
+        return answer
+
+    def _open_dashboard_url() -> str:
+        if _DASHBOARD_SERVICE is None:
+            return "Dashboard is not initialized."
+        status = _DASHBOARD_SERVICE.status()
+        url = status.get("url", "http://127.0.0.1:8766")
+        webbrowser.open(url + "/")
+        _DASHBOARD_SERVICE._browser_opened = True
+        return f"Opened IMOS dashboard {url}/"
+
     def _cmd_help(_raw: str) -> CommandResult:
-        return CommandResult(True, HELP)
+        return CommandResult(True, _help_output())
 
     def _cmd_exit(_raw: str) -> CommandResult:
         return CommandResult(True, should_exit=True)
@@ -1749,19 +1689,77 @@ def build_gateway(workspace: str):
         return CommandResult(True, "")
 
     def _cmd_model(_raw: str) -> CommandResult:
-        safe = dict(get_model_config())
-        for key in ("api_key", "aws_secret_access_key"):
-            if safe.get(key):
-                safe[key] = str(safe[key])[:8]
-        return CommandResult(True, json.dumps(safe, indent=2))
+        parts = _raw.split()
+        if len(parts) == 1:
+            safe = dict(get_model_config())
+            for key in ("api_key", "aws_secret_access_key"):
+                if safe.get(key):
+                    safe[key] = _mask_secret(str(safe[key]))
+            return CommandResult(True, json.dumps(safe, indent=2))
+        action = parts[1].lower()
+        if action == "list":
+            lines = []
+            for provider in model_manager.load_providers():
+                health = model_manager.test_provider(provider["id"])
+                status = "healthy" if health.get("ok") else "unhealthy"
+                latency = f"{health.get('latency', 0)}ms" if health.get("latency") else "-"
+                marker = " [default]" if provider.get("is_default") else ""
+                lines.append(f"{provider['id']:<18} {provider['type']:<12} {provider.get('model', '-'):<32} {status:<10} {latency}{marker}")
+            return CommandResult(True, "\n".join(lines) if lines else "No providers configured.")
+        if action == "add":
+            shortcut = parts[2].lower() if len(parts) >= 3 else ""
+            provider_type = shortcut if shortcut in model_manager.PROVIDER_TYPES else _select(
+                "Provider type",
+                [Choice(value=name, name=meta["name"]) for name, meta in model_manager.PROVIDER_TYPES.items()],
+            )
+            defaults = model_manager.PROVIDER_TYPES[provider_type]
+            display_name = defaults["name"] if shortcut else _text("Display name", default=defaults["name"])
+            model_name = _text("Model", default="") or get_provider_defaults(provider_type).get("model", "")
+            api_key = ""
+            if defaults.get("requires_key", False):
+                api_key = _secret("API key")
+            base_url = defaults.get("base_url", "")
+            if provider_type in {"ollama", "lmstudio", "custom"}:
+                base_url = _text("Base URL", default=base_url)
+            provider_id = re.sub(r"[^a-z0-9._-]+", "-", display_name.strip().lower()).strip("-") or f"{provider_type}-main"
+            provider = model_manager.add_provider(
+                {
+                    "id": provider_id,
+                    "name": display_name,
+                    "type": provider_type,
+                    "api_key": api_key,
+                    "base_url": base_url,
+                    "model": model_name,
+                    "enabled": True,
+                    "is_default": not bool(model_manager.load_providers()),
+                }
+            )
+            return CommandResult(True, f"Added provider {provider['id']}")
+        if action == "set" and len(parts) >= 4 and parts[2].lower() == "default":
+            provider = model_manager.set_default(parts[3])
+            return CommandResult(True, f"Default provider set to {provider['id']}", updated_model_config=_provider_to_model_config(provider))
+        if action == "test" and len(parts) >= 3:
+            result = model_manager.test_provider(parts[2])
+            if result.get("ok"):
+                return CommandResult(True, f"Provider {parts[2]} healthy ({result.get('latency', 0)}ms)")
+            return CommandResult(True, f"Provider {parts[2]} failed: {result.get('error', 'unknown error')}")
+        if action == "remove" and len(parts) >= 3:
+            removed = model_manager.remove_provider(parts[2])
+            return CommandResult(True, f"Removed {parts[2]}" if removed else f"Provider not found: {parts[2]}")
+        if action == "models" and len(parts) >= 3:
+            try:
+                rows = model_manager.list_models(parts[2])
+            except Exception as exc:
+                return CommandResult(True, f"Model list failed: {exc}")
+            return CommandResult(True, "\n".join(rows) if rows else "No models returned.")
+        return CommandResult(True, "Usage: /model list | /model add [ollama|lmstudio] | /model set default <id> | /model test <id> | /model remove <id> | /model models <id>")
 
     def _cmd_provider(_raw: str) -> CommandResult:
         cfg = get_model_config()
         return CommandResult(True, f"{cfg.get('provider')}/{cfg.get('model')}")
 
     def _cmd_models(_raw: str) -> CommandResult:
-        show_models_table(get_model_config())
-        return CommandResult(True, "")
+        return _cmd_model("/model list")
 
     def _cmd_use(raw: str) -> CommandResult:
         parts = raw.split(maxsplit=1)
@@ -1774,6 +1772,228 @@ def build_gateway(workspace: str):
             return CommandResult(True, f"Unknown provider: {provider}")
         updated = _save_provider(provider)
         return CommandResult(True, f"Switched to {updated.get('provider')}/{updated.get('model')}", updated_model_config=updated)
+
+    def _cmd_claude_code(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1 or not parts[1].strip():
+            result = open_claude_code_interactive(str(workspace_path))
+            if result.get("success"):
+                return CommandResult(True, f"Opened Claude Code interactive shell in {workspace_path}")
+            return CommandResult(True, str(result.get("error", "Claude Code launch failed.")))
+        result = chat_with_claude_code(parts[1].strip(), project_path=str(workspace_path))
+        if result.get("success"):
+            return CommandResult(True, str(result.get("output") or "(no output)"))
+        return CommandResult(True, str(result.get("error") or "Claude Code request failed."))
+
+    def _cmd_openai(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1 or not parts[1].strip():
+            return CommandResult(True, "Usage: /openai <prompt>")
+        result = chat_with_openai(parts[1].strip())
+        if result.get("success"):
+            return CommandResult(True, str(result.get("reply") or ""))
+        return CommandResult(True, str(result.get("error") or "OpenAI request failed."))
+
+    def _cmd_codex(raw: str) -> CommandResult:
+        prompt = raw.split(maxsplit=1)[1].strip() if len(raw.split(maxsplit=1)) == 2 else ""
+        if not prompt:
+            return CommandResult(True, "Usage: /codex <prompt>")
+        result = chat_with_openai(prompt)
+        if result.get("success"):
+            return CommandResult(True, str(result.get("reply") or ""))
+        return CommandResult(True, str(result.get("error") or "OpenAI request failed."))
+
+    def _start_mcp_server(port: int = 8765, host: str = "127.0.0.1") -> tuple[str, list[str]]:
+        import urllib.request
+
+        warnings: list[str] = []
+        proc = start_imos_mcp_server_http_on(PROJECT_ROOT, port=port, host=host)
+        url = f"http://{host}:{port}/mcp/sse"
+        ready = False
+        for _ in range(10):
+            if proc.poll() is not None:
+                break
+            try:
+                with urllib.request.urlopen(url, timeout=1) as response:
+                    if int(getattr(response, "status", 0)) == 200:
+                        ready = True
+                        break
+            except Exception:
+                time.sleep(0.3)
+        if not ready:
+            if proc.poll() is not None:
+                raise RuntimeError(f"MCP server process exited early with code {proc.returncode}")
+            raise RuntimeError(f"MCP server did not become reachable at {url}")
+        try:
+            record = process_manager.register(
+                name="imos-mcp-server",
+                command=f'{sys.executable} -m imos.mcp_server --http --host {host} --port {port}',
+                cwd=str(PROJECT_ROOT),
+                process=proc,
+                metadata={"url": f"http://{host}:{port}/mcp"},
+            )
+            started = f"MCP server started on http://{host}:{port}/mcp (pid={record.pid}, process_id={record.process_id})"
+        except PermissionError as exc:
+            warnings.append(f"Process tracking warning: {exc}")
+            started = f"MCP server started on http://{host}:{port}/mcp (pid={proc.pid}, untracked)"
+        except Exception as exc:
+            warnings.append(f"Process tracking warning: {exc}")
+            started = f"MCP server started on http://{host}:{port}/mcp (pid={proc.pid}, untracked)"
+        return started, warnings
+
+    def _cmd_doctor(_raw: str) -> CommandResult:
+        try:
+            return CommandResult(True, _doctor_output())
+        except Exception as exc:
+            return CommandResult(True, f"Doctor failed: {exc}")
+
+    def _cmd_cursor(raw: str) -> CommandResult:
+        prompt = raw.split(maxsplit=1)[1].strip() if len(raw.split(maxsplit=1)) == 2 else ""
+        cursor_result = open_ide_with_fallback(workspace_path, prompt=prompt)
+        lines = []
+        launcher = cursor_result.get("launcher", "Cursor")
+        if cursor_result.get("success") and launcher != "browser fallback":
+            lines.append(f"Launched {launcher} for {workspace_path} (pid={cursor_result.get('pid')})")
+        elif cursor_result.get("success") and launcher == "browser fallback":
+            lines.append("No desktop IDE found. Opened browser fallback:")
+            for url in cursor_result.get("urls", []):
+                lines.append(f"- {url}")
+        else:
+            lines.append(f"IDE launch failed: {cursor_result.get('error')}")
+            searched = cursor_result.get("searched") or []
+            if searched:
+                lines.append("Searched:")
+                lines.extend(f"- {item}" for item in searched)
+
+        existing = None
+        for row in process_manager.list():
+            if row.get("name") == "imos-mcp-server" and str(row.get("status")) == "running":
+                meta = row.get("metadata") or {}
+                if str(meta.get("url", "")) == "http://127.0.0.1:8765/mcp":
+                    existing = row
+                    break
+
+        if existing is not None:
+            lines.append(
+                f"MCP server already running on http://127.0.0.1:8765/mcp (pid={existing.get('pid')}, process_id={existing.get('process_id')})"
+            )
+        else:
+            try:
+                started, warnings = _start_mcp_server(port=8765, host="127.0.0.1")
+                lines.append(started)
+                lines.extend(warnings)
+            except Exception as exc:
+                lines.append(f"MCP server failed to start: {exc}")
+
+        lines.append("")
+        lines.append("Cursor mcp.json snippet:")
+        lines.append(cursor_mcp_http_snippet("http://127.0.0.1:8765/mcp"))
+        return CommandResult(True, "\n".join(lines))
+
+    def _cmd_ide(raw: str) -> CommandResult:
+        prompt = raw.split(maxsplit=1)[1].strip() if len(raw.split(maxsplit=1)) == 2 else ""
+        result = open_ide_with_fallback(workspace_path, prompt=prompt)
+        lines = []
+        launcher = result.get("launcher", "IDE")
+        if result.get("success") and launcher != "browser fallback":
+            lines.append(f"Launched {launcher} for {workspace_path} (pid={result.get('pid')})")
+        elif launcher == "browser fallback":
+            lines.append("No desktop IDE found. Opened browser fallback:")
+            for url in result.get("urls", []):
+                lines.append(f"- {url}")
+        else:
+            lines.append(f"IDE launch failed: {result.get('error')}")
+        searched = result.get("searched") or []
+        if searched and not result.get("success"):
+            lines.append("Searched:")
+            lines.extend(f"- {item}" for item in searched)
+        return CommandResult(True, "\n".join(lines))
+
+    def _cmd_vscode(_raw: str) -> CommandResult:
+        result = open_workspace_in_app("code", workspace_path, install_hint="https://code.visualstudio.com/")
+        if result.get("success"):
+            return CommandResult(
+                True,
+                f"Opened VS Code for {workspace_path} (pid={result.get('pid')})\nInstall the IMOS MCP config with: imos mcp install",
+            )
+        return CommandResult(True, str(result.get("error") or "VS Code launch failed."))
+
+    def _cmd_windsurf(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1 or not parts[1].strip():
+            result = open_workspace_in_app("windsurf", workspace_path, install_hint="Install Windsurf desktop/CLI")
+            if result.get("success"):
+                return CommandResult(True, f"Opened Windsurf for {workspace_path} (pid={result.get('pid')})\nMCP config path is already supported by `imos mcp install`.")
+            return CommandResult(True, str(result.get("error") or "Windsurf launch failed."))
+        result = run_cli_agent("windsurf", parts[1].strip(), project_path=str(workspace_path), install_hint="Install Windsurf CLI")
+        return CommandResult(True, str(result.get("output") if result.get("success") else result.get("error")))
+
+    def _cmd_aider(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1 or not parts[1].strip():
+            return CommandResult(True, "Usage: /aider <prompt>")
+        result = run_cli_agent("aider", parts[1].strip(), project_path=str(workspace_path), install_hint="pip install aider-chat")
+        return CommandResult(True, str(result.get("output") if result.get("success") else result.get("error")))
+
+    def _cmd_continue(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1 or not parts[1].strip():
+            return CommandResult(True, "Usage: /continue <prompt>")
+        result = run_cli_agent("continue", parts[1].strip(), project_path=str(workspace_path), install_hint="Install Continue CLI")
+        return CommandResult(True, str(result.get("output") if result.get("success") else result.get("error")))
+
+    def _cmd_gemini(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1 or not parts[1].strip():
+            return CommandResult(True, "Usage: /gemini <prompt>")
+        result = chat_with_gemini(parts[1].strip())
+        return CommandResult(True, str(result.get("reply") if result.get("success") else result.get("error")))
+
+    def _cmd_email(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1 or "|" not in parts[1]:
+            return CommandResult(True, "Usage: /email <to>|<subject>|<body>")
+        to_addr, subject, body = [item.strip() for item in parts[1].split("|", 2)]
+        result = send_email_smtp(to_addr, subject, body)
+        return CommandResult(True, json.dumps(result, indent=2))
+
+    def _cmd_whatsapp(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1 or "|" not in parts[1]:
+            return CommandResult(True, "Usage: /whatsapp <contact>|<message>")
+        contact, message = [item.strip() for item in parts[1].split("|", 1)]
+        url = f"https://web.whatsapp.com/"
+        result = open_prompt_url(url + "?text=", f"{contact}: {message}")
+        return CommandResult(True, f"Opened WhatsApp handoff URL for {contact}\n{result.get('url')}")
+
+    def _cmd_telegram(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1 or "|" not in parts[1]:
+            return CommandResult(True, "Usage: /telegram <contact>|<message>")
+        contact, message = [item.strip() for item in parts[1].split("|", 1)]
+        result = open_prompt_url("https://web.telegram.org/k/#?text=", f"{contact}: {message}")
+        return CommandResult(True, f"Opened Telegram handoff URL for {contact}\n{result.get('url')}")
+
+    def _cmd_v0(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1 or not parts[1].strip():
+            return CommandResult(True, "Usage: /v0 <prompt>")
+        result = open_prompt_url("https://v0.dev/chat?q=", parts[1].strip())
+        return CommandResult(True, str(result.get("url")))
+
+    def _cmd_lovable(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1 or not parts[1].strip():
+            return CommandResult(True, "Usage: /lovable <prompt>")
+        result = open_prompt_url("https://lovable.dev/?prompt=", parts[1].strip())
+        return CommandResult(True, str(result.get("url")))
+
+    def _cmd_bolt(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1 or not parts[1].strip():
+            return CommandResult(True, "Usage: /bolt <prompt>")
+        result = open_prompt_url("https://bolt.new/?prompt=", parts[1].strip())
+        return CommandResult(True, str(result.get("url")))
 
     def _cmd_setmodel(raw: str) -> CommandResult:
         parts = raw.split(maxsplit=1)
@@ -1841,10 +2061,118 @@ def build_gateway(workspace: str):
         return CommandResult(True, f"Workspace changed to {new_ws}", updated_workspace=new_ws)
 
     def _cmd_dashboard(_raw: str) -> CommandResult:
-        if not ensure_authenticated(workspace_path):
-            return CommandResult(True, "")
-        launch_dashboard()
-        return CommandResult(True, "")
+        parts = _raw.split()
+        if len(parts) > 1 and parts[1].lower() == "stop":
+            if _DASHBOARD_SERVICE is not None:
+                _DASHBOARD_SERVICE.stop()
+                return CommandResult(True, "Dashboard stopped.")
+            return CommandResult(True, "Dashboard is not initialized.")
+        if _DASHBOARD_SERVICE is None:
+            return CommandResult(True, "Dashboard is not initialized.")
+        return CommandResult(True, _open_dashboard_url())
+
+    def _cmd_consent(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1:
+            status = consent_manager.status()
+            state = "granted" if status.get("granted") else "declined"
+            return CommandResult(True, f"Consent: {state}")
+        action = parts[1].strip().lower()
+        if action in {"grant", "agree"}:
+            consent_manager.save(True)
+            return CommandResult(True, "Consent granted.")
+        if action in {"decline", "deny"}:
+            consent_manager.save(False)
+            return CommandResult(True, "Consent declined. IMOS is now read-only.")
+        return CommandResult(True, "Usage: /consent grant|decline")
+
+    def _cmd_contact(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=3)
+        if len(parts) == 1 or parts[1].lower() == "list":
+            rows = contact_book.list()
+            if not rows:
+                return CommandResult(True, "No contacts saved.")
+            return CommandResult(True, "\n".join(f"- {name}: {value}" for name, value in sorted(rows.items())))
+        action = parts[1].lower()
+        if action == "add" and len(parts) == 4:
+            result = contact_book.add(parts[2], parts[3])
+            return CommandResult(True, f"Saved contact: {result['name']}")
+        if action == "remove" and len(parts) >= 3:
+            result = contact_book.remove(parts[2])
+            return CommandResult(True, f"Removed contact: {parts[2]}" if result.get("ok") else f"Contact not found: {parts[2]}")
+        return CommandResult(True, "Usage: /contact add <name> <number> | /contact list | /contact remove <name>")
+
+    def _cmd_listen(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=2)
+        if len(parts) == 1 or parts[1].lower() == "status":
+            status = _LISTENER_SERVICE.status() if _LISTENER_SERVICE is not None else {"active": False}
+            mode = "active" if status.get("active") else "inactive"
+            details = f"{mode} (wake: {status.get('wake_word', 'IMOS')})"
+            if status.get("missing"):
+                details += f"\nMissing deps: {', '.join(status['missing'])}"
+            return CommandResult(True, details)
+        if _LISTENER_SERVICE is None:
+            return CommandResult(True, "Listener is not initialized.")
+        action = parts[1].lower()
+        if action == "start":
+            persist = "--save" in raw.lower()
+            status = _LISTENER_SERVICE.start(persist=persist)
+            cfg = load_config()
+            cfg.setdefault("listen", {})
+            cfg["listen"]["enabled"] = True
+            cfg["listen"]["persist"] = persist
+            save_config(cfg)
+            return CommandResult(True, f"Listener {'started' if status.get('configured_active') else 'not started'}")
+        if action == "stop":
+            _LISTENER_SERVICE.stop()
+            cfg = load_config()
+            cfg.setdefault("listen", {})
+            cfg["listen"]["enabled"] = False
+            cfg["listen"]["persist"] = False
+            save_config(cfg)
+            return CommandResult(True, "Listener stopped")
+        if action == "wake" and len(parts) == 3:
+            phrase = parts[2].strip().strip('"')
+            status = _LISTENER_SERVICE.set_wake_word(phrase)
+            return CommandResult(True, f"Wake word set to {status.get('wake_word')}")
+        return CommandResult(True, "Usage: /listen start [--save] | /listen stop | /listen status | /listen wake \"phrase\"")
+
+    def _cmd_voice(raw: str) -> CommandResult:
+        if _VOICE_MANAGER is None:
+            return CommandResult(True, "Voice is not initialized.")
+        parts = raw.split(maxsplit=2)
+        if len(parts) == 1 or parts[1].lower() == "status":
+            status = _VOICE_MANAGER.status()
+            muted = "muted" if status.get("muted") else "on"
+            return CommandResult(True, f"{status.get('provider')} ({status.get('provider_label')}) {muted}")
+        action = parts[1].lower()
+        if action == "set" and len(parts) == 3:
+            status = _VOICE_MANAGER.set_voice(parts[2].strip())
+            return CommandResult(True, f"Voice set to {status.get('provider_label')}")
+        if action == "test":
+            result = _VOICE_MANAGER.speak(_VOICE_MANAGER.test_phrase())
+            return CommandResult(True, "Voice test played." if result.get("ok") else f"Voice test failed: {result.get('error', 'unknown error')}")
+        if action == "off":
+            _VOICE_MANAGER.mute()
+            return CommandResult(True, "Voice muted.")
+        if action == "on":
+            _VOICE_MANAGER.unmute()
+            return CommandResult(True, "Voice enabled.")
+        return CommandResult(True, "Usage: /voice set <voice_id> | /voice test | /voice off | /voice on | /voice status")
+
+    def _cmd_autostart(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        action = "status" if len(parts) == 1 else parts[1].strip().lower()
+        if action == "enable":
+            result = enable_autostart(PROJECT_ROOT)
+            return CommandResult(True, f"Autostart enabled: {result.get('command', '')}")
+        if action == "disable":
+            result = disable_autostart()
+            return CommandResult(True, "Autostart disabled." if result.get("removed") else "Autostart was not enabled.")
+        if action == "status":
+            status = autostart_status(PROJECT_ROOT)
+            return CommandResult(True, "enabled" if status.get("enabled") else "disabled")
+        return CommandResult(True, "Usage: /autostart enable|disable|status")
 
     def _run_imos_cli(args: list[str]) -> CommandResult:
         command = [sys.executable, "-m", "imos.cli", *args]
@@ -1935,6 +2263,66 @@ def build_gateway(workspace: str):
             return CommandResult(True, "No sessions yet.")
         return CommandResult(True, "\n".join(f"- {row.session_key} ({row.message_count} messages)" for row in rows))
 
+    def _cmd_session(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=2)
+        if len(parts) == 1 or parts[1].lower() == "list":
+            rows = session_manager.list_sessions()
+            if not rows:
+                return CommandResult(True, "No sessions yet.")
+            active_name = session_manager.get_active().name
+            return CommandResult(
+                True,
+                "\n".join(
+                    f"- {row.name} [{row.status}] {row.message_count} messages{' (active)' if row.name == active_name else ''}"
+                    for row in rows
+                ),
+            )
+        action = parts[1].lower()
+        if action == "new":
+            if len(parts) < 3 or not parts[2].strip():
+                return CommandResult(True, "Usage: /session new <name>")
+            session = session_manager.create(parts[2].strip(), channel="cli", user_id="local-user")
+            return CommandResult(True, f"Active session: {session.name}")
+        if action == "resume":
+            if len(parts) < 3 or not parts[2].strip():
+                return CommandResult(True, "Usage: /session resume <name>")
+            session = session_manager.get(parts[2].strip())
+            if session is None:
+                return CommandResult(True, f"Session not found: {parts[2].strip()}")
+            session.status = "active"
+            session_manager.update(session)
+            session_manager.set_active(session.name)
+            return CommandResult(True, f"Resumed session: {session.name}")
+        if action == "save":
+            session = session_manager.get_active()
+            session.status = "paused"
+            session_manager.update(session)
+            session_manager.set_active(session.name)
+            return CommandResult(True, f"Saved session: {session.name}")
+        if action == "export":
+            if len(parts) < 3 or not parts[2].strip():
+                return CommandResult(True, "Usage: /session export <name>")
+            try:
+                payload = session_manager.export_session(parts[2].strip())
+            except KeyError:
+                return CommandResult(True, f"Session not found: {parts[2].strip()}")
+            return CommandResult(True, payload.get("export_path", ""))
+        return CommandResult(True, "Usage: /session new <name> | /session list | /session resume <name> | /session save | /session export <name>")
+
+    def _cmd_route(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=3)
+        if len(parts) == 1 or (len(parts) > 1 and parts[1].lower() == "list"):
+            rules = routing_rules.list_rules()
+            return CommandResult(True, "\n".join(f"{key:16} {value or '-'}" for key, value in rules.items()))
+        if len(parts) == 4 and parts[1].lower() == "set":
+            task_type = parts[2].strip().lower()
+            provider = parts[3].strip().lower()
+            routing_rules.set_rule(task_type, provider)
+            session = session_manager.get_active()
+            session_manager.set_provider_and_routing(session.session_id, session.active_provider, routing_rules.list_rules())
+            return CommandResult(True, f"Route set: {task_type} -> {provider}")
+        return CommandResult(True, "Usage: /route set <task_type> <provider> | /route list")
+
     def _cmd_tasks(_raw: str) -> CommandResult:
         rows = task_manager.list(20)
         if not rows:
@@ -1974,7 +2362,18 @@ def build_gateway(workspace: str):
         except Exception as exc:
             return CommandResult(True, f"Git error: {exc}")
 
-    def _cmd_mcp(_raw: str) -> CommandResult:
+    def _cmd_mcp(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        action = parts[1].strip().lower() if len(parts) == 2 else "list"
+        if action == "install":
+            return _run_imos_cli(["mcp", "install"])
+        if action == "serve":
+            try:
+                started, warnings = _start_mcp_server(port=8767, host="127.0.0.1")
+                text = "\n".join([started, *warnings]) if warnings else started
+                return CommandResult(True, text)
+            except Exception as exc:
+                return CommandResult(True, f"Failed to start MCP server: {exc}")
         payload = {"servers": mcp_runtime.list_servers(), "tools": mcp_runtime.list_tools()}
         return CommandResult(True, json.dumps(payload, indent=2))
 
@@ -2000,7 +2399,7 @@ def build_gateway(workspace: str):
         return CommandResult(True, json.dumps(payload, indent=2))
 
     def _cmd_setup(_raw: str) -> CommandResult:
-        run_setup_wizard()
+        force_run_setup_wizard(PROJECT_ROOT, workspace)
         updated = get_model_config()
         cfg = load_config()
         return CommandResult(True, "Setup updated.", updated_model_config=updated, updated_workspace=cfg.get("workspace", workspace))
@@ -2031,8 +2430,272 @@ def build_gateway(workspace: str):
             return CommandResult(True, f"Config updated: {path}", updated_model_config=updated_model)
         return CommandResult(True, f"Unknown config action: {action}")
 
-    router = CommandRouter(
-        {
+    def _run_skill_direct(name: str, args: dict, *, summary: str) -> CommandResult:
+        blocked = _mutation_blocked(name)
+        if blocked is not None and name in {"computer_control", "send_email", "open_application", "write_file", "bash", "scaffold_react_app", "scaffold_nextjs"}:
+            return blocked
+        skill = next((item for item in skill_registry.load_all() if item.name == name), None)
+        if skill is None:
+            return CommandResult(True, f"Unknown skill: {name}")
+        active_session = session_manager.get_active()
+        event_bus.tool_start(name, summary, session_id=active_session.session_id)
+        started = time.perf_counter()
+        try:
+            event_bus.tool_progress(name, "Executing tool", session_id=active_session.session_id)
+            result = skill.handler(
+                args,
+                workspace=str(workspace_path),
+                memory_store=memory_store,
+                session_id=active_session.session_id,
+                model_config=get_model_config(),
+                shell_runner=shell_runner,
+                process_manager=process_manager,
+                audit_logger=audit_logger,
+            )
+        except Exception as exc:
+            result = {"ok": False, "error": str(exc)}
+        duration = round(time.perf_counter() - started, 3)
+        status = "ok"
+        if isinstance(result, dict) and result.get("ok") is False:
+            status = "error"
+        event_bus.tool_end(name, status, duration, session_id=active_session.session_id)
+        session_manager.record_tool_call(
+            active_session.session_id,
+            name=name,
+            input_summary=summary,
+            status=status,
+            duration=duration,
+            metadata={"input": args},
+        )
+        return CommandResult(True, json.dumps(result, indent=2) if isinstance(result, dict) else str(result))
+
+    def _run_direct_action(name: str, summary: str, action) -> CommandResult:
+        blocked = _mutation_blocked(name)
+        if blocked is not None and name not in {"describe_screen"}:
+            return blocked
+        active_session = session_manager.get_active()
+        event_bus.tool_start(name, summary, session_id=active_session.session_id)
+        started = time.perf_counter()
+        try:
+            event_bus.tool_progress(name, "Executing action", session_id=active_session.session_id)
+            result = action()
+        except Exception as exc:
+            result = {"ok": False, "error": str(exc)}
+        duration = round(time.perf_counter() - started, 3)
+        status = "ok" if not (isinstance(result, dict) and result.get("ok") is False) else "error"
+        event_bus.tool_end(name, status, duration, session_id=active_session.session_id)
+        session_manager.record_tool_call(
+            active_session.session_id,
+            name=name,
+            input_summary=summary,
+            status=status,
+            duration=duration,
+        )
+        if audit_logger is not None:
+            audit_logger.append("direct_action", name, {"summary": summary, "result": result})
+        return CommandResult(True, json.dumps(result, indent=2) if isinstance(result, dict) else str(result))
+
+    def _draft_email_body(person: str, topic: str) -> str:
+        return f"Hi {person},\n\nI wanted to reach out about {topic}.\n\nBest,\nIMOS"
+
+    def _latest_project_dirs() -> list[Path]:
+        roots = [Path.home() / "Desktop", Path.home() / "Documents", Path.home() / "Downloads"]
+        recent: list[Path] = []
+        cutoff = time.time() - (30 * 24 * 60 * 60)
+        for root in roots:
+            if not root.exists():
+                continue
+            for item in root.iterdir():
+                try:
+                    if not item.is_dir():
+                        continue
+                    markers = [item / ".git", item / "package.json", item / "requirements.txt"]
+                    if not any(marker.exists() for marker in markers):
+                        continue
+                    if item.stat().st_mtime < cutoff:
+                        continue
+                    recent.append(item)
+                except Exception:
+                    continue
+        return sorted(recent, key=lambda path: path.stat().st_mtime, reverse=True)
+
+    def _create_folder_action(name: str, location: str) -> dict:
+        target = Path(location).expanduser() / name
+        target.mkdir(parents=True, exist_ok=True)
+        try:
+            os.startfile(str(target))  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return {"ok": True, "path": str(target)}
+
+    def _move_files_action(file_type: str, src: str, dst: str) -> dict:
+        source = Path(src).expanduser()
+        target = Path(dst).expanduser()
+        target.mkdir(parents=True, exist_ok=True)
+        pattern = f"*.{file_type.lstrip('.').lower()}"
+        moved: list[str] = []
+        for item in source.glob(pattern):
+            destination = target / item.name
+            item.replace(destination)
+            moved.append(str(destination))
+        return {"ok": True, "moved": moved, "count": len(moved), "destination": str(target)}
+
+    def _add_latest_projects_action(dst: str) -> dict:
+        target = Path(dst).expanduser()
+        target.mkdir(parents=True, exist_ok=True)
+        moved: list[str] = []
+        for item in _latest_project_dirs():
+            destination = target / item.name
+            if destination.exists():
+                continue
+            item.replace(destination)
+            moved.append(str(destination))
+        return {"ok": True, "moved": moved, "count": len(moved), "destination": str(target)}
+
+    def _delete_path_action(target: str) -> dict:
+        path = Path(target).expanduser()
+        if not path.exists():
+            return {"ok": False, "error": f"Path not found: {path}"}
+        if path.is_dir():
+            import shutil
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+        return {"ok": True, "deleted": str(path)}
+
+    def _power_action(kind: str) -> dict:
+        commands = {
+            "shutdown": "shutdown /s /t 10",
+            "restart": "shutdown /r /t 10",
+            "sleep": "rundll32.exe powrprof.dll,SetSuspendState 0,1,0",
+            "lock": "rundll32.exe user32.dll,LockWorkStation",
+        }
+        command = commands[kind]
+        return {"ok": os.system(command) == 0, "command": command}
+
+    def _whatsapp_action(contact: str, message: str) -> dict:
+        resolved = contact_book.resolve(contact)
+        target = resolved.get("value") if resolved.get("ok") else _prompt_contact_resolution(contact)
+        if not target:
+            return {"ok": False, "error": f"Contact not found: {contact}"}
+        opened = webbrowser.open(f"https://wa.me/{target}?text={quote(message)}")
+        return {"ok": bool(opened), "contact": contact, "target": target}
+
+    def _email_about_action(person: str, topic: str) -> dict:
+        resolved = contact_book.resolve(person)
+        destination = resolved.get("value") if resolved.get("ok") else _prompt_contact_resolution(person)
+        if not destination:
+            return {"ok": False, "error": f"Contact not found: {person}"}
+        body = _draft_email_body(person, topic)
+        return send_email_smtp(destination, f"About {topic}", body)
+
+    def _natural_dispatch(text: str) -> CommandResult | None:
+        lowered = text.strip().lower()
+        if not lowered:
+            return None
+        if lowered == "open editor":
+            return router.handlers["/ide"]("/ide")
+        if lowered in {"screenshot", "take a screenshot"}:
+            return _run_skill_direct("computer_control", {"action": "screenshot"}, summary="screenshot()")
+        if lowered in {"what's on my screen", "whats on my screen", "what's on screen", "whats on screen"}:
+            return _run_direct_action(
+                "describe_screen",
+                "screenshot() + describe_screen()",
+                lambda: {
+                    "screenshot": next((item for item in skill_registry.load_all() if item.name == "computer_control"), None).handler(
+                        {"action": "screenshot"},
+                        workspace=str(workspace_path),
+                        memory_store=memory_store,
+                        session_id=session_manager.get_active().session_id,
+                        model_config=get_model_config(),
+                        shell_runner=shell_runner,
+                        process_manager=process_manager,
+                        audit_logger=audit_logger,
+                    ),
+                    "description": __import__("core.vision", fromlist=["describe_screen"]).describe_screen(),
+                },
+            )
+        if lowered.startswith("type "):
+            return _run_skill_direct("computer_control", {"action": "type_text", "text": text[5:]}, summary=f"type_text({text[5:]})")
+        if lowered.startswith("click "):
+            payload = text[6:].strip()
+            if payload.replace(" ", "").isdigit():
+                parts = [part for part in payload.split() if part]
+                if len(parts) == 2:
+                    return _run_skill_direct("computer_control", {"action": "click", "x": int(parts[0]), "y": int(parts[1])}, summary=f"click({parts[0]}, {parts[1]})")
+            return _run_skill_direct("computer_control", {"action": "click_element", "image_path": payload}, summary=f"click_element({payload})")
+        if lowered.startswith("open "):
+            target = text[5:].strip()
+            if target.lower() in {"cursor", "windsurf", "vscode", "vs code", "visual studio code"}:
+                command = "/ide " + target
+                return router.handlers["/ide"](command)
+            return _run_skill_direct("computer_control", {"action": "open_app", "name": target}, summary=f"open_app({target})")
+        if lowered.startswith("search ") and " on google" in lowered:
+            query = text[7 : lowered.rfind(" on google")].strip()
+            return _run_skill_direct("browser_search", {"action": "google", "query": query}, summary=f"google({query})")
+        if lowered.startswith("create folder "):
+            remainder = text[len("create folder "):].strip()
+            if " on " in remainder.lower():
+                split_at = remainder.lower().rfind(" on ")
+                name = remainder[:split_at].strip()
+                location = remainder[split_at + 4 :].strip()
+            else:
+                name = remainder
+                location = str(Path.home() / "Desktop")
+            return _run_direct_action("create_folder", f"create_folder({name} on {location})", lambda: _create_folder_action(name, location))
+        if lowered.startswith("create a folder ") and " on " in lowered:
+            name = text[16: lowered.rfind(" on ")].strip()
+            location = text[lowered.rfind(" on ") + 4 :].strip()
+            return _run_direct_action("create_folder", f"create_folder({name} on {location})", lambda: _create_folder_action(name, location))
+        if lowered.startswith("move all ") and " files from " in lowered and " to " in lowered:
+            body = text[9:]
+            file_type = body[: body.lower().find(" files from ")].strip()
+            remainder = body[body.lower().find(" files from ") + 12 :]
+            src = remainder[: remainder.lower().find(" to ")].strip()
+            dst = remainder[remainder.lower().find(" to ") + 4 :].strip()
+            return _run_direct_action("move_files", f"move_files({file_type}, {src}, {dst})", lambda: _move_files_action(file_type, src, dst))
+        if lowered.startswith("add my latest projects to "):
+            dst = text[len("add my latest projects to "):].strip()
+            return _run_direct_action("add_latest_projects", f"add_latest_projects({dst})", lambda: _add_latest_projects_action(dst))
+        if lowered.startswith("delete "):
+            target = text[7:].strip()
+            decision = confirm_policy.confirm_delete(target)
+            if not decision.allowed:
+                return CommandResult(True, decision.prompt)
+            return _run_direct_action("delete_path", f"delete_path({target})", lambda: _delete_path_action(target))
+        if lowered in {"shut down", "shutdown pc"}:
+            return _run_direct_action("shutdown_pc", "shutdown_pc()", lambda: _power_action("shutdown"))
+        if lowered == "restart":
+            return _run_direct_action("restart_pc", "restart_pc()", lambda: _power_action("restart"))
+        if lowered == "sleep":
+            return _run_direct_action("sleep_pc", "sleep_pc()", lambda: _power_action("sleep"))
+        if lowered == "lock":
+            return _run_direct_action("lock_pc", "lock_pc()", lambda: _power_action("lock"))
+        if lowered.startswith("set volume to "):
+            level = "".join(ch for ch in text[len("set volume to "):] if ch.isdigit())
+            return _run_direct_action("set_volume", f"set_volume({level})", lambda: {"ok": False, "error": "Volume control dependency not installed."})
+        if lowered.startswith("play "):
+            query = text[5:].strip()
+            return _run_direct_action("play_media", f"play_media({query})", lambda: open_prompt_url("https://www.youtube.com/results?search_query=", query))
+        if lowered.startswith("whatsapp "):
+            remainder = text[9:].strip()
+            if " " in remainder:
+                contact, message = remainder.split(" ", 1)
+                return _run_direct_action("whatsapp", f"whatsapp({contact})", lambda: _whatsapp_action(contact, message))
+        if lowered.startswith("message "):
+            remainder = text[8:].strip()
+            if " " in remainder:
+                contact, message = remainder.split(" ", 1)
+                return _run_direct_action("message", f"message({contact})", lambda: _whatsapp_action(contact, message))
+        if lowered.startswith("email ") and " about " in lowered:
+            person = text[6: lowered.rfind(" about ")].strip()
+            topic = text[lowered.rfind(" about ") + 7 :].strip()
+            return _run_direct_action("email", f"email({person}, {topic})", lambda: _email_about_action(person, topic))
+        if lowered.startswith("find ") and " and email " in lowered:
+            return _run_direct_action("prospect_email", text, lambda: {"ok": False, "error": "Prospect flow is not fully configured yet."})
+        return None
+
+    handlers = {
             "/help": _cmd_help,
             "/exit": _cmd_exit,
             "/clear": _cmd_clear,
@@ -2040,6 +2703,23 @@ def build_gateway(workspace: str):
             "/provider": _cmd_provider,
             "/models": _cmd_models,
             "/use": _cmd_use,
+            "/claude-code": _cmd_claude_code,
+            "/openai": _cmd_openai,
+            "/codex": _cmd_codex,
+            "/cursor": _cmd_cursor,
+            "/ide": _cmd_ide,
+            "/vscode": _cmd_vscode,
+            "/windsurf": _cmd_windsurf,
+            "/aider": _cmd_aider,
+            "/continue": _cmd_continue,
+            "/gemini": _cmd_gemini,
+            "/email": _cmd_email,
+            "/whatsapp": _cmd_whatsapp,
+            "/telegram": _cmd_telegram,
+            "/v0": _cmd_v0,
+            "/lovable": _cmd_lovable,
+            "/bolt": _cmd_bolt,
+            "/doctor": _cmd_doctor,
             "/setmodel": _cmd_setmodel,
             "/pickmodel": _cmd_pickmodel,
             "/setkey": _cmd_setkey,
@@ -2047,6 +2727,7 @@ def build_gateway(workspace: str):
             "/workspace": _cmd_workspace,
             "/cd": _cmd_cd,
             "/dashboard": _cmd_dashboard,
+            "/consent": _cmd_consent,
             "/status": _cmd_status,
             "/history": _cmd_history,
             "/adapters": _cmd_adapters,
@@ -2058,10 +2739,12 @@ def build_gateway(workspace: str):
             "/skills": _cmd_skills,
             "/workflows": _cmd_workflows,
             "/runflow": _cmd_runflow,
+            "/session": _cmd_session,
             "/sessions": _cmd_sessions,
             "/tasks": _cmd_tasks,
             "/processes": _cmd_processes,
             "/audit": _cmd_audit,
+            "/route": _cmd_route,
             "/git": _cmd_git,
             "/mcp": _cmd_mcp,
             "/terminal": _cmd_terminal,
@@ -2069,9 +2752,126 @@ def build_gateway(workspace: str):
             "/integrations": _cmd_integrations,
             "/setup": _cmd_setup,
             "/config": _cmd_config,
+            "/contact": _cmd_contact,
+            "/listen": _cmd_listen,
+            "/voice": _cmd_voice,
+            "/autostart": _cmd_autostart,
         }
+
+    def _wrap_handler(name: str, fn):
+        def _wrapped(raw: str) -> CommandResult:
+            session = session_manager.get_active()
+            event_bus.tool_start(name, raw, session_id=session.session_id)
+            started = time.perf_counter()
+            try:
+                result = fn(raw)
+            except Exception as exc:
+                duration = round(time.perf_counter() - started, 3)
+                event_bus.tool_end(name, "error", duration, session_id=session.session_id, error=str(exc))
+                session_manager.record_tool_call(session.session_id, name=name, input_summary=raw[:200], status="error", duration=duration)
+                raise
+            duration = round(time.perf_counter() - started, 3)
+            status = "ok" if getattr(result, "handled", True) else "error"
+            event_bus.tool_end(name, status, duration, session_id=session.session_id)
+            session_manager.record_tool_call(session.session_id, name=name, input_summary=raw[:200], status=status, duration=duration)
+            return result
+
+        return _wrapped
+
+    wrapped_handlers = {name: _wrap_handler(name, fn) for name, fn in handlers.items()}
+
+    router = CommandRouter(
+        wrapped_handlers,
+        natural_dispatcher=_natural_dispatch,
+        routing_rules=routing_rules,
     )
     gateway = ConnectAIGateway(runtime, session_manager, memory_store, router, imos_orchestrator=imos_orchestrator)
+    gateway.state_root = state_root
+    gateway.event_bus = event_bus
+    gateway.routing_rules = routing_rules
+    gateway.process_manager = process_manager
+    gateway.task_manager = task_manager
+    gateway.cost_tracker = cost_tracker
+    gateway.mcp_runtime = mcp_runtime
+    gateway.workflow_registry = workflow_registry
+    gateway.skill_registry = skill_registry
+    gateway.session_manager = session_manager
+    gateway.memory_store = memory_store
+    gateway.workspace_path = workspace_path
+    gateway.cli_channel = cli_channel
+    gateway.contact_book = contact_book
+    gateway.consent_manager = consent_manager
+    gateway.listener_service = _LISTENER_SERVICE
+    gateway.voice_manager = _VOICE_MANAGER
+    gateway.confirm_policy = confirm_policy
+    if _LISTENER_SERVICE is not None:
+        def _listener_callback(transcript: str) -> str:
+            envelope = cli_channel.normalize(
+                user_id="voice-user",
+                text=transcript,
+                session_hint=session_manager.get_active().name,
+                source="voice",
+            )
+            result = gateway.handle_with_meta(envelope, str(workspace_path), get_model_config())
+            return str(result.get("output", ""))
+        _LISTENER_SERVICE.callback = _listener_callback
+    global _DASHBOARD_SERVICE
+    if _DASHBOARD_SERVICE is None:
+        dashboard_context = DashboardContext(
+            workspace=workspace_path,
+            state_root=state_root,
+            html_path=PROJECT_ROOT / "dashboard" / "jarvis_dashboard.html",
+            session_manager=session_manager,
+            memory_store=memory_store,
+            audit_logger=audit_logger,
+            cost_tracker=cost_tracker,
+            process_manager=process_manager,
+            task_manager=task_manager,
+            mcp_runtime=mcp_runtime,
+            workflow_registry=workflow_registry,
+            skill_registry=skill_registry,
+            event_bus=event_bus,
+            routing_rules=routing_rules,
+            gateway=gateway,
+            cli_channel=cli_channel,
+            model_config_getter=get_model_config,
+            doctor_reporter=_doctor_output,
+            listener_service=_LISTENER_SERVICE,
+            contact_book=contact_book,
+            consent_manager=consent_manager,
+        )
+        _DASHBOARD_SERVICE = DashboardService(dashboard_context, port=8766)
+        _DASHBOARD_SERVICE.start(open_browser=False)
+    else:
+        _DASHBOARD_SERVICE.context.gateway = gateway
+        _DASHBOARD_SERVICE.context.cli_channel = cli_channel
+        _DASHBOARD_SERVICE.context.workspace = workspace_path
+        _DASHBOARD_SERVICE.context.state_root = state_root
+        _DASHBOARD_SERVICE.context.session_manager = session_manager
+        _DASHBOARD_SERVICE.context.memory_store = memory_store
+        _DASHBOARD_SERVICE.context.audit_logger = audit_logger
+        _DASHBOARD_SERVICE.context.cost_tracker = cost_tracker
+        _DASHBOARD_SERVICE.context.process_manager = process_manager
+        _DASHBOARD_SERVICE.context.task_manager = task_manager
+        _DASHBOARD_SERVICE.context.mcp_runtime = mcp_runtime
+        _DASHBOARD_SERVICE.context.workflow_registry = workflow_registry
+        _DASHBOARD_SERVICE.context.skill_registry = skill_registry
+        _DASHBOARD_SERVICE.context.event_bus = event_bus
+        _DASHBOARD_SERVICE.context.routing_rules = routing_rules
+        _DASHBOARD_SERVICE.context.listener_service = _LISTENER_SERVICE
+        _DASHBOARD_SERVICE.context.contact_book = contact_book
+        _DASHBOARD_SERVICE.context.consent_manager = consent_manager
+    gateway.dashboard_service = _DASHBOARD_SERVICE
+    if isinstance(cfg.get("mcp"), dict) and cfg.get("mcp", {}).get("enabled"):
+        existing_mcp = any(
+            row.get("name") == "imos-mcp-server" and str(row.get("status")) == "running"
+            for row in process_manager.list()
+        )
+        if not existing_mcp:
+            try:
+                _start_mcp_server(port=int(cfg.get("mcp", {}).get("port", 8765) or 8765), host=str(cfg.get("mcp", {}).get("host", "127.0.0.1")))
+            except Exception:
+                pass
     return gateway, cli_channel, skill_registry
 
 
@@ -2311,16 +3111,90 @@ def toolbar(model_config, workspace):
     return HTML(f'<style bg="#111111" fg="#444444">  {p}/{m}   {ws}  </style>')
 
 
+def _git_branch(workspace: str) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=2,
+        )
+        branch = (result.stdout or "").strip()
+        return branch if result.returncode == 0 and branch else ""
+    except Exception:
+        return ""
+
+
+def _prompt_message(workspace: str) -> HTML:
+    directory = Path(workspace).name or str(workspace)
+    branch = _git_branch(workspace)
+    header = directory if not branch else f"{directory} ({branch})"
+    return HTML(f'<style fg="#8f8f8f">{header}</style>\n<style fg="#f97316">&gt;</style> ')
+
+
+class ShellEventRenderer:
+    def __init__(self):
+        self._label_printed = False
+        self._streaming = False
+
+    def on_event(self, event) -> None:
+        return None
+
+    def emit_text(self, token: str) -> None:
+        if not self._streaming:
+            self._streaming = True
+        if not self._label_printed:
+            sys.stdout.write(f"{ORANGE}IMOS:{RESET} {WHITE}")
+            self._label_printed = True
+        sys.stdout.write(_plain(token))
+        sys.stdout.flush()
+
+    def finish_text(self) -> None:
+        if self._streaming:
+            sys.stdout.write(f"{RESET}\n")
+            sys.stdout.flush()
+        self._streaming = False
+        self._label_printed = False
+
+
 #  Main 
 
 def main():
     if len(sys.argv) > 1:
         top_command = sys.argv[1].strip().lower()
+        if top_command == "--setup":
+            cfg = load_config()
+            workspace = cfg.get("workspace", os.getcwd())
+            force_run_setup_wizard(PROJECT_ROOT, workspace)
+            return
         if top_command == "--doctor":
+            cfg = load_config()
+            workspace = cfg.get("workspace", os.getcwd())
+            build_gateway(workspace)
             import asyncio
             from imos.doctor import doctor_report
 
-            print(asyncio.run(doctor_report()))
+            if _DASHBOARD_SERVICE is not None:
+                print(
+                    asyncio.run(
+                        doctor_report(
+                            session_manager=_DASHBOARD_SERVICE.context.session_manager,
+                            dashboard_service=_DASHBOARD_SERVICE,
+                            routing_rules=_DASHBOARD_SERVICE.context.routing_rules,
+                            event_bus=_DASHBOARD_SERVICE.context.event_bus,
+                            process_manager=_DASHBOARD_SERVICE.context.process_manager,
+                            listener_service=getattr(_DASHBOARD_SERVICE.context, "listener_service", None),
+                            consent_manager=getattr(_DASHBOARD_SERVICE.context, "consent_manager", None),
+                            contact_book=getattr(_DASHBOARD_SERVICE.context, "contact_book", None),
+                            voice_manager=_VOICE_MANAGER,
+                            state_root=getattr(_DASHBOARD_SERVICE.context, "state_root", None),
+                        )
+                    )
+                )
+            else:
+                print(asyncio.run(doctor_report()))
             return
         if top_command == "imos":
             from imos.cli import main as imos_main
@@ -2348,11 +3222,19 @@ def main():
             asyncio.run(_run_imos())
             return
         if top_command == "dashboard":
-            launch_dashboard()
+            cfg = load_config()
+            workspace = cfg.get("workspace", os.getcwd())
+            build_gateway(workspace)
+            if _DASHBOARD_SERVICE is not None:
+                _open_dashboard_url()
             return
         if top_command == "voice":
-            from jarvis import voice_loop
-            voice_loop()
+            cfg = load_config()
+            workspace = cfg.get("workspace", os.getcwd())
+            build_gateway(workspace)
+            if _VOICE_MANAGER is not None:
+                result = _VOICE_MANAGER.speak(_VOICE_MANAGER.test_phrase())
+                print(json.dumps(result, indent=2))
             return
         if top_command == "login":
             run_login()
@@ -2361,59 +3243,74 @@ def main():
             run_logout()
             return
 
-    if not is_configured():
-        run_setup_wizard()
-
     cfg = load_config()
     workspace = sys.argv[1] if len(sys.argv) > 1 else cfg.get("workspace", os.getcwd())
+    ensure_first_run_setup(PROJECT_ROOT, workspace)
+    cfg = load_config()
+    workspace = cfg.get("workspace", workspace)
     model_config = get_model_config()
-    if not ensure_authenticated(Path(workspace)):
-        return
     gateway, cli_channel, _skill_registry = build_gateway(workspace)
+    event_bus = gateway.event_bus
 
     os.system("cls" if os.name == "nt" else "clear")
     render_home_screen(model_config, workspace)
 
-    HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    session = PromptSession(
-        history=FileHistory(str(HISTORY_PATH)),
-        style=PROMPT_STYLE,
-    )
-
     while True:
+        renderer = ShellEventRenderer()
+        subscription = event_bus.subscribe(renderer.on_event)
         try:
-            user_input = session.prompt(
-                HTML("<prompt>></prompt> "),
-                bottom_toolbar=lambda: toolbar(model_config, workspace),
-                refresh_interval=0.5,
-            ).strip()
+            user_input = input(_imos_prompt()).strip()
         except (EOFError, KeyboardInterrupt):
-            console.print("\n  [dim]bye[/dim]")
+            event_bus.unsubscribe(subscription)
+            print()
             break
 
         if not user_input:
+            event_bus.unsubscribe(subscription)
             continue
 
-        envelope = cli_channel.normalize(user_id="local-user", text=user_input)
-        console.print()
-        result = gateway.handle(envelope, workspace, model_config)
+        active_session = gateway.session_manager.get_active()
+        envelope = cli_channel.normalize(user_id="local-user", text=user_input, session_hint=active_session.name)
+        text_chunks = {"count": 0}
+        is_command = user_input.startswith("/")
+
+        def _emit_delta(chunk: str) -> None:
+            text_chunks["count"] += 1
+            if not is_command:
+                renderer.emit_text(chunk)
+
+        try:
+            result_meta = gateway.handle_with_meta(envelope, workspace, model_config, on_text_delta=_emit_delta)
+        except Exception as exc:
+            renderer.finish_text()
+            event_bus.unsubscribe(subscription)
+            print(_plain(exc))
+            continue
+        finally:
+            renderer.finish_text()
+        result = CommandResult(
+            handled=True,
+            output=str(result_meta.get("output", "")),
+            should_exit=bool(result_meta.get("should_exit", False)),
+            updated_model_config=result_meta.get("updated_model_config"),
+            updated_workspace=result_meta.get("updated_workspace"),
+        )
         if result.updated_model_config:
             model_config = result.updated_model_config
         if result.updated_workspace:
             workspace = result.updated_workspace
             gateway, cli_channel, _skill_registry = build_gateway(workspace)
-        if result.output:
-            if result.output.lstrip().startswith("{"):
-                try:
-                    console.print_json(result.output)
-                except Exception:
-                    console.print(result.output)
+            event_bus = gateway.event_bus
+        if result.output and text_chunks["count"] == 0:
+            if is_command:
+                _print_command_output(result.output)
             else:
-                console.print(result.output)
+                _print_assistant_output(result.output)
         if result.should_exit:
-            console.print("\n  [dim]bye[/dim]")
+            event_bus.unsubscribe(subscription)
             break
-        console.print()
+        event_bus.unsubscribe(subscription)
+        print()
 
 
 if __name__ == "__main__":

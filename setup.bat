@@ -24,6 +24,14 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo [*] Installing voice and service dependencies...
+pip install faster-whisper sounddevice numpy scipy
+pip install pystray pillow
+pip install elevenlabs
+pip install pyttsx3
+pip install pipwin
+pipwin install pyaudio
+
 echo [*] Installing Playwright Chromium...
 playwright install chromium
 if errorlevel 1 (
@@ -50,6 +58,9 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+
+echo [*] Installing IMOS background service...
+python setup\install_service.py
 
 echo.
 echo ========================================
