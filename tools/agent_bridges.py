@@ -364,6 +364,10 @@ def open_ide_with_fallback(project_path: str | Path, prompt: str = "") -> dict[s
     }
 
 
+def open_best_ide(project_path: str | Path, prompt: str = "") -> dict[str, Any]:
+    return open_ide_with_fallback(project_path, prompt=prompt)
+
+
 def cursor_mcp_http_snippet(url: str = "http://127.0.0.1:8765/mcp") -> str:
     return (
         '{\n'

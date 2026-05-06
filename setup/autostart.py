@@ -18,7 +18,7 @@ def enable_autostart(repo_root: Path) -> dict[str, Any]:
     import winreg
 
     command = _command(repo_root)
-    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
         winreg.SetValueEx(key, RUN_NAME, 0, winreg.REG_SZ, command)
     return {"ok": True, "command": command}
 

@@ -3,16 +3,18 @@
     "id": "groq-main",
     "name": "Groq",
     "type": "groq",
+    "provider": "groq",
     "api_key": "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",
     "base_url": "https://api.groq.com/openai/v1",
     "model": "llama-3.3-70b-versatile",
     "enabled": true,
-    "is_default": true
+    "is_default": false
   },
   {
     "id": "openai-main",
     "name": "OpenAI",
     "type": "openai",
+    "provider": "openai",
     "api_key": "sk-test",
     "base_url": "https://api.openai.com/v1",
     "model": "gpt-4o",
@@ -23,10 +25,33 @@
     "id": "ollama-local",
     "name": "Ollama",
     "type": "ollama",
+    "provider": "ollama",
     "api_key": "ollama",
     "base_url": "http://localhost:11434/v1",
     "model": "llama3",
     "enabled": true,
     "is_default": false
+  },
+  {
+    "id": "groq-8e958c",
+    "name": "Groq Verify",
+    "type": "groq",
+    "provider": "groq",
+    "api_key": "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",
+    "base_url": "https://api.groq.com/openai/v1",
+    "model": "llama-3.3-70b-versatile",
+    "enabled": true,
+    "is_default": false
+  },
+  {
+    "id": "groq-wizard",
+    "name": "Groq",
+    "type": "groq",
+    "provider": "groq",
+    "api_key": "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",
+    "base_url": "https://api.groq.com/openai/v1",
+    "model": "llama-3.3-70b-versatile",
+    "enabled": true,
+    "is_default": true
   }
 ]

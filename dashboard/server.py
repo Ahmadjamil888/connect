@@ -15,8 +15,10 @@ from typing import Any, Callable
 from urllib.parse import parse_qs, urlparse
 
 from core import model_manager
+from core.runtime_session import runtime_session
+from config.config import load_config, save_config
 from service.status import read_service_status
-from setup.autostart import safe_autostart_status
+from setup.autostart import disable_autostart, enable_autostart, safe_autostart_status
 
 
 @dataclass
@@ -167,6 +169,23 @@ class DashboardService:
         def write_settings_file(data: dict[str, Any]) -> dict[str, Any]:
             write_json_file(config_dir / "settings.json", data)
             return data
+
+        def update_runtime_config(**fields: Any) -> dict[str, Any]:
+            cfg = load_config()
+            listen_cfg = cfg.setdefault("listen", {})
+            if "voice_enabled" in fields:
+                enabled = bool(fields.get("voice_enabled"))
+                listen_cfg["enabled"] = enabled
+                listen_cfg["persist"] = enabled
+            if "autostart_enabled" in fields:
+                cfg["autostart"] = bool(fields.get("autostart_enabled"))
+            save_config(cfg)
+            return cfg
+
+        def apply_autostart(enabled: bool) -> dict[str, Any]:
+            if enabled:
+                return enable_autostart(project_root)
+            return disable_autostart()
 
         def read_contacts_file() -> list[dict[str, str]]:
             items = read_json_file(config_dir / "contacts.json", [])
@@ -353,7 +372,10 @@ class DashboardService:
                 if event.get("event_type") == "tool_end":
                     active_map.pop(str(session_id), None)
             active_operation = active_map.get(str(session.session_id))
+            runtime_state = runtime_session.runtime_state()
+            listener_status = context.listener_service.status() if context.listener_service is not None else {"active": False, "voice_ok": False}
             return {
+                "assistant_name": "IMOS",
                 "provider": context.model_config_getter().get("provider", "") or context.model_config_getter().get("type", ""),
                 "model": context.model_config_getter().get("model", ""),
                 "workspace": str(context.workspace),
@@ -388,7 +410,7 @@ class DashboardService:
                     "providers_total": len(health_rows),
                 },
                 "event_bus": context.event_bus.status(),
-                "listener": context.listener_service.status() if context.listener_service is not None else {"active": False, "voice_ok": False},
+                "listener": listener_status,
                 "voice": getattr(getattr(context.gateway, "voice_manager", None), "status", lambda: {"provider": "pyttsx3", "muted": False})(),
                 "service": read_service_status(context.state_root),
                 "autostart": safe_autostart_status(Path.cwd()),
@@ -397,6 +419,9 @@ class DashboardService:
                 },
                 "consent": context.consent_manager.status() if context.consent_manager is not None else {"granted": False},
                 "active_operation": active_operation,
+                "runtime_state": runtime_state,
+                "operations": runtime_state.get("operations", []),
+                "voice_mode": listener_status.get("mode", "always-on"),
             }
 
         class Handler(BaseHTTPRequestHandler):
@@ -472,9 +497,12 @@ class DashboardService:
                             if events:
                                 last_event_id = int(events[-1]["event_id"])
                             self._send_sse(payload)
-                            time.sleep(2.0)
+                            time.sleep(3.0)
                     except (BrokenPipeError, ConnectionResetError):
                         return
+                if parsed.path == "/api/runtime_state":
+                    self._send_json(runtime_session.runtime_state())
+                    return
                 if parsed.path == "/api/runtime":
                     self._send_json(runtime_snapshot())
                     return
@@ -596,12 +624,17 @@ class DashboardService:
                     return
                 if parsed.path == "/api/settings":
                     env_values = read_env()
+                    autostart = safe_autostart_status(project_root)
+                    listener = context.listener_service.status() if context.listener_service is not None else {"active": False, "mode": "always-on"}
                     self._send_json(
                         {
                             **read_settings_file(),
-                            "wake_word": env_values.get("WAKE_WORD", "IMOS"),
+                            "assistant_name": "IMOS",
+                            "wake_word": "IMOS",
+                            "voice_mode": listener.get("mode", "always-on"),
                             "voice_enabled": str(env_values.get("IMOS_VOICE_ENABLED", "true")).lower() == "true",
                             "dashboard_port": int(env_values.get("DASHBOARD_PORT", self.server.server_address[1])),
+                            "autostart": autostart,
                             "active_session": context.session_manager.get_active().__dict__,
                         }
                     )
@@ -616,13 +649,17 @@ class DashboardService:
                         self._send_json({"items": read_contacts_file()})
                     return
                 if parsed.path == "/api/voice/status":
-                    listener = context.listener_service.status() if context.listener_service is not None else {"active": False, "wake_word": "IMOS"}
+                    listener = context.listener_service.status() if context.listener_service is not None else {"active": False, "mode": "always-on"}
                     voice = getattr(getattr(context.gateway, "voice_manager", None), "status", lambda: {"provider": "pyttsx3", "voice_id": ""})()
                     self._send_json(
                         {
+                            "assistant_name": "IMOS",
                             "listener_status": "active" if listener.get("active") else "inactive",
                             "active": bool(listener.get("active")),
-                            "wake_word": listener.get("wake_word", "IMOS"),
+                            "wake_word": "IMOS",
+                            "mode": listener.get("mode", "always-on"),
+                            "model": listener.get("command_model", "base"),
+                            "model_error": listener.get("model_error", ""),
                             "voice_provider": voice.get("provider", "pyttsx3"),
                             "voice_name": voice.get("voice_id", ""),
                         }
@@ -878,10 +915,15 @@ class DashboardService:
                     cfg = read_json_file(config_dir / "dashboard.json", {})
                     cfg["port"] = int(payload.get("dashboard_port", 8766) or 8766)
                     write_json_file(config_dir / "dashboard.json", cfg)
+                    autostart_enabled = bool(payload.get("autostart", False))
+                    voice_enabled = bool(payload.get("voice_enabled", True))
+                    update_runtime_config(autostart_enabled=autostart_enabled, voice_enabled=voice_enabled)
+                    apply_autostart(autostart_enabled)
                     write_env(
                         {
-                            "WAKE_WORD": str(payload.get("wake_word", "IMOS")).strip() or "IMOS",
-                            "IMOS_AUTOSTART": "true" if bool(payload.get("autostart", False)) else "false",
+                            "WAKE_WORD": "IMOS",
+                            "IMOS_AUTOSTART": "true" if autostart_enabled else "false",
+                            "IMOS_VOICE_ENABLED": "true" if voice_enabled else "false",
                             "DASHBOARD_PORT": str(cfg["port"]),
                         }
                     )
@@ -893,12 +935,19 @@ class DashboardService:
                     settings.update(payload)
                     write_settings_file(settings)
                     env_updates = {}
-                    if "wake_word" in payload:
-                        env_updates["WAKE_WORD"] = str(payload.get("wake_word", "IMOS")).strip() or "IMOS"
+                    env_updates["WAKE_WORD"] = "IMOS"
                     if "dashboard_port" in payload:
                         env_updates["DASHBOARD_PORT"] = str(payload.get("dashboard_port", self.server.server_address[1]))
                     if "voice_enabled" in payload:
                         env_updates["IMOS_VOICE_ENABLED"] = "true" if bool(payload.get("voice_enabled")) else "false"
+                    autostart_payload = payload.get("autostart")
+                    if isinstance(autostart_payload, dict) and "enabled" in autostart_payload:
+                        enabled = bool(autostart_payload.get("enabled"))
+                        env_updates["IMOS_AUTOSTART"] = "true" if enabled else "false"
+                        apply_autostart(enabled)
+                        update_runtime_config(autostart_enabled=enabled)
+                    if "voice_enabled" in payload:
+                        update_runtime_config(voice_enabled=bool(payload.get("voice_enabled")))
                     if env_updates:
                         write_env(env_updates)
                     self._send_json({"ok": True, **settings})
@@ -942,12 +991,16 @@ class DashboardService:
                     if context.listener_service is None:
                         self._send_json({"ok": False, "error": "Listener unavailable"}, status=500)
                         return
-                    self._send_json({"ok": True, **context.listener_service.start()})
+                    update_runtime_config(voice_enabled=True)
+                    write_env({"IMOS_VOICE_ENABLED": "true"})
+                    self._send_json({"ok": True, **context.listener_service.start(persist=True, daemon=True)})
                     return
                 if parsed.path == "/api/voice/stop" and method == "POST":
                     if context.listener_service is None:
                         self._send_json({"ok": False, "error": "Listener unavailable"}, status=500)
                         return
+                    update_runtime_config(voice_enabled=False)
+                    write_env({"IMOS_VOICE_ENABLED": "false"})
                     self._send_json({"ok": True, **context.listener_service.stop()})
                     return
                 if parsed.path == "/api/voice/test" and method == "POST":
@@ -956,11 +1009,10 @@ class DashboardService:
                     return
                 if parsed.path == "/api/voice/config" and method == "POST":
                     payload = self._read_json()
-                    if context.listener_service is not None and "wake_word" in payload:
-                        context.listener_service.set_wake_word(str(payload.get("wake_word", "IMOS")))
                     voice_manager = getattr(context.gateway, "voice_manager", None)
                     if voice_manager is not None and "voice_name" in payload:
                         voice_manager.set_voice(str(payload.get("voice_name", "")))
+                    write_env({"WAKE_WORD": "IMOS"})
                     self._send_json({"ok": True})
                     return
                 if parsed.path == "/api/chat/stream":

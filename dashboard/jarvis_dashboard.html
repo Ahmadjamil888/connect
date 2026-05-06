@@ -151,8 +151,8 @@
             <div class="grid-2">
               <div class="card"><h3>Listener Status</h3><div class="status-pill"><span class="status-dot" id="voiceActiveDot"></span><span id="listenerStatus">inactive</span></div></div>
               <div class="card"><h3>Voice Provider</h3><div class="muted" id="voiceProvider">-</div></div>
-              <div class="card"><h3>Wake Word</h3><div class="inline-form"><input id="wakeWordInput" /><button class="btn" id="saveWakeWord">Save</button></div></div>
-              <div class="card"><h3>Voice Name</h3><div class="inline-form"><input id="voiceNameInput" /><button class="btn" id="saveVoiceName">Save</button></div></div>
+              <div class="card"><h3>Runtime Name</h3><div class="muted" id="assistantNameVoice">IMOS</div><div class="muted" style="margin-top:8px">Always-on voice runtime, no wake word.</div></div>
+              <div class="card"><h3>Voice Name</h3><div class="inline-form"><input id="voiceNameInput" /><button class="btn" id="saveVoiceName">Save</button></div><div class="muted" id="voiceModeLabel" style="margin-top:8px">always-on</div></div>
             </div>
             <div class="actions-row">
               <button class="btn" id="startListening">Start Listening</button>
@@ -220,7 +220,8 @@
           <div class="panel" data-panel="settings">
             <div class="panel-title">GENERAL</div>
             <div class="card">
-              <div class="field"><label>Wake Word</label><input id="settingWakeWord" /></div>
+              <div class="field"><label>Assistant Name</label><input id="settingAssistantName" readonly /></div>
+              <div class="field"><label>Listener Mode</label><input id="settingVoiceMode" readonly /></div>
               <div class="field"><label>Autostart</label><select id="settingAutostart"><option value="true">on</option><option value="false">off</option></select></div>
               <div class="field"><label>Dashboard Port</label><input id="settingPort" type="number" /></div>
               <div class="field"><label>Voice</label><select id="settingVoice"><option value="true">on</option><option value="false">off</option></select></div>
@@ -268,6 +269,15 @@
         <div class="quick-actions" id="quickActions"></div>
         <div class="panel-title">ACTIVE OPERATION</div>
         <div id="activeOperation"></div>
+        <div class="panel-title">BROWSER STATE</div>
+        <div class="card">
+          <div class="muted">Current URL</div>
+          <div id="browserStateUrl" class="mono">-</div>
+          <div class="muted" style="margin-top:10px">Active Tool</div>
+          <div id="browserStateTool">-</div>
+          <div class="muted" style="margin-top:10px">Active Project</div>
+          <div id="browserStateProject">-</div>
+        </div>
         <div class="panel-title">RECENT ACTIVITY</div>
         <div class="activity-list" id="recentActivity"></div>
       </div>
@@ -373,7 +383,17 @@
     function renderActiveOperation(operation){
       const root=document.getElementById("activeOperation");
       if(!operation){root.innerHTML=`<div class="card"><div class="muted">No active tool call.</div></div>`;return;}
-      root.innerHTML=`<div class="card"><div class="status-line"><strong>${escapeHtml(operation.tool_name||"tool")}</strong><span class="spinner">◌</span></div><div class="muted">${escapeHtml(operation.input_summary||"")}</div><div class="muted">${escapeHtml(operation.started_at||"")}</div></div>`;
+      const type=operation.type||operation.tool_name||"tool";
+      const details=operation.details||{};
+      const target=details.target||details.tool||details.instruction||operation.input_summary||"";
+      const started=operation.started_at||operation.timestamp||"";
+      const status=operation.status||"running";
+      root.innerHTML=`<div class="card"><div class="status-line"><strong>${escapeHtml(type)}</strong><span class="spinner">◌</span></div><div class="muted">${escapeHtml(String(target))}</div><div class="muted">${escapeHtml(String(status))}</div><div class="muted">${escapeHtml(String(started))}</div></div>`;
+    }
+    function renderBrowserState(data){
+      document.getElementById("browserStateUrl").textContent=data.active_url||"-";
+      document.getElementById("browserStateTool").textContent=data.active_tool||"-";
+      document.getElementById("browserStateProject").textContent=data.active_project||"-";
     }
     function renderRuntime(data){
       state.runtime=data;
@@ -389,15 +409,18 @@
       document.getElementById("activeSessionName").textContent=data.session?.name||"-";
       renderRecentActivity(data.tool_feed||[]);
       renderShellHistory(data.shell_history||[]);
-      renderActiveOperation(data.active_operation);
+      renderActiveOperation((data.runtime_state&&data.runtime_state.current_operation)||data.active_operation);
+      renderBrowserState(data.runtime_state||{});
     }
     async function loadRuntime(){renderRuntime(await fetchJson("/api/status"));}
+    async function loadRuntimeState(){renderBrowserState(await fetchJson("/api/runtime_state"));}
     async function loadVoice(){
       const data=await fetchJson("/api/voice/status");
       document.getElementById("listenerStatus").textContent=data.listener_status;
       document.getElementById("voiceProvider").textContent=data.voice_provider;
-      document.getElementById("wakeWordInput").value=data.wake_word||"IMOS";
+      document.getElementById("assistantNameVoice").textContent=data.assistant_name||"IMOS";
       document.getElementById("voiceNameInput").value=data.voice_name||"";
+      document.getElementById("voiceModeLabel").textContent=`${data.mode||"always-on"} listener`;
       document.getElementById("voiceActiveDot").classList.toggle("bad", !data.active);
     }
     function populateProviderTypeOptions(){
@@ -482,7 +505,8 @@
     }
     async function loadSettings(){
       const data=await fetchJson("/api/settings");
-      document.getElementById("settingWakeWord").value=data.wake_word||"IMOS";
+      document.getElementById("settingAssistantName").value=data.assistant_name||"IMOS";
+      document.getElementById("settingVoiceMode").value=data.voice_mode||"always-on";
       document.getElementById("settingAutostart").value=String(Boolean(data.autostart?.enabled));
       document.getElementById("settingPort").value=data.dashboard_port||8766;
       document.getElementById("settingVoice").value=String(Boolean(data.voice_enabled));
@@ -509,7 +533,7 @@
     }
     function connectEvents(){
       const source=new EventSource("/api/events");
-      source.onmessage=(event)=>{try{const payload=JSON.parse(event.data);if(Array.isArray(payload.events)&&payload.events.length){state.events.push(...payload.events);state.events=state.events.slice(-300);state.localLog=state.events.slice(-300);renderEvents();}if(payload.tool_feed){renderRecentActivity(payload.tool_feed);}if(payload.active_operation!==undefined){renderActiveOperation(payload.active_operation);}}catch(_error){}};
+      source.onmessage=(event)=>{try{const payload=JSON.parse(event.data);if(Array.isArray(payload.events)&&payload.events.length){state.events.push(...payload.events);state.events=state.events.slice(-300);state.localLog=state.events.slice(-300);renderEvents();const progressEvents=payload.events.filter((item)=>item.event_type==="tool_progress");if(progressEvents.length){const latest=progressEvents[progressEvents.length-1];renderActiveOperation({type:"tool_progress",details:{target:latest.payload?.message||""},status:"running",timestamp:latest.ts});}}if(payload.tool_feed){renderRecentActivity(payload.tool_feed);}if(payload.runtime_state){renderBrowserState(payload.runtime_state);}if(payload.operations&&payload.operations.length){renderActiveOperation((payload.runtime_state&&payload.runtime_state.current_operation)||payload.operations[payload.operations.length-1]);}else if(payload.active_operation!==undefined){renderActiveOperation(payload.active_operation);}}catch(_error){}};
     }
 
     document.querySelectorAll(".nav-item").forEach((item)=>{item.addEventListener("click",()=>switchTab(item.dataset.tab));item.addEventListener("mouseenter",(event)=>{if(!state.sidebarCollapsed){return;}tooltip.textContent=item.dataset.label;tooltip.style.display="block";tooltip.style.left=`${event.clientX+12}px`;tooltip.style.top=`${event.clientY+12}px`;});item.addEventListener("mousemove",(event)=>{tooltip.style.left=`${event.clientX+12}px`;tooltip.style.top=`${event.clientY+12}px`;});item.addEventListener("mouseleave",()=>{tooltip.style.display="none";});});
@@ -530,19 +554,18 @@
     document.getElementById("showWorkflowForm").onclick=()=>{state.editingWorkflowId="";document.getElementById("workflowFormCard").style.display="block";};
     document.getElementById("cancelWorkflowForm").onclick=()=>{state.editingWorkflowId="";document.getElementById("workflowFormCard").style.display="none";};
     document.getElementById("saveWorkflow").onclick=()=>saveWorkflow().catch((error)=>alert(error.message));
-    document.getElementById("saveWakeWord").onclick=async()=>{await fetchJson("/api/voice/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({wake_word:document.getElementById("wakeWordInput").value})});await loadVoice();};
     document.getElementById("saveVoiceName").onclick=async()=>{await fetchJson("/api/voice/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({voice_name:document.getElementById("voiceNameInput").value})});await loadVoice();};
     document.getElementById("startListening").onclick=async()=>{await fetchJson("/api/voice/start",{method:"POST"});await loadVoice();};
     document.getElementById("stopListening").onclick=async()=>{await fetchJson("/api/voice/stop",{method:"POST"});await loadVoice();};
     document.getElementById("testVoice").onclick=async()=>{await fetchJson("/api/voice/test",{method:"POST"});};
-    document.getElementById("saveSettings").onclick=async()=>{await fetchJson("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({wake_word:document.getElementById("settingWakeWord").value,dashboard_port:Number(document.getElementById("settingPort").value),voice_enabled:document.getElementById("settingVoice").value==="true",autostart:{enabled:document.getElementById("settingAutostart").value==="true"}})});await loadSettings();};
+    document.getElementById("saveSettings").onclick=async()=>{await fetchJson("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({dashboard_port:Number(document.getElementById("settingPort").value),voice_enabled:document.getElementById("settingVoice").value==="true",autostart:{enabled:document.getElementById("settingAutostart").value==="true"}})});await loadSettings();};
     document.getElementById("newSessionBtn").onclick=async()=>{const name=prompt("Session name");if(!name){return;}await fetchJson("/api/sessions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})});await loadSessions();};
     document.getElementById("loadSessionsBtn").onclick=()=>loadSessions().catch((error)=>alert(error.message));
     document.getElementById("exportCurrentSession").onclick=()=>{if(state.runtime?.session?.session_id){window.open(`/api/sessions/${encodeURIComponent(state.runtime.session.session_id)}/export`,"_blank");}};
     document.getElementById("saveRoutingRule").onclick=async()=>{await fetchJson("/api/routing",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task_type:document.getElementById("routingType").value,provider:document.getElementById("routingProvider").value})});await loadRouting();};
     document.getElementById("saveContact").onclick=async()=>{const name=document.getElementById("contactName").value;const number=document.getElementById("contactNumber").value;if(!name||!number){return;}await fetchJson("/api/contacts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,number})});await loadContacts();};
     document.getElementById("rerunSetup").onclick=async()=>{await streamPrompt("/setup");};
-    document.getElementById("resetSettings").onclick=async()=>{await fetchJson("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({wake_word:"IMOS",dashboard_port:8766,voice_enabled:true,autostart:{enabled:false}})});await loadSettings();};
+    document.getElementById("resetSettings").onclick=async()=>{await fetchJson("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({dashboard_port:8766,voice_enabled:true,autostart:{enabled:false}})});await loadSettings();};
     document.getElementById("revokePcAccess").onclick=async()=>{await streamPrompt("/consent decline");};
     document.getElementById("clearLog").onclick=()=>{state.localLog=[];renderEvents();};
     document.getElementById("exportLog").onclick=()=>{const blob=new Blob([state.localLog.map((row)=>`${row.ts} ${row.event_type} ${JSON.stringify(row.payload||{})}`).join("\n")],{type:"text/plain"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="imos-activity-log.txt";link.click();URL.revokeObjectURL(url);};
@@ -565,6 +588,7 @@
     loadContacts().catch(()=>{});
     connectEvents();
     setInterval(()=>loadRuntime().catch(()=>{}),3000);
+    setInterval(()=>loadRuntimeState().catch(()=>{}),5000);
   </script>
 </body>
 </html>

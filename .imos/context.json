@@ -830,18 +830,39 @@
       }
     },
     {
+      "prompt": "hello",
+      "results": [
+        {
+          "task_id": "e6a7f61b-aa6a-4003-b0d9-4268012de80b",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "local-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
       "prompt": "run echo IMOS_TEST_OK",
       "results": [
         {
-          "task_id": "0b906dc4-2a37-4c2f-b908-9df5b06e9f26",
-          "adapter_name": "anthropic",
+          "task_id": "45e27af5-6142-4fbe-971e-386ebf865e38",
+          "adapter_name": "unassigned",
           "success": false,
           "output": null,
-          "error": "\"Could not resolve authentication method. Expected either api_key or auth_token to be set. Or for one of the `X-Api-Key` or `Authorization` headers to be explicitly omitted\"",
-          "duration_ms": 3017,
-          "metadata": {
-            "provider": "anthropic"
-          }
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
         }
       ],
       "context": {
@@ -853,6 +874,481 @@
         "preferred_model": "llama-3.3-70b-versatile",
         "task_type": "default"
       }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "29d198e1-085e-49ed-bb0c-9897f1da736d",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "a4dd8857-5a64-44e6-95f5-96fdbe193463",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "ffb7e1cd-a504-48d3-ab53-8cdf71f13824",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "54f0925b-31d3-4d3b-a152-8eae2a342f5f",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "e90f2030-12f5-4e1b-9f55-e6acfe85382f",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "b2759f86-8a79-411d-92c8-a89e55729b33",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "e4423b3e-1e15-4ec5-8e2f-64f6705eaa4f",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "51185732-c4dc-4fcc-bb55-eb8e8a15ec4e",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "090bbda4-d92c-4cac-ac9a-468913aea99b",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "hello",
+      "results": [
+        {
+          "task_id": "256ddc77-8266-43ab-a461-05a46151c32f",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "hello",
+      "results": [
+        {
+          "task_id": "a477df38-74bc-4faa-9f9f-d9f745287e82",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "b41a4eac-af35-41c4-a428-4f9c833fe5a7",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "06ea3ceb-a525-43c7-a927-2622bab36779",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "4108f3c2-3661-49ed-8cce-909288c254e2",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "9085f772-de6d-43e5-91c1-8d09a039fa07",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "33896473-32b4-4330-94fd-8dfbdf9fe50d",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "4f6b1f17-3ba5-43ba-9a49-97ca09454561",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "0c9c6511-6797-4a8c-957d-e0515965e79a",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "b5fca4d7-9afc-4631-a57f-ca3eab3b43f0",
+          "adapter_name": "unassigned",
+          "success": false,
+          "output": null,
+          "error": "Adapter not found: unassigned",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": null,
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "run echo IMOS_TEST_OK",
+      "results": [
+        {
+          "task_id": "imos_test_ok",
+          "adapter_name": "local_os",
+          "success": false,
+          "output": null,
+          "error": "OsControlAdapter.run_shell() missing 1 required positional argument: 'command'",
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {
+        "workspace": "C:\\Users\\Admin\\imos_workspace",
+        "session_key": "default",
+        "channel": "cli",
+        "user_id": "dashboard-user",
+        "preferred_provider": "groq",
+        "preferred_model": "llama-3.3-70b-versatile",
+        "task_type": "default"
+      }
+    },
+    {
+      "prompt": "answer this question",
+      "results": [
+        {
+          "task_id": "ff469cd0-69be-443e-9925-b05452fae844",
+          "adapter_name": "model1",
+          "success": true,
+          "output": "model1:answer this question",
+          "error": null,
+          "duration_ms": 0,
+          "metadata": {}
+        }
+      ],
+      "context": {}
     }
   ],
   "project_context": {},

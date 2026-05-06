@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sys
 import json
 import shlex
@@ -6,6 +6,7 @@ import subprocess
 import time
 import webbrowser
 import re
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
@@ -109,6 +110,7 @@ HISTORY_PATH = Path.home() / ".imos" / "history"
 _DASHBOARD_SERVICE: DashboardService | None = None
 _LISTENER_SERVICE: VoiceListenerService | None = None
 _VOICE_MANAGER: VoiceManager | None = None
+_VOICE_COMMAND_LOCK = threading.Lock()
 
 PROVIDER_MODELS = {
     "anthropic": [
@@ -268,7 +270,7 @@ HELP = """
   [#ff6b00]/doctor[/#ff6b00]                   run IMOS doctor report
   [#ff6b00]/route[/#ff6b00] [dim]set <type> <provider>|list[/dim]
   [#ff6b00]/contact[/#ff6b00] [dim]add <name> <number>|list|remove <name>[/dim]
-  [#ff6b00]/listen[/#ff6b00] [dim]start|stop|status|wake "phrase"[/dim]
+  [#ff6b00]/listen[/#ff6b00] [dim]start|stop|status[/dim]
   [#ff6b00]/voice[/#ff6b00] [dim]set <voice_id>|test|off|on|status[/dim]
   [#ff6b00]/autostart[/#ff6b00] [dim]enable|disable|status[/dim]
   [#ff6b00]/terminal[/#ff6b00]                 list managed terminal sessions
@@ -377,6 +379,74 @@ def _dim(text: object) -> str:
 
 def _imos_prompt() -> str:
     return f"{ORANGE}imos>{RESET} "
+
+
+def _voice_prefix() -> str:
+    return f"{DIM}[voice]{RESET}"
+
+
+def _listener_missing_message(status: dict | None) -> str | None:
+    if not status or not status.get("missing"):
+        return None
+    if "faster_whisper" in status["missing"] or "sounddevice" in status["missing"]:
+        return f"{DIM}Voice listener unavailable. pip install faster-whisper sounddevice{RESET}"
+    return f"{DIM}Voice listener unavailable. Missing: {', '.join(status['missing'])}{RESET}"
+
+
+def _speak_feedback(text: str) -> None:
+    if _VOICE_MANAGER is None:
+        return
+    try:
+        _VOICE_MANAGER.speak(text)
+    except Exception:
+        pass
+
+
+def _normalize_voice_transcript(transcript: str) -> str:
+    text = str(transcript or "").strip()
+    if not text:
+        return ""
+    lowered = text.lower().strip(" .,!?:;-")
+    aliases = [
+        "imos",
+        "hey imos",
+        "hi imos",
+        "yo imos",
+        "himos",
+        "hey himos",
+        "hi himos",
+        "moz",
+        "hey moz",
+        "hi moz",
+    ]
+    if lowered in aliases:
+        return ""
+    for alias in aliases:
+        if lowered.startswith(alias + " "):
+            return text[len(alias):].strip(" ,.!?:;-")
+        if lowered.startswith(alias + ","):
+            return text[len(alias) + 1 :].strip(" ,.!?:;-")
+    return text
+
+
+def _auto_start_listener() -> None:
+    if _LISTENER_SERVICE is None:
+        return
+    status = _LISTENER_SERVICE.start(persist=True, daemon=True)
+    cfg = load_config()
+    cfg.setdefault("listen", {})
+    cfg["listen"]["enabled"] = True
+    cfg["listen"]["persist"] = True
+    try:
+        save_config(cfg)
+    except OSError as exc:
+        print(f"{DIM}Listener config not persisted: {_plain(exc)}{RESET}")
+    missing_message = _listener_missing_message(status)
+    if missing_message:
+        print(missing_message)
+        return
+    _speak_feedback("Listening, sir.")
+    print(f"{DIM}Listening, sir.{RESET}")
 
 
 def _print_command_output(text: object) -> None:
@@ -2107,21 +2177,26 @@ def build_gateway(workspace: str):
         if len(parts) == 1 or parts[1].lower() == "status":
             status = _LISTENER_SERVICE.status() if _LISTENER_SERVICE is not None else {"active": False}
             mode = "active" if status.get("active") else "inactive"
-            details = f"{mode} (wake: {status.get('wake_word', 'IMOS')})"
+            details = f"{mode} ({status.get('mode', 'always-on')}, {status.get('wake_model', 'tiny')} model)"
             if status.get("missing"):
                 details += f"\nMissing deps: {', '.join(status['missing'])}"
+            if status.get("model_error"):
+                details += f"\nModel: {status['model_error']}"
             return CommandResult(True, details)
         if _LISTENER_SERVICE is None:
             return CommandResult(True, "Listener is not initialized.")
         action = parts[1].lower()
         if action == "start":
             persist = "--save" in raw.lower()
-            status = _LISTENER_SERVICE.start(persist=persist)
+            status = _LISTENER_SERVICE.start(persist=persist, daemon=True)
             cfg = load_config()
             cfg.setdefault("listen", {})
             cfg["listen"]["enabled"] = True
             cfg["listen"]["persist"] = persist
-            save_config(cfg)
+            try:
+                save_config(cfg)
+            except OSError as exc:
+                return CommandResult(True, f"Listener started, but config was not saved: {exc}")
             return CommandResult(True, f"Listener {'started' if status.get('configured_active') else 'not started'}")
         if action == "stop":
             _LISTENER_SERVICE.stop()
@@ -2129,13 +2204,12 @@ def build_gateway(workspace: str):
             cfg.setdefault("listen", {})
             cfg["listen"]["enabled"] = False
             cfg["listen"]["persist"] = False
-            save_config(cfg)
+            try:
+                save_config(cfg)
+            except OSError as exc:
+                return CommandResult(True, f"Listener stopped, but config was not saved: {exc}")
             return CommandResult(True, "Listener stopped")
-        if action == "wake" and len(parts) == 3:
-            phrase = parts[2].strip().strip('"')
-            status = _LISTENER_SERVICE.set_wake_word(phrase)
-            return CommandResult(True, f"Wake word set to {status.get('wake_word')}")
-        return CommandResult(True, "Usage: /listen start [--save] | /listen stop | /listen status | /listen wake \"phrase\"")
+        return CommandResult(True, "Usage: /listen start [--save] | /listen stop | /listen status")
 
     def _cmd_voice(raw: str) -> CommandResult:
         if _VOICE_MANAGER is None:
@@ -2165,9 +2239,30 @@ def build_gateway(workspace: str):
         action = "status" if len(parts) == 1 else parts[1].strip().lower()
         if action == "enable":
             result = enable_autostart(PROJECT_ROOT)
+            cfg = load_config()
+            cfg["autostart"] = True
+            cfg.setdefault("listen", {})
+            cfg["listen"]["enabled"] = True
+            cfg["listen"]["persist"] = True
+            try:
+                save_config(cfg)
+            except OSError as exc:
+                return CommandResult(True, f"Autostart enabled, but config was not saved: {exc}")
+            try:
+                pythonw = Path(sys.executable).with_name("pythonw.exe")
+                service = PROJECT_ROOT / "service" / "imos_service.py"
+                subprocess.Popen([str(pythonw), str(service)], cwd=str(PROJECT_ROOT))
+            except Exception:
+                pass
             return CommandResult(True, f"Autostart enabled: {result.get('command', '')}")
         if action == "disable":
             result = disable_autostart()
+            cfg = load_config()
+            cfg["autostart"] = False
+            try:
+                save_config(cfg)
+            except OSError:
+                pass
             return CommandResult(True, "Autostart disabled." if result.get("removed") else "Autostart was not enabled.")
         if action == "status":
             status = autostart_status(PROJECT_ROOT)
@@ -2806,14 +2901,26 @@ def build_gateway(workspace: str):
     gateway.confirm_policy = confirm_policy
     if _LISTENER_SERVICE is not None:
         def _listener_callback(transcript: str) -> str:
-            envelope = cli_channel.normalize(
-                user_id="voice-user",
-                text=transcript,
-                session_hint=session_manager.get_active().name,
-                source="voice",
-            )
-            result = gateway.handle_with_meta(envelope, str(workspace_path), get_model_config())
-            return str(result.get("output", ""))
+            with _VOICE_COMMAND_LOCK:
+                raw_text = transcript.strip()
+                text = _normalize_voice_transcript(raw_text)
+                if not text:
+                    return ""
+                print(f"\n{_voice_prefix()} {_plain(text)}")
+                _speak_feedback("On it, sir.")
+                envelope = cli_channel.normalize(
+                    user_id="voice-user",
+                    text=text,
+                    session_hint=session_manager.get_active().name,
+                    source="voice",
+                )
+                result = gateway.handle_with_meta(envelope, str(workspace_path), get_model_config())
+                output = str(result.get("output", "") or "").strip()
+                if output:
+                    print(output)
+                _speak_feedback("Finished, sir." if output and "error" not in output.lower() and "failed" not in output.lower() else "Something went wrong, sir.")
+                print(_imos_prompt(), end="", flush=True)
+                return output
         _LISTENER_SERVICE.callback = _listener_callback
     global _DASHBOARD_SERVICE
     if _DASHBOARD_SERVICE is None:
@@ -3254,6 +3361,7 @@ def main():
 
     os.system("cls" if os.name == "nt" else "clear")
     render_home_screen(model_config, workspace)
+    _auto_start_listener()
 
     while True:
         renderer = ShellEventRenderer()

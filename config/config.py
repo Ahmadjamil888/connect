@@ -209,11 +209,14 @@ def resolve_runtime_state_root(workspace: str | Path | None = None) -> Path:
 
 def _env_default_model() -> dict[str, Any]:
     migrated_default = model_manager.get_default()
-    if migrated_default is not None:
+    if migrated_default:
         return dict(migrated_default)
-    provider = os.getenv("AI_PROVIDER", "anthropic").strip().lower() or "anthropic"
+    provider = os.getenv("AI_PROVIDER", "").strip().lower()
+    if not provider:
+        return dict(model_manager.get_default())
     defaults = dict(PROVIDER_DEFAULTS.get(provider, PROVIDER_DEFAULTS["anthropic"]))
     defaults["provider"] = provider
+    defaults["type"] = provider
     key_map = {
         "anthropic": _env_value("ANTHROPIC_API_KEY"),
         "groq": _env_value("GROQ_API_KEY"),
@@ -230,7 +233,7 @@ def _env_default_model() -> dict[str, Any]:
 
 def get_model_config() -> dict[str, Any]:
     migrated_default = model_manager.get_default()
-    if migrated_default is not None:
+    if migrated_default:
         return dict(migrated_default)
     cfg = load_config()
     model = cfg.get("model", {})
@@ -239,6 +242,7 @@ def get_model_config() -> dict[str, Any]:
         defaults = dict(PROVIDER_DEFAULTS.get(provider, {}))
         defaults.update(model)
         defaults["provider"] = provider
+        defaults["type"] = str(defaults.get("type") or provider).strip().lower()
         if provider == "anthropic" and not str(defaults.get("api_key", "")).strip():
             defaults["api_key"] = _env_value("ANTHROPIC_API_KEY")
         elif provider == "groq" and not str(defaults.get("api_key", "")).strip():
@@ -291,8 +295,15 @@ def _require_api_key(provider: str, api_key: str):
 def get_client(model_config: dict[str, Any]):
     effective = dict(model_manager.get_default() or {})
     effective.update(model_config or {})
-    provider = effective.get("type") or effective.get("provider", "anthropic")
+    provider = str(effective.get("type") or effective.get("provider") or "").strip().lower()
+    if not provider and effective.get("model"):
+        provider = model_manager.infer_provider_type(str(effective.get("model", "")))
+    if not provider:
+        raise model_manager.ProviderConfigurationError(model_manager.unknown_provider_message(str(effective.get("model", ""))))
+    if provider == "unconfigured" or effective.get("no_provider_configured"):
+        raise model_manager.ProviderConfigurationError("No AI provider configured. Run /model add to set one up.")
     effective["provider"] = provider
+    effective["type"] = provider
     api_key = str(model_config.get("api_key", "")).strip()
     if not api_key:
         api_key = str(effective.get("api_key", "")).strip()

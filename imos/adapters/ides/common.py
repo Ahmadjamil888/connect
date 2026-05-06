@@ -79,8 +79,9 @@ class BaseIDEAdapter(IMOSAdapter):
         started = time.perf_counter()
         action = str(task.metadata.get("action") or task.subtask_type or "").lower()
         try:
+            params = dict(task.metadata.get("params", {}) or {})
             if action in {"delegate_prompt", "question_answer", "code_generation", "code_editing", "multi_step", "chat", ""}:
-                prompt = str(task.metadata.get("params", {}).get("prompt") or task.prompt)
+                prompt = str(params.get("prompt") or task.prompt)
                 output = await self.delegate_prompt(task.task_id, prompt, metadata=task.metadata)
             elif action in {"write_file", "create_file"}:
                 output = await self.write_file(task.metadata["path"], task.metadata.get("content", task.prompt))
@@ -89,7 +90,8 @@ class BaseIDEAdapter(IMOSAdapter):
             elif action == "delete_file":
                 output = await self.delete_file(task.metadata["path"])
             elif action in {"run_terminal", "shell_command", "run_shell"}:
-                output = await self.run_terminal(task.metadata.get("command", task.prompt), cwd=task.metadata.get("cwd"))
+                command = str(params.get("command") or task.metadata.get("command") or task.prompt).strip()
+                output = await self.run_terminal(command, cwd=params.get("cwd") or task.metadata.get("cwd"))
             elif action == "open_file":
                 output = await self.open_file(task.metadata["path"], line=task.metadata.get("line"))
             elif action == "apply_diff":

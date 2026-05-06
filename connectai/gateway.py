@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict
 
 from config.config import get_model_config, get_provider_defaults
+from core import model_manager
 
 from connectai.channels import MessageEnvelope
 from connectai.command_router import CommandResult
@@ -17,6 +18,15 @@ class ConnectAIGateway:
         self.memory_store = memory_store
         self.command_router = command_router
         self.imos_orchestrator = imos_orchestrator
+        self._current_process = None
+
+    def cancel_current(self):
+        try:
+            if self._current_process:
+                self._current_process.kill()
+                self._current_process = None
+        except Exception:
+            pass
 
     def _dedupe_response(self, text: str) -> str:
         value = (text or "").strip()
@@ -54,12 +64,29 @@ class ConnectAIGateway:
         )
         return any(term in lowered for term in build_terms) and any(term in lowered for term in website_terms)
 
+    def _normalize_model_config(self, model_config: dict) -> dict:
+        resolved = dict(model_config or {})
+        provider = str(resolved.get("type") or resolved.get("provider") or "").strip().lower()
+        model_name = str(resolved.get("model", "") or "").strip()
+        if not provider and model_name:
+            provider = model_manager.infer_provider_type(model_name)
+        if not provider and resolved.get("no_provider_configured"):
+            provider = "unconfigured"
+        if not provider and model_name:
+            raise model_manager.ProviderConfigurationError(model_manager.unknown_provider_message(model_name))
+        if provider:
+            resolved["provider"] = provider
+            resolved["type"] = provider
+        return resolved
+
     def _routed_model_config(self, prompt: str, model_config: dict) -> tuple[dict, str]:
-        base_config = get_model_config()
+        base_config = self._normalize_model_config(get_model_config())
+        if base_config.get("no_provider_configured"):
+            return base_config, "default"
         routing_rules = getattr(self.command_router, "routing_rules", None)
         if routing_rules is None:
             return dict(base_config), "default"
-        fallback_provider = str(base_config.get("type") or base_config.get("provider", "anthropic"))
+        fallback_provider = str(base_config.get("type") or base_config.get("provider") or "").strip().lower()
         task_type, provider = routing_rules.resolve_provider(prompt, fallback_provider)
         resolved = dict(base_config)
         current_provider = str(resolved.get("type") or resolved.get("provider", "")).strip().lower()
@@ -68,7 +95,7 @@ class ConnectAIGateway:
             merged = dict(defaults)
             merged["provider"] = provider
             merged["type"] = defaults.get("type", provider)
-            resolved = merged
+            resolved = self._normalize_model_config(merged)
         return resolved, task_type
 
     def handle_with_meta(self, envelope: MessageEnvelope, workspace: str, model_config: dict, on_text_delta=None) -> Dict[str, object]:
@@ -108,6 +135,12 @@ class ConnectAIGateway:
             user_id=envelope.user_id,
         )
         active_model_config, task_type = self._routed_model_config(envelope.text, model_config)
+        if active_model_config.get("no_provider_configured"):
+            return {
+                "output": "No AI provider configured. Run /model add to set one up.",
+                "session_id": session.session_id,
+                "usage": {},
+            }
         if hasattr(self.session_manager, "set_active") and hasattr(session, "name"):
             self.session_manager.set_active(session.name)
         if hasattr(self.session_manager, "set_provider_and_routing"):
@@ -229,3 +262,40 @@ class ConnectAIGateway:
         if hasattr(self.session_manager, "record_memory_snapshot") and hasattr(self.memory_store, "recent_entries"):
             self.session_manager.record_memory_snapshot(session.session_id, self.memory_store.recent_entries(20), self.memory_store.recent_entries(100))
         return {"output": response_text, "session_id": session.session_id, "usage": response.get("usage", {})}
+
+
+class Gateway:
+    def simple_completion(self, prompt: str) -> str:
+        provider = model_manager.get_default()
+        if not provider or provider.get("no_provider_configured") or provider.get("type") in {"", "unassigned", "unconfigured"}:
+            raise RuntimeError("No provider configured")
+        ptype = str(provider.get("type", "")).strip().lower()
+        if ptype == "anthropic":
+            import anthropic
+
+            client = anthropic.Anthropic(api_key=provider["api_key"])
+            message = client.messages.create(
+                model=provider.get("model", "claude-sonnet-4-5"),
+                max_tokens=32,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return "".join(block.text for block in message.content if getattr(block, "type", "") == "text").strip()
+        if ptype in {"openai", "groq", "openrouter", "ollama", "lmstudio", "custom", "together", "mistral", "cohere"}:
+            from openai import OpenAI
+
+            base_url = provider.get("base_url") or get_provider_defaults(ptype).get("base_url", "")
+            client = OpenAI(api_key=provider.get("api_key", ""), base_url=base_url or None)
+            response = client.chat.completions.create(
+                model=provider.get("model", ""),
+                max_tokens=32,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return str(response.choices[0].message.content or "").strip()
+        if ptype == "gemini":
+            import google.generativeai as genai
+
+            genai.configure(api_key=provider["api_key"])
+            model = genai.GenerativeModel(provider.get("model", "gemini-2.0-flash"))
+            response = model.generate_content(prompt)
+            return str(getattr(response, "text", "") or "").strip()
+        raise RuntimeError(f"Unsupported provider type: {ptype}")

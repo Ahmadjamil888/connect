@@ -35,15 +35,26 @@ class BaseWebAdapter(IMOSAdapter):
         started = time.perf_counter()
         action = task.metadata.get("action") or task.subtask_type
         try:
+            params = dict(task.metadata.get("params", {}) or {})
             aliases = {
                 "search": "search_web",
                 "web_search": "search_web",
+                "browser_action": "navigate",
+                "open_website": "navigate",
             }
             handler_name = aliases.get(str(action), str(action))
+            if handler_name == "navigate" and not params.get("url"):
+                prompt = str(task.prompt or "").strip()
+                if prompt.startswith(("http://", "https://")):
+                    params["url"] = prompt
+                elif prompt.lower().startswith("www."):
+                    params["url"] = f"https://{prompt}"
+                else:
+                    params["url"] = "https://www.google.com"
             handler = getattr(self, handler_name, None)
             if handler is None:
                 raise AttributeError(f"Unsupported webapp action: {action}")
-            result = await handler(**task.metadata.get("params", {}))
+            result = await handler(**params)
             return IMOSResult(task.task_id, self.name, True, output=result, duration_ms=int((time.perf_counter() - started) * 1000))
         except Exception as exc:
             return IMOSResult(task.task_id, self.name, False, error=str(exc), duration_ms=int((time.perf_counter() - started) * 1000))

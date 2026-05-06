@@ -6,6 +6,8 @@ from pathlib import Path
 from imos.config import list_configured_adapters
 from imos.registry import AdapterRegistry
 from core import model_manager
+from core.runtime_session import runtime_session
+from skills.vibe_coder.handler import load_credit_state
 from service.status import read_service_status
 from setup.autostart import safe_autostart_status
 
@@ -25,6 +27,7 @@ async def doctor_report(
 ) -> str:
     registry = AdapterRegistry()
     await registry.auto_discover()
+    model_cfg = model_manager.get_default()
     lines = ["IMOS Runtime", ""]
     service_status = read_service_status(state_root) if state_root is not None else {"running": False, "tray": False}
     if session_manager is not None:
@@ -55,7 +58,7 @@ async def doctor_report(
     if listener_service is not None:
         listener = listener_service.status()
         if listener.get("active"):
-            lines.append(f"  Listener:   active (wake: {listener.get('wake_word', 'IMOS')})")
+            lines.append(f"  Listener:   active (always-on, no wake word, {listener.get('wake_model', 'tiny')} model)")
         else:
             lines.append("  Listener:   inactive")
     if voice_manager is not None:
@@ -66,6 +69,34 @@ async def doctor_report(
         lines.append(f"  Autostart:  {'enabled' if auto.get('enabled') else 'disabled'}")
     if consent_manager is not None:
         lines.append(f"  Consent:    {'granted' if consent_manager.is_granted() else 'declined'}")
+    provider_name = str(model_cfg.get("provider") or model_cfg.get("type") or "?").strip() or "?"
+    model_name = str(model_cfg.get("model", "") or "?").strip() or "?"
+    lines.append(f"  Provider:   {provider_name}/{model_name}")
+    lines.append("  Browser:    edge (default)")
+    lines.append("  AI tools:   chatgpt | gemini | claude | perplexity | lovable | bolt | v0")
+    lines.append("  Social:     whatsapp (app) | telegram (app) | instagram | twitter (web)")
+    lines.append(
+        f"  Session:    active_tool={runtime_session.active_tool or 'none'}, "
+        f"active_project={runtime_session.active_project or 'none'}"
+    )
+    try:
+        import pyautogui  # noqa: F401
+
+        computer_control_status = "available"
+    except Exception:
+        computer_control_status = "unavailable (install pyautogui pygetwindow pillow)"
+    lines.append(f"  computer_control: {computer_control_status}")
+    try:
+        vibe_state = load_credit_state()
+        lines.append(
+            "  Vibe tools: "
+            + " | ".join(
+                f"{name} ({'exhausted' if vibe_state.get(name, {}).get('exhausted') else 'ok'})"
+                for name in ["lovable", "bolt", "v0"]
+            )
+        )
+    except Exception:
+        lines.append("  Vibe tools: unavailable")
     lines.append("")
     lines.append("Providers:")
     for adapter in registry.get_all():

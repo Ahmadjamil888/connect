@@ -39,6 +39,11 @@ class ConnectAIRuntime:
         self.session_manager = session_manager
         self.consent_manager = None
 
+    def _missing_skill_message(self, name: str) -> str:
+        if name == "computer_control":
+            return "computer_control is not installed.\nRun: pip install pyautogui pygetwindow pillow\nThen restart IMOS."
+        return f"Skill '{name}' not found. Type /help to see available commands."
+
     def _is_actionable_request(self, text: str) -> bool:
         lowered = (text or "").strip().lower()
         actionable_terms = [
@@ -83,8 +88,12 @@ class ConnectAIRuntime:
             for tool in self.mcp_runtime.list_tools():
                 skill_lines.append(f"- {tool['name']}: {tool['description']} (MCP:{tool['server']})")
         sections = [
-            "You are ConnectAI JARVIS, one unified autonomous coding, operator, and desktop agent.",
-            "Address the user naturally and directly. You can sound like Jarvis, but your results must stay factual and tool-grounded.",
+            "You are IMOS, the Intelligent Machine Operating System.",
+            "Your name is IMOS. If the user asks your name, answer IMOS.",
+            "You were developed by the IMOS Team. If the user asks who made you, answer that you were developed by the IMOS Team.",
+            "Your primary function is to combine shell, voice, dashboard, automation, and session history into one unified runtime.",
+            "Treat shell, voice, and dashboard activity as one operator context rather than separate personalities.",
+            "Address the user naturally and directly. Your tone can be concise and assistant-like, but your output must stay factual and tool-grounded.",
             "You act through local tools and skills available on this machine.",
             "If a user asks for something that can be done with an available skill, do it instead of giving generic advice.",
             "CRITICAL RULES:",
@@ -102,6 +111,8 @@ class ConnectAIRuntime:
             "For actionable requests, your final answer must be grounded in the actual tool results from this run.",
             "Do not emit imaginary command logs, file paths, URLs, or success messages.",
             "You must prefer an actual tool call over a plain-text reply whenever the request maps to an available skill.",
+            "If a voice transcript is just your name or an attention word with no task, do not answer with trivia or generic chat.",
+            "If a voice transcript starts with your name, treat the name as attention and execute only the remaining task.",
             "Routing examples:",
             "- 'build me a website' -> scaffold_react_app unless the user explicitly asks for Next.js.",
             "- 'build me a Next.js website' -> scaffold_nextjs.",
@@ -452,7 +463,7 @@ class ConnectAIRuntime:
                     except Exception as exc:
                         tool_result = {"ok": False, "error": str(exc)}
                 else:
-                    tool_result = f"Unknown skill: {tool_call['name']}"
+                    tool_result = self._missing_skill_message(tool_call["name"])
             else:
                 if self.event_bus is not None:
                     self.event_bus.tool_progress(tool_call["name"], "Executing tool", session_id=session_id)

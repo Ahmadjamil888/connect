@@ -56,6 +56,10 @@ class ToolRegistry:
 def build_registry() -> ToolRegistry:
     from core import vision
     from tools import browser, computer_control, filesystem, pc_manager, research, screen_control, shell
+    from tools.whatsapp import send_whatsapp
+    from skills.computer_control import handler as computer_control_handler
+    from skills.universal_runtime import handler as universal_runtime_handler
+    from skills.vibe_coder import handler as vibe_coder_handler
 
     registry = ToolRegistry()
     registry.register(
@@ -131,6 +135,54 @@ def build_registry() -> ToolRegistry:
     registry.register("kill_process", "Kill a process by name or PID", {"name": {"type": "string"}, "pid": {"type": "integer"}}, pc_manager.kill_process)
     registry.register("get_system_info", "Get CPU, RAM, disk usage", {}, pc_manager.system_info)
     registry.register("clean_pc", "Delete temp files and free up space", {"confirm": {"type": "boolean"}}, pc_manager.clean_temp)
+    cc_properties = {
+        key: dict(value)
+        for key, value in computer_control_handler.TOOL_SCHEMA.get("properties", {}).items()
+    }
+    for key in computer_control_handler.TOOL_SCHEMA.get("required", []):
+        if key in cc_properties:
+            cc_properties[key]["required"] = True
+    registry.register(
+        "computer_control",
+        "Perform desktop computer control actions",
+        cc_properties,
+        computer_control_handler.run,
+    )
+    vibe_properties = {
+        key: dict(value)
+        for key, value in vibe_coder_handler.TOOL_SCHEMA.get("properties", {}).items()
+    }
+    for key in vibe_coder_handler.TOOL_SCHEMA.get("required", []):
+        if key in vibe_properties:
+            vibe_properties[key]["required"] = True
+    registry.register(
+        "vibe_coder",
+        "Build or migrate projects using local scaffolds and browser-based vibe coding tools",
+        vibe_properties,
+        vibe_coder_handler.run,
+    )
+    runtime_properties = {
+        key: dict(value)
+        for key, value in universal_runtime_handler.TOOL_SCHEMA.get("properties", {}).items()
+    }
+    for key in universal_runtime_handler.TOOL_SCHEMA.get("required", []):
+        if key in runtime_properties:
+            runtime_properties[key]["required"] = True
+    registry.register(
+        "universal_runtime",
+        "Operate browsers, browser-based AI tools, and social apps through the shared IMOS runtime session",
+        runtime_properties,
+        universal_runtime_handler.run,
+    )
+    registry.register(
+        "send_whatsapp",
+        "Send a WhatsApp message by finding the contact directly in WhatsApp Desktop or WhatsApp Web",
+        {
+            "contact_name": {"type": "string", "required": True},
+            "message": {"type": "string", "required": True},
+        },
+        send_whatsapp,
+    )
     registry.register("computer_control.click", "Click at screen coordinates", {"x": {"type": "integer", "required": True}, "y": {"type": "integer", "required": True}}, computer_control.click)
     registry.register("computer_control.click_element", "Click an element on screen using an image path", {"image_path": {"type": "string", "required": True}}, computer_control.click_element)
     registry.register("computer_control.type_text", "Type text into the active window", {"text": {"type": "string", "required": True}}, computer_control.type_text)

@@ -3,6 +3,8 @@ from __future__ import annotations
 import io
 import json
 import os
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +18,9 @@ class VoiceManager:
         self.state_root.mkdir(parents=True, exist_ok=True)
         self.path = self.state_root / "voice.json"
         self.env_path = Path(__file__).resolve().parent.parent / ".env"
+        self._state_lock = threading.Lock()
+        self._suspend_until = 0.0
+        self._speaking = False
 
     def _load(self) -> dict[str, Any]:
         if not self.path.exists():
@@ -104,12 +109,22 @@ class VoiceManager:
     def test_phrase(self) -> str:
         return "IMOS is ready"
 
+    def suspend_listener_for(self, seconds: float = 2.5) -> None:
+        with self._state_lock:
+            self._suspend_until = max(self._suspend_until, time.time() + max(0.0, seconds))
+
+    def listener_paused(self) -> bool:
+        with self._state_lock:
+            return self._speaking or time.time() < self._suspend_until
+
     def speak(self, text: str) -> dict[str, Any]:
         state = self._load()
         if bool(state.get("muted", False)):
             return {"ok": False, "muted": True}
         provider = self._provider()
         voice_id = str(state.get("voice_id") or self._env("VOICE_VOICE_ID") or DEFAULT_VOICE_ID)
+        with self._state_lock:
+            self._speaking = True
         try:
             if provider == "gemini-tts":
                 api_key = self._env("VOICE_API_KEY")
@@ -124,6 +139,10 @@ class VoiceManager:
             fallback["error"] = str(exc)
             fallback["fallback_from"] = provider
             return fallback
+        finally:
+            with self._state_lock:
+                self._speaking = False
+            self.suspend_listener_for(2.5)
         return self.fallback_pyttsx3(text)
 
     def _play_wav_bytes(self, audio_bytes: bytes) -> None:

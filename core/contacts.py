@@ -18,6 +18,12 @@ class ContactBook:
             data = json.loads(self.path.read_text(encoding="utf-8"))
             if isinstance(data, dict):
                 return {str(k): str(v) for k, v in data.items()}
+            if isinstance(data, list):
+                loaded: dict[str, str] = {}
+                for item in data:
+                    if isinstance(item, dict) and item.get("name"):
+                        loaded[str(item["name"])] = str(item.get("number") or item.get("value") or "")
+                return loaded
         except Exception:
             pass
         return {}
@@ -54,3 +60,8 @@ class ContactBook:
             return {"ok": True, "name": name, "value": value, "match": "partial"}
         return {"ok": False, "query": query.strip(), "matches": [name for name, _ in partial]}
 
+    def resolve_contact(self, name: str) -> str:
+        resolved = self.resolve(name)
+        if resolved.get("ok"):
+            return str(resolved.get("value") or name)
+        return name

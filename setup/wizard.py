@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +12,7 @@ from config.config import (
     resolve_runtime_state_root,
     save_config,
 )
+from core import model_manager
 from setup.autostart import enable_autostart
 from setup.consent import ConsentManager
 
@@ -43,6 +46,13 @@ PROVIDER_CHOICES = {
     "3": ("openai", "OpenAI", "OPENAI_API_KEY"),
     "4": ("gemini", "Google", "GOOGLE_AI_API_KEY"),
     "5": ("openrouter", "OpenRouter", "OPENROUTER_API_KEY"),
+}
+PROVIDER_MODELS = {
+    "groq": "llama-3.3-70b-versatile",
+    "anthropic": "claude-3-5-sonnet-20241022",
+    "openai": "gpt-4o",
+    "gemini": "gemini-2.0-flash",
+    "openrouter": "openai/gpt-4o",
 }
 
 VOICE_CHOICES = {
@@ -178,33 +188,55 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
     print(f"{WHITE}4. Google     {DIM}(Gemini){RESET}")
     print(f"{WHITE}5. OpenRouter {DIM}(multi-model){RESET}")
     print()
-    choice = ""
-    while choice not in PROVIDER_CHOICES:
-        choice = _ask("Enter choice (1-5): ")
-    provider, provider_label, env_key = PROVIDER_CHOICES[choice]
+    provider = ""
+    provider_label = ""
     api_key = ""
-    while not api_key:
-        api_key = _ask("Enter your API key: ")
     while True:
-        try:
-            _validate_provider(provider, api_key)
+        choice = ""
+        while choice not in PROVIDER_CHOICES:
+            choice = _ask("Enter choice (1-5): ")
+        provider, provider_label, env_key = PROVIDER_CHOICES[choice]
+        api_key = ""
+        attempts = 0
+        while attempts < 3:
+            while not api_key:
+                api_key = _ask("Enter your API key: ")
+            provider_data = {
+                "id": f"{provider}-wizard",
+                "name": provider_label,
+                "type": provider,
+                "api_key": api_key,
+                "base_url": get_provider_defaults(provider).get("base_url", ""),
+                "model": PROVIDER_MODELS.get(provider, get_provider_defaults(provider).get("model", "")),
+                "enabled": True,
+                "is_default": True,
+            }
+            model_manager.add_provider(provider_data)
+            result = model_manager.test_provider(provider_data["id"])
+            if result.get("ok"):
+                print(f" Connected  {result['latency']}ms")
+                break
+            attempts += 1
+            print(f" Connection failed: {result.get('error')}")
+            print("  Check your API key and try again.")
+            api_key = ""
+        defaults = get_provider_defaults(provider)
+        model_cfg = dict(defaults)
+        model_cfg["provider"] = provider
+        if "api_key" in model_cfg:
+            model_cfg["api_key"] = api_key
+        cfg["model"] = model_cfg
+        _write_env(
+            env_file,
+            {
+                "AI_PROVIDER": provider,
+                env_key: api_key,
+            },
+        )
+        add_another = _ask("Add another provider? (yes/no) [no]: ", default="no").lower()
+        if add_another not in {"yes", "y"}:
             break
-        except Exception as exc:
-            print(f"{WHITE}{exc}{RESET}")
-            api_key = _ask("Enter your API key: ")
-    defaults = get_provider_defaults(provider)
-    model_cfg = dict(defaults)
-    model_cfg["provider"] = provider
-    if "api_key" in model_cfg:
-        model_cfg["api_key"] = api_key
-    cfg["model"] = model_cfg
-    _write_env(
-        env_file,
-        {
-            "AI_PROVIDER": provider,
-            env_key: api_key,
-        },
-    )
+        print()
 
     _step_title("Step 4  Voice Output")
     print(f"{WHITE}Choose voice provider:{RESET}")
@@ -257,8 +289,18 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
     autostart_enabled = _yes_no("Start IMOS on Windows boot? (yes/no): ")
     if autostart_enabled:
         enable_autostart(project_root)
+        pythonw = Path(sys.executable).with_name("pythonw.exe")
+        service = project_root / "service" / "imos_service.py"
+        try:
+            subprocess.Popen([str(pythonw), str(service)], cwd=str(project_root))
+        except Exception:
+            pass
 
     cfg["workspace"] = str(workspace or cfg.get("workspace") or project_root)
+    cfg["autostart"] = bool(autostart_enabled)
+    cfg.setdefault("listen", {})
+    cfg["listen"]["enabled"] = True
+    cfg["listen"]["persist"] = True
     save_config(cfg)
     _setup_flag_path(cfg["workspace"]).write_text("complete\n", encoding="utf-8")
 

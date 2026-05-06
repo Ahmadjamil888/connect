@@ -83,6 +83,30 @@ ENV_PROVIDER_SPECS = [
 ]
 
 
+class ProviderConfigurationError(ValueError):
+    pass
+
+
+def unknown_provider_message(model_name: str) -> str:
+    model = str(model_name or "").strip() or "unknown"
+    return f"Provider type unknown for model {model}. Run /model add to configure a provider."
+
+
+def infer_provider_type(model_name: str) -> str:
+    model = str(model_name or "").strip().lower()
+    if not model:
+        return ""
+    if model.startswith(("llama-", "gemma-", "mixtral-")):
+        return "groq"
+    if model.startswith(("gpt-", "o1-", "o3-")) or model in {"o1", "o3"}:
+        return "openai"
+    if model.startswith("claude-"):
+        return "anthropic"
+    if model.startswith("gemini-"):
+        return "gemini"
+    return ""
+
+
 def _ensure_dir() -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
@@ -118,15 +142,19 @@ def _env_value(*keys: str) -> str:
 
 
 def _normalize_provider(provider: dict[str, Any], *, index: int = 0) -> dict[str, Any]:
-    provider_type = str(provider.get("type", "openai")).strip().lower() or "openai"
+    model_name = str(provider.get("model", "") or "").strip()
+    provider_type = str(provider.get("type") or provider.get("provider") or "").strip().lower()
+    if provider_type in {"", "unassigned", "none", "null"}:
+        provider_type = infer_provider_type(model_name)
     defaults = PROVIDER_TYPES.get(provider_type, PROVIDER_TYPES["custom"])
     normalized = {
         "id": str(provider.get("id") or f"{provider_type}-{index + 1}").strip(),
         "name": str(provider.get("name") or defaults["name"]).strip() or defaults["name"],
         "type": provider_type,
+        "provider": provider_type,
         "api_key": str(provider.get("api_key", "") or "").strip(),
         "base_url": str(provider.get("base_url", defaults.get("base_url", "")) or "").strip(),
-        "model": str(provider.get("model", "") or "").strip(),
+        "model": model_name,
         "enabled": bool(provider.get("enabled", True)),
         "is_default": bool(provider.get("is_default", False)),
     }
@@ -170,7 +198,53 @@ def save_providers(providers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return normalized
 
 
-def get_default() -> dict[str, Any] | None:
+def _provider_from_env() -> dict[str, Any]:
+    env_provider = _env_value("AI_PROVIDER").strip().lower()
+    if not env_provider:
+        return _unconfigured_provider()
+    spec = next((item for item in ENV_PROVIDER_SPECS if item["env_provider"] == env_provider), None)
+    if spec is None:
+        model_name = _env_value("GROQ_MODEL", "OPENAI_MODEL", "ANTHROPIC_MODEL", "GOOGLE_GEMINI_MODEL")
+        inferred = infer_provider_type(model_name)
+        if not inferred:
+            return _unconfigured_provider()
+        env_provider = inferred
+        spec = next((item for item in ENV_PROVIDER_SPECS if item["env_provider"] == env_provider), None)
+        if spec is None:
+            return _unconfigured_provider()
+    api_key = _env_value(spec["key_env"]) if spec["key_env"] else ""
+    model_name = _env_value(spec["model_env"]) or spec["default_model"]
+    return _normalize_provider(
+        {
+            "id": spec["id"],
+            "name": spec["name"],
+            "type": spec["type"],
+            "api_key": api_key,
+            "base_url": PROVIDER_TYPES[spec["type"]]["base_url"],
+            "model": model_name,
+            "enabled": bool(api_key or spec["type"] in {"ollama", "lmstudio"}),
+            "is_default": True,
+        }
+    )
+
+
+def _unconfigured_provider() -> dict[str, Any]:
+    return {
+        "id": "unconfigured",
+        "name": "Unconfigured",
+        "type": "unconfigured",
+        "provider": "unconfigured",
+        "api_key": "",
+        "base_url": "",
+        "model": "",
+        "enabled": False,
+        "is_default": True,
+        "no_provider_configured": True,
+        "error": "No provider configured. Run: /model add",
+    }
+
+
+def get_default() -> dict[str, Any]:
     providers = load_providers()
     for item in providers:
         if item.get("enabled", True) and item.get("is_default"):
@@ -178,7 +252,10 @@ def get_default() -> dict[str, Any] | None:
     for item in providers:
         if item.get("enabled", True):
             return item
-    return None
+    env_provider = _provider_from_env()
+    if not env_provider.get("no_provider_configured"):
+        return env_provider
+    return _unconfigured_provider()
 
 
 def add_provider(data: dict[str, Any]) -> dict[str, Any]:
@@ -341,7 +418,9 @@ def list_models(provider_id: str) -> list[str]:
 def migrate_env_to_providers() -> list[dict[str, Any]]:
     if CONFIG_PATH.exists():
         return load_providers()
-    env_provider = (_env_value("AI_PROVIDER") or "anthropic").strip().lower()
+    env_provider = _env_value("AI_PROVIDER").strip().lower()
+    if not env_provider:
+        return []
     providers: list[dict[str, Any]] = []
     for spec in ENV_PROVIDER_SPECS:
         api_key = _env_value(spec["key_env"]) if spec["key_env"] else ""
@@ -362,4 +441,3 @@ def migrate_env_to_providers() -> list[dict[str, Any]]:
         return []
     saved = save_providers(providers)
     return saved
-

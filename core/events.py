@@ -97,3 +97,17 @@ class EventBus:
 
     def tool_end(self, name: str, status: str, duration: float, **payload: Any) -> EventRecord:
         return self.publish("tool_end", name=name, status=status, duration=duration, **payload)
+
+
+class _EventBusProxy:
+    def __init__(self):
+        self._bus = EventBus()
+
+    def bind(self, bus: EventBus) -> None:
+        self._bus = bus
+
+    def __getattr__(self, name: str):
+        return getattr(self._bus, name)
+
+
+event_bus = _EventBusProxy()

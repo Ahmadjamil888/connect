@@ -61,7 +61,7 @@ class TaskRouter:
             plan = await self._llm_decompose(prompt, context)
             if plan:
                 return plan
-        return self._heuristic_decompose(prompt)
+        return self._heuristic_decompose(prompt, context)
 
     def _targeted_decompose(self, prompt: str, context: dict[str, Any]) -> list[IMOSSubtask]:
         target_names = [str(item).strip() for item in context.get("target_adapters", []) if str(item).strip()]
@@ -152,7 +152,8 @@ class TaskRouter:
         except Exception:
             return []
 
-    def _heuristic_decompose(self, prompt: str) -> list[IMOSSubtask]:
+    def _heuristic_decompose(self, prompt: str, context: dict[str, Any] | None = None) -> list[IMOSSubtask]:
+        context = context or {}
         lowered = prompt.lower()
         cleanup_scan_and_delete = (
             any(token in lowered for token in ["unwanted files", "junk files", "temporary files"])
@@ -160,8 +161,8 @@ class TaskRouter:
             and any(token in lowered for token in ["remove", "delete", "clean"])
         )
         if cleanup_scan_and_delete:
-            scan_target = self._select_adapter("search_files")
-            cleanup_target = self._select_adapter("cleanup_files")
+            scan_target = self._select_adapter("search_files", context=context)
+            cleanup_target = self._select_adapter("cleanup_files", context=context)
             scan_task = IMOSTask(
                 task_id=str(uuid.uuid4()),
                 prompt="scan my pc for unwanted files",
@@ -193,7 +194,7 @@ class TaskRouter:
         tasks: list[IMOSTask] = []
         for index, part in enumerate(parts or [prompt]):
             subtask_type = self._infer_intent(part.lower())
-            target = self._select_adapter(subtask_type)
+            target = self._select_adapter(subtask_type, context=context)
             metadata = self._build_task_metadata(part, subtask_type, index, tasks)
             tasks.append(
                 IMOSTask(
@@ -255,6 +256,11 @@ class TaskRouter:
             return "payment"
         return "question_answer"
 
+    def _canonical_name(self, value: str) -> str:
+        text = str(value).strip().lower()
+        text = re.sub(r"[^a-z0-9]+", "_", text)
+        return text.strip("_")
+
     def resolve_target_adapter(self, requested: str, subtask_type: str, prompt: str = "") -> str:
         explicit = self.registry.get(requested)
         if explicit is not None:
@@ -302,6 +308,13 @@ class TaskRouter:
             query = re.sub(r"^(search for|search the web for|search the web|look up|google)\s+", "", prompt.strip(), flags=re.IGNORECASE).strip()
             metadata["action"] = "search_web"
             metadata["params"] = {"query": query or prompt.strip()}
+        elif subtask_type == "browser_action":
+            match = re.search(r"(https?://\S+|www\.\S+)", prompt, re.IGNORECASE)
+            url = match.group(1) if match else ""
+            if url and not url.startswith(("http://", "https://")):
+                url = f"https://{url}"
+            metadata["action"] = "navigate"
+            metadata["params"] = {"url": url or "https://www.google.com"}
         elif subtask_type == "search_files":
             metadata["action"] = "scan_unwanted_files" if any(token in lowered for token in ["unwanted files", "junk files", "temporary files", "scan my pc", "scan pc", "cleanup scan"]) else "search_files"
             if metadata["action"] == "search_files":
@@ -309,11 +322,20 @@ class TaskRouter:
         elif subtask_type == "cleanup_files":
             metadata["action"] = "delete_unwanted_files"
             metadata["params"] = {"confirm": True}
+        elif subtask_type == "shell_command":
+            command = prompt.strip()
+            for prefix in ("run ", "execute ", "shell ", "terminal ", "powershell ", "command "):
+                if command.lower().startswith(prefix):
+                    command = command[len(prefix):].strip()
+                    break
+            metadata["action"] = "run_shell"
+            metadata["params"] = {"command": command or prompt.strip()}
         elif subtask_type in {"list_processes", "system_info", "read_file", "write_file"}:
             metadata["action"] = subtask_type
         return metadata
 
-    def _select_adapter(self, subtask_type: str) -> str:
+    def _select_adapter(self, subtask_type: str, context: dict[str, Any] | None = None) -> str:
+        context = context or {}
         capability = self.INTENT_CAPABILITY.get(subtask_type, "chat")
         candidates = self.registry.get_capable_adapters(capability)
         if not candidates:
@@ -321,6 +343,20 @@ class TaskRouter:
             if all_models:
                 return all_models[0].name
             return "unassigned"
+        preferred_provider = str(context.get("preferred_provider", "") or "").strip().lower()
+        preferred_model = str(context.get("preferred_model", "") or "").strip().lower()
+        if capability == "chat":
+            for alias in [
+                self._canonical_name("default_model"),
+                self._canonical_name(preferred_provider),
+                self._canonical_name(f"{preferred_provider}_{preferred_model}") if preferred_provider and preferred_model else "",
+                self._canonical_name(f"{preferred_provider}-{preferred_model}") if preferred_provider and preferred_model else "",
+            ]:
+                if not alias:
+                    continue
+                adapter = self.registry.get(alias)
+                if adapter is not None and capability in adapter.capabilities:
+                    return adapter.name
         preferred_name = self.settings.get("preferred_adapters", {}).get(subtask_type)
         if preferred_name:
             for adapter in candidates:

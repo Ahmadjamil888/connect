@@ -2,7 +2,7 @@
   "default": "groq",
   "code": "anthropic",
   "research": "openai",
-  "writing": "",
-  "computer_control": "",
+  "writing": "openai",
+  "computer_control": "anthropic",
   "devops": ""
 }

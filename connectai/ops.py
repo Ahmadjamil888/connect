@@ -254,13 +254,11 @@ class ShellRunner:
         except subprocess.TimeoutExpired:
             timed_out = True
             process.kill()
-            returncode = process.wait()
-            self.audit_logger.append(
-                "command_output",
-                f"Command timed out after {timeout}s",
-                {"command": command, "cwd": cwd, "command_id": command_id, "stream": "stderr"},
-            )
-            stderr_chunks.append(f"Command timed out after {timeout}s\n")
+            raise RuntimeError(f"Command timed out after {timeout}s: {command}")
+        except KeyboardInterrupt:
+            process.kill()
+            raise
+        returncode = process.returncode
 
         stdout_thread.join(timeout=2)
         stderr_thread.join(timeout=2)
