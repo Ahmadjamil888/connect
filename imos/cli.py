@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
 import sys
 import time
@@ -20,6 +21,121 @@ from imos.router import TaskRouter
 from imos.session_runtime import IMOSSessionRuntime
 from imos.ui import get_ui_config, save_ui_config
 from imos.wake_service import _install_autostart_file, start_background as start_wake_service, status as wake_status, stop_background as stop_wake_service, uninstall_autostart
+
+
+def _project_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
+def _is_macos() -> bool:
+    return sys.platform == "darwin"
+
+
+def _remove_path_entry(current_path: str, target: str) -> str:
+    normalized_target = target.strip().rstrip("\\/").lower()
+    kept: list[str] = []
+    for item in current_path.split(os.pathsep):
+        cleaned = item.strip()
+        if not cleaned:
+            continue
+        if cleaned.rstrip("\\/").lower() == normalized_target:
+            continue
+        kept.append(cleaned)
+    return os.pathsep.join(kept)
+
+
+def _launch_runtime_in_terminal() -> bool:
+    command = "imos"
+    if _is_windows():
+        creationflags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+        subprocess.Popen(["powershell", "-NoExit", "-Command", command], creationflags=creationflags)
+        return True
+    if _is_macos():
+        script = f'tell application "Terminal" to do script "{command}"'
+        subprocess.Popen(["osascript", "-e", script])
+        return True
+    for args in (
+        ["x-terminal-emulator", "-e", command],
+        ["gnome-terminal", "--", command],
+        ["konsole", "-e", command],
+        ["xfce4-terminal", "-e", command],
+        ["xterm", "-e", command],
+    ):
+        try:
+            subprocess.Popen(args)
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def _remove_windows_user_path_entry(target: Path) -> bool:
+    if not _is_windows():
+        return False
+    try:
+        import winreg
+
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Environment",
+            0,
+            winreg.KEY_READ | winreg.KEY_WRITE,
+        )
+        try:
+            current_path, reg_type = winreg.QueryValueEx(key, "PATH")
+        except FileNotFoundError:
+            winreg.CloseKey(key)
+            return False
+        updated_path = _remove_path_entry(str(current_path), str(target))
+        if updated_path == current_path:
+            winreg.CloseKey(key)
+            return False
+        winreg.SetValueEx(key, "PATH", 0, reg_type, updated_path)
+        winreg.CloseKey(key)
+        return True
+    except Exception:
+        return False
+
+
+def _remove_cli_launchers() -> list[str]:
+    removed: list[str] = []
+    executable_dir = Path(sys.executable).resolve().parent
+    targets = [Path.home() / "imos-bin" / "imos.cmd"]
+    if _is_windows():
+        targets.extend(
+            [
+                executable_dir / "imos.bat",
+                executable_dir / "imos.exe",
+                executable_dir / "imos-script.py",
+            ]
+        )
+    else:
+        targets.append(Path.home() / ".local" / "bin" / "imos")
+    for path in targets:
+        try:
+            if path.exists():
+                path.unlink()
+                removed.append(str(path))
+        except Exception:
+            continue
+    return removed
+
+
+def _run_pip_uninstall() -> dict[str, object]:
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "uninstall", "-y", "connectai"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    stdout = result.stdout.strip()
+    stderr = result.stderr.strip()
+    details = stdout or stderr or f"pip exited with code {result.returncode}"
+    return {"ok": result.returncode == 0, "details": details}
 
 
 async def _build_orchestrator() -> IMOSOrchestrator:
@@ -398,11 +514,13 @@ def dashboard() -> None:
         healthy = False
 
     if not healthy:
-        subprocess.Popen(
-            [sys.executable, "imos_server.py", "--no-browser"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        launched_terminal = _launch_runtime_in_terminal()
+        if not launched_terminal:
+            subprocess.Popen(
+                [sys.executable, str(_project_root() / "imos_server.py"), "--no-browser"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
         for _ in range(20):
             try:
                 response = httpx.get(f"{dashboard_url}api/status", timeout=2.0)
@@ -412,7 +530,12 @@ def dashboard() -> None:
             except Exception:
                 time.sleep(0.5)
     webbrowser.open(dashboard_url)
-    click.echo("Opened IMOS dashboard" if healthy else "Started IMOS dashboard and opened browser")
+    if healthy:
+        click.echo("Opened IMOS dashboard")
+    elif _is_windows():
+        click.echo("Opened IMOS dashboard and launched the runtime in a new terminal window")
+    else:
+        click.echo("Started IMOS dashboard and opened browser")
 
 
 @cli.group(invoke_without_command=True)
@@ -468,6 +591,27 @@ def install_wake_alias() -> None:
 @install.command("mcp")
 def install_mcp_alias() -> None:
     click.echo(json.dumps(install_mcp_configs(), indent=2))
+
+
+@cli.command()
+def uninstall() -> None:
+    removed_autostart = [str(path) for path in uninstall_autostart()]
+    wake_result = stop_wake_service()
+    removed_launchers = _remove_cli_launchers()
+    removed_path = False
+    if _is_windows():
+        removed_path = _remove_windows_user_path_entry(Path.home() / "imos-bin")
+    pip_result = _run_pip_uninstall()
+    report = {
+        "wake_service": wake_result,
+        "removed_autostart": removed_autostart,
+        "removed_launchers": removed_launchers,
+        "removed_path_entry": removed_path,
+        "pip_uninstall": pip_result,
+        "repository_root": str(_project_root()),
+        "note": "Local repo files and ~/.imos data were left in place.",
+    }
+    click.echo(json.dumps(report, indent=2))
 
 
 @cli.group(invoke_without_command=True)

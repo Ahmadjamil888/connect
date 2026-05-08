@@ -309,6 +309,7 @@ HELP = """
   [#ff6b00]imos sessions export[/#ff6b00] [dim]<id>[/dim]          export parent and worker session graph
   [#ff6b00]imos history[/#ff6b00]                       show recent history
   [#ff6b00]imos status[/#ff6b00]                        show runtime status
+  [#ff6b00]imos uninstall[/#ff6b00]                     remove launcher and editable install
   [#ff6b00]imos mcp install[/#ff6b00]                   install editor bridge
   [#ff6b00]imos wake install[/#ff6b00]                  install wake listener
   [#ff6b00]imos wake status[/#ff6b00]                   show wake listener status
