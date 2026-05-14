@@ -45,6 +45,26 @@ PROVIDER_DEFAULTS = {
         "api_key": "",
         "base_url": "https://router.huggingface.co/v1",
     },
+    "lmstudio": {
+        "model": "local-model",
+        "base_url": "http://localhost:1234/v1",
+        "api_key": "lmstudio",
+    },
+    "together": {
+        "model": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+        "api_key": "",
+        "base_url": "https://api.together.xyz/v1",
+    },
+    "mistral": {
+        "model": "mistral-large-latest",
+        "api_key": "",
+        "base_url": "https://api.mistral.ai/v1",
+    },
+    "cohere": {
+        "model": "command-r-plus",
+        "api_key": "",
+        "base_url": "https://api.cohere.com/compatibility/v1",
+    },
     "ollama": {
         "model": "llama3.1",
         "base_url": "http://localhost:11434",
@@ -66,6 +86,11 @@ PROVIDER_DEFAULTS = {
         "model": "meta/llama-3.1-70b-instruct",
         "api_key": "",
         "base_url": "https://integrate.api.nvidia.com/v1",
+    },
+    "custom": {
+        "model": "custom-model",
+        "api_key": "",
+        "base_url": "",
     },
     "gcp": {
         "model": "claude-sonnet-4-5@20251101",
@@ -209,11 +234,11 @@ def resolve_runtime_state_root(workspace: str | Path | None = None) -> Path:
 
 def _env_default_model() -> dict[str, Any]:
     migrated_default = model_manager.get_default()
-    if migrated_default:
+    if migrated_default and not migrated_default.get("no_provider_configured"):
         return dict(migrated_default)
     provider = os.getenv("AI_PROVIDER", "").strip().lower()
     if not provider:
-        return dict(model_manager.get_default())
+        return dict(migrated_default or {})
     defaults = dict(PROVIDER_DEFAULTS.get(provider, PROVIDER_DEFAULTS["anthropic"]))
     defaults["provider"] = provider
     defaults["type"] = provider
@@ -231,9 +256,32 @@ def _env_default_model() -> dict[str, Any]:
     return defaults
 
 
+def _provider_payload_is_configured(model: dict[str, Any] | None) -> bool:
+    if not model:
+        return False
+    provider = str(model.get("provider") or model.get("type") or "").strip().lower()
+    if not provider or provider == "unconfigured" or model.get("no_provider_configured"):
+        return False
+    if provider in {"ollama", "lmstudio"}:
+        return True
+    if provider == "custom":
+        return bool(str(model.get("base_url", "")).strip())
+    if provider == "azure":
+        return bool(str(model.get("api_key", "")).strip() and str(model.get("base_url", "")).strip())
+    if provider == "bedrock":
+        return bool(
+            str(model.get("aws_access_key_id", "")).strip()
+            and str(model.get("aws_secret_access_key", "")).strip()
+            and str(model.get("aws_region", "")).strip()
+        )
+    if provider == "gcp":
+        return bool(str(model.get("project_id", "")).strip())
+    return bool(str(model.get("api_key", "")).strip())
+
+
 def get_model_config() -> dict[str, Any]:
     migrated_default = model_manager.get_default()
-    if migrated_default:
+    if migrated_default and not migrated_default.get("no_provider_configured"):
         return dict(migrated_default)
     cfg = load_config()
     model = cfg.get("model", {})
@@ -293,8 +341,19 @@ def _require_api_key(provider: str, api_key: str):
 
 
 def get_client(model_config: dict[str, Any]):
-    effective = dict(model_manager.get_default() or {})
-    effective.update(model_config or {})
+    default_provider = model_manager.get_default() or {}
+    explicit = dict(model_config or {})
+    saved = get_model_config()
+    if explicit and _provider_payload_is_configured(explicit):
+        effective = dict(explicit)
+    elif default_provider and not default_provider.get("no_provider_configured"):
+        effective = dict(default_provider)
+        effective.update(explicit)
+    elif saved and _provider_payload_is_configured(saved):
+        effective = dict(saved)
+        effective.update(explicit)
+    else:
+        effective = dict(explicit)
     provider = str(effective.get("type") or effective.get("provider") or "").strip().lower()
     if not provider and effective.get("model"):
         provider = model_manager.infer_provider_type(str(effective.get("model", "")))

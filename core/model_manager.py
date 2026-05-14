@@ -19,9 +19,14 @@ PROVIDER_TYPES: dict[str, dict[str, Any]] = {
     "openrouter": {"name": "OpenRouter", "base_url": "https://openrouter.ai/api/v1", "requires_key": True},
     "ollama": {"name": "Ollama", "base_url": "http://localhost:11434/v1", "requires_key": False},
     "lmstudio": {"name": "LM Studio", "base_url": "http://localhost:1234/v1", "requires_key": False},
+    "huggingface": {"name": "Hugging Face", "base_url": "https://router.huggingface.co/v1", "requires_key": True},
     "together": {"name": "Together AI", "base_url": "https://api.together.xyz/v1", "requires_key": True},
     "mistral": {"name": "Mistral", "base_url": "https://api.mistral.ai/v1", "requires_key": True},
-    "cohere": {"name": "Cohere", "base_url": "https://api.cohere.com/v1", "requires_key": True},
+    "cohere": {"name": "Cohere", "base_url": "https://api.cohere.com/compatibility/v1", "requires_key": True},
+    "azure": {"name": "Azure OpenAI", "base_url": "", "requires_key": True},
+    "nvidia": {"name": "NVIDIA NIM", "base_url": "https://integrate.api.nvidia.com/v1", "requires_key": True},
+    "bedrock": {"name": "AWS Bedrock", "base_url": "", "requires_key": False},
+    "gcp": {"name": "Google Vertex AI", "base_url": "", "requires_key": False},
     "custom": {"name": "Custom", "base_url": "", "requires_key": False},
 }
 
@@ -79,6 +84,24 @@ ENV_PROVIDER_SPECS = [
         "key_env": "",
         "model_env": "OLLAMA_MODEL",
         "default_model": "llama3",
+    },
+    {
+        "env_provider": "nvidia",
+        "id": "nvidia-main",
+        "name": "NVIDIA NIM",
+        "type": "nvidia",
+        "key_env": "NVIDIA_API_KEY",
+        "model_env": "NVIDIA_MODEL",
+        "default_model": "meta/llama-3.1-70b-instruct",
+    },
+    {
+        "env_provider": "huggingface",
+        "id": "huggingface-main",
+        "name": "Hugging Face",
+        "type": "huggingface",
+        "key_env": "HUGGINGFACE_API_KEY",
+        "model_env": "HUGGINGFACE_MODEL",
+        "default_model": "meta-llama/Llama-3.1-8B-Instruct:cerebras",
     },
 ]
 
@@ -158,6 +181,11 @@ def _normalize_provider(provider: dict[str, Any], *, index: int = 0) -> dict[str
         "enabled": bool(provider.get("enabled", True)),
         "is_default": bool(provider.get("is_default", False)),
     }
+    for key, value in provider.items():
+        if key in normalized:
+            continue
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            normalized[key] = value
     if provider_type == "ollama" and not normalized["api_key"]:
         normalized["api_key"] = "ollama"
     if provider_type == "lmstudio" and not normalized["api_key"]:
@@ -320,6 +348,12 @@ def _openai_client(provider: dict[str, Any]):
     provider_type = provider["type"]
     api_key = provider.get("api_key", "") or provider_type
     base_url = provider.get("base_url", "")
+    if provider_type == "azure":
+        return openai.AzureOpenAI(
+            api_key=api_key,
+            azure_endpoint=base_url,
+            api_version=str(provider.get("api_version", "2024-02-01")),
+        )
     kwargs: dict[str, Any] = {"api_key": api_key}
     if base_url:
         kwargs["base_url"] = base_url
@@ -358,6 +392,28 @@ def test_provider(provider_id: str) -> dict[str, Any]:
 
             client = cohere.ClientV2(api_key=provider["api_key"])
             client.models.list(page_size=1)
+        elif provider_type == "bedrock":
+            import boto3
+
+            client = boto3.client(
+                "bedrock",
+                region_name=str(provider.get("aws_region", "us-east-1")),
+                aws_access_key_id=provider.get("aws_access_key_id"),
+                aws_secret_access_key=provider.get("aws_secret_access_key"),
+            )
+            client.list_foundation_models()
+        elif provider_type == "gcp":
+            import anthropic
+
+            client = anthropic.AnthropicVertex(
+                project_id=str(provider.get("project_id", "")),
+                region=str(provider.get("location", "us-east5")),
+            )
+            client.messages.create(
+                model=provider["model"] or "claude-sonnet-4-5@20251101",
+                max_tokens=4,
+                messages=[{"role": "user", "content": "ping"}],
+            )
         else:
             client = _openai_client(provider)
             if provider_type in {"ollama", "lmstudio"}:
@@ -409,6 +465,20 @@ def list_models(provider_id: str) -> list[str]:
             return sorted(str(getattr(item, "id", "")).strip() for item in rows if getattr(item, "id", ""))
         except Exception:
             return [provider.get("model", "")] if provider.get("model") else []
+    if provider_type == "bedrock":
+        import boto3
+
+        client = boto3.client(
+            "bedrock",
+            region_name=str(provider.get("aws_region", "us-east-1")),
+            aws_access_key_id=provider.get("aws_access_key_id"),
+            aws_secret_access_key=provider.get("aws_secret_access_key"),
+        )
+        response = client.list_foundation_models()
+        rows = response.get("modelSummaries", []) or []
+        return sorted(str(item.get("modelId", "")).strip() for item in rows if item.get("modelId"))
+    if provider_type == "gcp":
+        return [provider.get("model", "")] if provider.get("model") else []
     client = _openai_client(provider)
     response = client.models.list()
     rows = getattr(response, "data", []) or []

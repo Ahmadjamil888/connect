@@ -13,6 +13,7 @@ from config.config import (
     save_config,
 )
 from core import model_manager
+from imos.hub import list_connection_catalog, list_model_catalog, upsert_connection
 from setup.autostart import enable_autostart
 from setup.consent import ConsentManager
 
@@ -39,21 +40,6 @@ IMOS_LOGO = [
     "██║██║ ╚═╝ ██║╚██████╔╝███████║",
     "╚═╝╚═╝     ╚═╝ ╚═════╝ ╚══════╝",
 ]
-
-PROVIDER_CHOICES = {
-    "1": ("groq", "Groq", "GROQ_API_KEY"),
-    "2": ("anthropic", "Anthropic", "ANTHROPIC_API_KEY"),
-    "3": ("openai", "OpenAI", "OPENAI_API_KEY"),
-    "4": ("gemini", "Google", "GOOGLE_AI_API_KEY"),
-    "5": ("openrouter", "OpenRouter", "OPENROUTER_API_KEY"),
-}
-PROVIDER_MODELS = {
-    "groq": "llama-3.3-70b-versatile",
-    "anthropic": "claude-3-5-sonnet-20241022",
-    "openai": "gpt-4o",
-    "gemini": "gemini-2.0-flash",
-    "openrouter": "openai/gpt-4o",
-}
 
 VOICE_CHOICES = {
     "1": ("gemini-tts", "Google Gemini TTS", "Kore"),
@@ -121,6 +107,24 @@ def _write_env(path: Path, updates: dict[str, str]) -> None:
     path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
 
 
+def _provider_env_mapping(provider: str) -> tuple[str, str] | tuple[None, None]:
+    mapping = {
+        "groq": ("GROQ_API_KEY", "GROQ_MODEL"),
+        "anthropic": ("ANTHROPIC_API_KEY", "ANTHROPIC_MODEL"),
+        "openai": ("OPENAI_API_KEY", "OPENAI_MODEL"),
+        "gemini": ("GOOGLE_GEMINI_API_KEY", "GOOGLE_GEMINI_MODEL"),
+        "openrouter": ("OPENROUTER_API_KEY", "OPENROUTER_MODEL"),
+        "huggingface": ("HUGGINGFACE_API_KEY", "HUGGINGFACE_MODEL"),
+        "nvidia": ("NVIDIA_API_KEY", "NVIDIA_MODEL"),
+        "together": ("TOGETHER_API_KEY", "TOGETHER_MODEL"),
+        "mistral": ("MISTRAL_API_KEY", "MISTRAL_MODEL"),
+        "cohere": ("COHERE_API_KEY", "COHERE_MODEL"),
+        "ollama": ("", "OLLAMA_MODEL"),
+        "lmstudio": ("", "LMSTUDIO_MODEL"),
+    }
+    return mapping.get(provider, (None, None))
+
+
 def _validate_provider(provider: str, api_key: str) -> None:
     if provider == "groq":
         from openai import OpenAI
@@ -182,57 +186,71 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
     _step_title("Step 3  AI Model Provider")
     print(f"{WHITE}Choose your primary AI provider:{RESET}")
     print()
-    print(f"{WHITE}1. Groq       {DIM}(free, fast  recommended){RESET}")
-    print(f"{WHITE}2. Anthropic  {DIM}(Claude){RESET}")
-    print(f"{WHITE}3. OpenAI     {DIM}(GPT-4o){RESET}")
-    print(f"{WHITE}4. Google     {DIM}(Gemini){RESET}")
-    print(f"{WHITE}5. OpenRouter {DIM}(multi-model){RESET}")
+    model_catalog = list_model_catalog()
+    provider_choices = {str(index): item for index, item in enumerate(model_catalog, start=1)}
+    for choice, item in provider_choices.items():
+        print(f"{WHITE}{choice}. {item['name']:<16}{DIM}({item['description']}){RESET}")
     print()
     provider = ""
     provider_label = ""
     api_key = ""
+    default_provider_payload: dict[str, Any] | None = None
     while True:
         choice = ""
-        while choice not in PROVIDER_CHOICES:
-            choice = _ask("Enter choice (1-5): ")
-        provider, provider_label, env_key = PROVIDER_CHOICES[choice]
+        while choice not in provider_choices:
+            choice = _ask(f"Enter choice (1-{len(provider_choices)}): ")
+        selected = provider_choices[choice]
+        provider = str(selected["provider"]).strip()
+        provider_label = str(selected["name"]).strip()
         api_key = ""
         attempts = 0
         while attempts < 3:
-            while not api_key:
-                api_key = _ask("Enter your API key: ")
+            values: dict[str, str] = {}
+            for field in selected.get("fields", []):
+                key = str(field.get("key", "")).strip()
+                default = str(field.get("default", "") or get_provider_defaults(provider).get(key, "") or "")
+                prompt = f"{field.get('label', key)}"
+                if field.get("required"):
+                    prompt += " (required)"
+                prompt += ": "
+                entered = _ask(prompt, default=default)
+                if field.get("required") and not entered.strip():
+                    entered = _ask(prompt, default=default)
+                values[key] = entered.strip()
+            api_key = values.get("api_key", "").strip()
             provider_data = {
                 "id": f"{provider}-wizard",
                 "name": provider_label,
                 "type": provider,
-                "api_key": api_key,
                 "base_url": get_provider_defaults(provider).get("base_url", ""),
-                "model": PROVIDER_MODELS.get(provider, get_provider_defaults(provider).get("model", "")),
                 "enabled": True,
-                "is_default": True,
+                "is_default": default_provider_payload is None,
             }
+            provider_data.update(values)
             model_manager.add_provider(provider_data)
             result = model_manager.test_provider(provider_data["id"])
             if result.get("ok"):
                 print(f" Connected  {result['latency']}ms")
+                if default_provider_payload is None:
+                    default_provider_payload = dict(provider_data)
                 break
             attempts += 1
             print(f" Connection failed: {result.get('error')}")
-            print("  Check your API key and try again.")
-            api_key = ""
+            print("  Check your credentials and try again.")
+        if default_provider_payload is None:
+            continue
         defaults = get_provider_defaults(provider)
         model_cfg = dict(defaults)
-        model_cfg["provider"] = provider
-        if "api_key" in model_cfg:
-            model_cfg["api_key"] = api_key
+        model_cfg.update(default_provider_payload)
+        model_cfg["provider"] = default_provider_payload["type"]
         cfg["model"] = model_cfg
-        _write_env(
-            env_file,
-            {
-                "AI_PROVIDER": provider,
-                env_key: api_key,
-            },
-        )
+        key_env, model_env = _provider_env_mapping(provider)
+        env_updates = {"AI_PROVIDER": default_provider_payload["type"]}
+        if key_env:
+            env_updates[key_env] = str(default_provider_payload.get("api_key", "")).strip()
+        if model_env:
+            env_updates[model_env] = str(default_provider_payload.get("model", "")).strip()
+        _write_env(env_file, env_updates)
         add_another = _ask("Add another provider? (yes/no) [no]: ", default="no").lower()
         if add_another not in {"yes", "y"}:
             break
@@ -284,6 +302,28 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
             "TELEGRAM_BOT_TOKEN": telegram_token,
         },
     )
+    if _yes_no("Configure additional app/cloud connections now? (yes/no): "):
+        catalog = [item for item in list_connection_catalog() if item.get("category") != "model-cloud" and item.get("category") != "model-local" and item.get("category") != "model-custom"]
+        while True:
+            print()
+            for index, item in enumerate(catalog, start=1):
+                print(f"{WHITE}{index}. {item['name']:<24}{DIM}({item['category']}){RESET}")
+            print()
+            choice = _ask(f"Choose connection (1-{len(catalog)}) or Enter to stop: ", default="")
+            if not choice:
+                break
+            if choice not in {str(index) for index in range(1, len(catalog) + 1)}:
+                print(f"{WHITE}Invalid choice.{RESET}")
+                continue
+            selected = catalog[int(choice) - 1]
+            values: dict[str, str] = {}
+            for field in selected.get("fields", []):
+                values[field["key"]] = _ask(f"{field['label']}: ", default=str(field.get("default", "")))
+            try:
+                upsert_connection({"provider": selected["provider"], "values": values})
+                print(f"{WHITE}Saved {selected['name']}.{RESET}")
+            except Exception as exc:
+                print(f"{WHITE}Failed to save connection: {exc}{RESET}")
 
     _step_title("Step 7  Auto-start")
     autostart_enabled = _yes_no("Start IMOS on Windows boot? (yes/no): ")
@@ -307,7 +347,8 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
     _step_title("Step 8  Complete")
     print(f"{WHITE}IMOS configured successfully.{RESET}")
     print()
-    print(f"{WHITE}Provider:   {ORANGE}{provider_label}{RESET}")
+    summary_provider = str((default_provider_payload or {}).get("name", "") or provider_label)
+    print(f"{WHITE}Provider:   {ORANGE}{summary_provider}{RESET}")
     print(f"{WHITE}Voice:      {ORANGE}{voice_label}{RESET}")
     print(f"{WHITE}Wake word:  {ORANGE}{wake_word}{RESET}")
     print(f"{WHITE}Dashboard:  {ORANGE}http://127.0.0.1:8766{RESET}")
@@ -316,7 +357,7 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
     print(f"{WHITE}Say \"Hey IMOS\" to activate hands-free.{RESET}")
     input(f"{WHITE}Press Enter to launch IMOS.{RESET}")
     return {
-        "provider": provider,
+        "provider": str((default_provider_payload or {}).get("type", "") or provider),
         "voice_provider": voice_provider,
         "wake_word": wake_word,
         "autostart": autostart_enabled,

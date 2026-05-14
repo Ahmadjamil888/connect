@@ -351,10 +351,44 @@ class ConnectAIRuntime:
                 return tokens[index + 1]
         return ""
 
+    def _guess_ide_target(self, text: str) -> str:
+        lowered = (text or "").strip().lower()
+        mappings = [
+            ("cursor", "cursor"),
+            ("windsurf", "windsurf"),
+            ("claude code", "claude-code"),
+            ("claude-code", "claude-code"),
+            ("codex", "codex"),
+            ("aider", "aider"),
+            ("vscode", "vscode"),
+            ("vs code", "vscode"),
+            ("visual studio code", "vscode"),
+            ("zed", "zed"),
+        ]
+        for needle, target in mappings:
+            if needle in lowered:
+                return target
+        return ""
+
     def _infer_direct_tool_call(self, user_text: str, skills: List[Any]) -> Dict[str, Any] | None:
         lowered = (user_text or "").strip().lower()
         if not lowered:
             return None
+
+        wants_build = any(term in lowered for term in ["build", "create", "make", "scaffold"])
+        requested_ide = self._guess_ide_target(user_text)
+        if requested_ide and wants_build and self._find_skill(skills, "ide_orchestrator"):
+            return {
+                "id": "direct-ide-orchestrator",
+                "name": "ide_orchestrator",
+                "input": {
+                    "action": "start",
+                    "target": requested_ide,
+                    "prompt": user_text.strip(),
+                    "project_name": self._guess_project_name(user_text),
+                    "wait_for_response": True,
+                },
+            }
 
         wants_nextjs = any(term in lowered for term in ["next.js", "nextjs", "next js"])
         wants_html = any(term in lowered for term in [" html ", "static site", "static website", "plain html", "simple html"]) or lowered.startswith("html ")
@@ -368,7 +402,6 @@ class ConnectAIRuntime:
             "professional site",
             "professional website",
         ])
-        wants_build = any(term in lowered for term in ["build", "create", "make", "scaffold"])
         if wants_nextjs and wants_build and self._find_skill(skills, "scaffold_nextjs"):
             return {
                 "id": "direct-scaffold-nextjs",
@@ -692,7 +725,7 @@ class ConnectAIRuntime:
                 return {"text": final_text, "usage": {}}
             return final_text
         client = get_client(model_config)
-        provider = model_config.get("provider", "anthropic")
+        provider = str(model_config.get("provider") or model_config.get("type") or "").strip().lower()
         model = model_config.get("model", "")
 
         response_text = ""

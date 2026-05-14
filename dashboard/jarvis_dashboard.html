@@ -30,6 +30,11 @@
     .sidebar{border-right:1px solid var(--line);transition:width .2s ease}
     .rightbar{border-left:1px solid var(--line)}
     .sidebar-scroll,.rightbar-scroll{height:100%;overflow:auto;padding:16px}
+    .sidebar-scroll,.rightbar-scroll,.panel{scrollbar-width:thin;scrollbar-color:#2a2a2a #090909}
+    .sidebar-scroll::-webkit-scrollbar,.rightbar-scroll::-webkit-scrollbar,.panel::-webkit-scrollbar{width:10px;height:10px}
+    .sidebar-scroll::-webkit-scrollbar-track,.rightbar-scroll::-webkit-scrollbar-track,.panel::-webkit-scrollbar-track{background:#090909;border-radius:999px}
+    .sidebar-scroll::-webkit-scrollbar-thumb,.rightbar-scroll::-webkit-scrollbar-thumb,.panel::-webkit-scrollbar-thumb{background:#2a2a2a;border-radius:999px;border:2px solid #090909}
+    .sidebar-scroll::-webkit-scrollbar-thumb:hover,.rightbar-scroll::-webkit-scrollbar-thumb:hover,.panel::-webkit-scrollbar-thumb:hover{background:#3a3a3a}
     .sidebar.collapsed{width:48px}
     .layout.collapsed{grid-template-columns:48px 1fr 220px}
     .main{height:100vh;display:grid;grid-template-rows:48px 1fr;overflow:hidden}
@@ -192,6 +197,24 @@
           </div>
           <div class="panel" data-panel="integrations">
             <div class="panel-title">INTEGRATIONS</div>
+            <div class="card">
+              <h3>IDE Automation</h3>
+              <div class="grid-2">
+                <div class="field"><label>Target</label><select id="ideTarget"></select></div>
+                <div class="field"><label>Project Name</label><input id="ideProjectName" placeholder="saas-app" /></div>
+              </div>
+              <div class="field"><label>Project Path (optional)</label><input id="ideProjectPath" placeholder="workspace-relative or absolute path" /></div>
+              <div class="field"><label>Prompt</label><textarea id="idePrompt" placeholder="Using Cursor, build me a beautiful SaaS app. Start with the frontend first."></textarea></div>
+              <div class="actions-row">
+                <button class="btn" id="runIdeAutomation">Launch And Prompt</button>
+                <button class="btn" id="continueIdeAutomation">Continue Active Session</button>
+              </div>
+              <div class="muted" id="ideAutomationResult"></div>
+            </div>
+            <div class="panel-title">CONNECTED SERVICES</div>
+            <div class="card-list" id="integrationConnectionsList"></div>
+            <div class="panel-title">SERVICE CATALOG</div>
+            <div class="card-list" id="integrationCatalogList"></div>
             <div class="card-list" id="integrationsList"></div>
           </div>
           <div class="panel" data-panel="workflows">
@@ -304,9 +327,14 @@
       openrouter:{name:"OpenRouter",base_url:"https://openrouter.ai/api/v1",requires_key:true},
       ollama:{name:"Ollama (local)",base_url:"http://localhost:11434/v1",requires_key:false},
       lmstudio:{name:"LM Studio (local)",base_url:"http://localhost:1234/v1",requires_key:false},
+      huggingface:{name:"Hugging Face",base_url:"https://router.huggingface.co/v1",requires_key:true},
       together:{name:"Together AI",base_url:"https://api.together.xyz/v1",requires_key:true},
       mistral:{name:"Mistral",base_url:"https://api.mistral.ai/v1",requires_key:true},
-      cohere:{name:"Cohere",base_url:"https://api.cohere.com/v1",requires_key:true},
+      cohere:{name:"Cohere",base_url:"https://api.cohere.com/compatibility/v1",requires_key:true},
+      azure:{name:"Azure OpenAI",base_url:"",requires_key:true},
+      nvidia:{name:"NVIDIA NIM",base_url:"https://integrate.api.nvidia.com/v1",requires_key:true},
+      bedrock:{name:"AWS Bedrock",base_url:"",requires_key:false},
+      gcp:{name:"Google Vertex AI",base_url:"",requires_key:false},
       custom:{name:"Custom (OpenAI-compatible)",base_url:"",requires_key:false}
     };
     const quickActions = ["System status","Clean PC","Weather","Tech news","Tell a joke","Processes","See screen","COVID stats"];
@@ -431,7 +459,7 @@
     function syncProviderFields(){
       const type=document.getElementById("providerType").value;
       const meta=providerTypes[type];
-      document.getElementById("providerBaseField").style.display=["ollama","lmstudio","custom"].includes(type) ? "grid" : "none";
+      document.getElementById("providerBaseField").style.display=["ollama","lmstudio","custom","azure"].includes(type) ? "grid" : "none";
       document.getElementById("providerKeyField").style.display=meta.requires_key ? "grid" : "none";
       if(!state.editingProviderId){document.getElementById("providerBaseUrl").value=meta.base_url||"";document.getElementById("providerName").value=meta.name;}
     }
@@ -477,20 +505,45 @@
     async function loadIntegrations(){
       const data=await fetchJson("/api/integrations");
       const root=document.getElementById("integrationsList");root.innerHTML="";
+      const legacy=data.legacy||{};
       const cards=[
-        {name:"whatsapp",title:"WhatsApp",body:`<div class="muted">Status: ${data.whatsapp?.status ? "yes" : "no"}</div><div class="actions-row"><button class="btn" data-test="whatsapp">Test / open WhatsApp</button></div>`},
-        {name:"email",title:"Email (SMTP)",body:`<div class="field"><label>SMTP Host</label><input data-field="smtp_host" value="${escapeHtml(data.email?.smtp_host||"")}" /></div><div class="field"><label>SMTP Port</label><input data-field="smtp_port" value="${escapeHtml(data.email?.smtp_port||"")}" /></div><div class="field"><label>Email Address</label><input data-field="email_address" value="${escapeHtml(data.email?.email_address||"")}" /></div><div class="field"><label>Password</label><input data-field="password" value="" /></div><div class="actions-row"><button class="btn" data-save="email">Save</button><button class="btn" data-test="email">Send Test Email</button></div>`},
-        {name:"telegram",title:"Telegram",body:`<div class="field"><label>Bot Token</label><input data-field="bot_token" value="" placeholder="${escapeHtml(data.telegram?.bot_token||"")}" /></div><div class="actions-row"><button class="btn" data-save="telegram">Save</button><button class="btn" data-test="telegram">Test Bot</button></div>`},
-        {name:"mcp",title:"MCP Server",body:`<div class="muted">Status: ${data.mcp?.running ? "running" : "stopped"} ${escapeHtml(data.mcp?.endpoint||"")}</div><div class="actions-row"><button class="btn" data-save="mcp-start">Start</button><button class="btn" data-save="mcp-stop">Stop</button><button class="btn" data-copy="${escapeHtml(data.mcp?.endpoint||"")}">Copy endpoint URL</button></div>`},
-        {name:"ide",title:"Cursor / IDE",body:`<div class="muted">Status: ${escapeHtml(data.ide?.status||"not found")}</div><div class="actions-row"><button class="btn quick-direct" data-prompt="/ide">Open in IDE</button></div>`},
+        {name:"whatsapp",title:"WhatsApp",body:`<div class="muted">Status: ${legacy.whatsapp?.status ? "yes" : "no"}</div><div class="actions-row"><button class="btn" data-test="whatsapp">Test / open WhatsApp</button></div>`},
+        {name:"email",title:"Email (SMTP)",body:`<div class="field"><label>SMTP Host</label><input data-field="smtp_host" value="${escapeHtml(legacy.email?.smtp_host||"")}" /></div><div class="field"><label>SMTP Port</label><input data-field="smtp_port" value="${escapeHtml(legacy.email?.smtp_port||"")}" /></div><div class="field"><label>Email Address</label><input data-field="email_address" value="${escapeHtml(legacy.email?.email_address||"")}" /></div><div class="field"><label>Password</label><input data-field="password" value="" /></div><div class="actions-row"><button class="btn" data-save="email">Save</button><button class="btn" data-test="email">Send Test Email</button></div>`},
+        {name:"telegram",title:"Telegram",body:`<div class="field"><label>Bot Token</label><input data-field="bot_token" value="" placeholder="${escapeHtml(legacy.telegram?.bot_token||"")}" /></div><div class="actions-row"><button class="btn" data-save="telegram">Save</button><button class="btn" data-test="telegram">Test Bot</button></div>`},
+        {name:"mcp",title:"MCP Server",body:`<div class="muted">Status: ${legacy.mcp?.running ? "running" : "stopped"} ${escapeHtml(legacy.mcp?.endpoint||"")}</div><div class="actions-row"><button class="btn" data-save="mcp-start">Start</button><button class="btn" data-save="mcp-stop">Stop</button><button class="btn" data-copy="${escapeHtml(legacy.mcp?.endpoint||"")}">Copy endpoint URL</button></div>`},
         {name:"browser",title:"Browser",body:`<div class="muted">Status: always ok</div><div class="actions-row"><button class="btn" id="openBrowserDashboard">Open Dashboard in Browser</button></div>`}
       ];
       cards.forEach((card)=>{const node=document.createElement("div");node.className="card";node.innerHTML=`<h3>${card.title}</h3>${card.body}`;root.appendChild(node);});
-      root.querySelectorAll("[data-save]").forEach((button)=>button.addEventListener("click",async()=>{const card=button.closest(".card");if(button.dataset.save==="mcp-start"||button.dataset.save==="mcp-stop"){await fetchJson("/api/integrations/mcp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoint:data.mcp?.endpoint||"",running:button.dataset.save==="mcp-start"})});}else{const payload={};card.querySelectorAll("[data-field]").forEach((input)=>payload[input.dataset.field]=input.value);await fetchJson(`/api/integrations/${button.dataset.save}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});}await loadIntegrations();}));
+      root.querySelectorAll("[data-save]").forEach((button)=>button.addEventListener("click",async()=>{const card=button.closest(".card");if(button.dataset.save==="mcp-start"||button.dataset.save==="mcp-stop"){await fetchJson("/api/integrations/mcp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoint:legacy.mcp?.endpoint||"",running:button.dataset.save==="mcp-start"})});}else{const payload={};card.querySelectorAll("[data-field]").forEach((input)=>payload[input.dataset.field]=input.value);await fetchJson(`/api/integrations/${button.dataset.save}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});}await loadIntegrations();}));
       root.querySelectorAll("[data-test]").forEach((button)=>button.addEventListener("click",async()=>{const result=await fetchJson(`/api/integrations/${button.dataset.test}/test`,{method:"POST"});alert(result.status|| (result.ok ? "ok" : "failed"));}));
       root.querySelectorAll("[data-copy]").forEach((button)=>button.addEventListener("click",()=>navigator.clipboard.writeText(button.dataset.copy||"")));
-      document.querySelectorAll(".quick-direct").forEach((button)=>button.onclick=async()=>{await streamPrompt(button.dataset.prompt||"");});
       const openBrowser=document.getElementById("openBrowserDashboard");if(openBrowser){openBrowser.onclick=()=>window.open("/", "_blank");}
+
+      const targetSelect=document.getElementById("ideTarget");
+      targetSelect.innerHTML="";
+      (data.ide_targets||[]).forEach((item)=>{const option=document.createElement("option");option.value=item.id;option.textContent=`${item.label}${item.available ? "" : " (not detected)"}`;targetSelect.appendChild(option);});
+
+      const connectionsRoot=document.getElementById("integrationConnectionsList");connectionsRoot.innerHTML="";
+      (data.connections||[]).forEach((item)=>{const node=document.createElement("div");node.className="card";node.innerHTML=`<div class="status-line"><h3>${escapeHtml(item.name)}</h3><span class="status-pill"><span class="status-dot ${item.configured ? "" : "bad"}"></span>${item.configured ? "configured" : "incomplete"}</span></div><div class="muted">${escapeHtml(item.category)} · ${escapeHtml(item.provider)}</div><div class="muted">${escapeHtml(item.description||"")}</div><div class="actions-row"><button class="btn" data-remove-connection="${escapeHtml(item.id)}">Remove</button></div>`;connectionsRoot.appendChild(node);});
+      connectionsRoot.querySelectorAll("[data-remove-connection]").forEach((button)=>button.addEventListener("click",async()=>{await fetchJson(`/api/integrations/connections/${encodeURIComponent(button.dataset.removeConnection)}`,{method:"DELETE"});await loadIntegrations();}));
+
+      const catalogRoot=document.getElementById("integrationCatalogList");catalogRoot.innerHTML="";
+      (data.catalog||[]).forEach((item)=>{const node=document.createElement("div");node.className="card";const fields=(item.fields||[]).map((field)=>`<div class="field"><label>${escapeHtml(field.label)}</label><input data-catalog-field="${escapeHtml(field.key)}" ${field.secret ? 'type="password"' : ""} value="${escapeHtml(field.default||"")}" /></div>`).join("");node.innerHTML=`<h3>${escapeHtml(item.name)}</h3><div class="muted">${escapeHtml(item.category)} · ${escapeHtml(item.provider)}</div><div class="muted">${escapeHtml(item.description||"")}</div>${fields}<div class="actions-row"><button class="btn" data-save-connection="${escapeHtml(item.provider)}">Connect</button></div>`;catalogRoot.appendChild(node);});
+      catalogRoot.querySelectorAll("[data-save-connection]").forEach((button)=>button.addEventListener("click",async()=>{const card=button.closest(".card");const payload={provider:button.dataset.saveConnection,values:{}};card.querySelectorAll("[data-catalog-field]").forEach((input)=>payload.values[input.dataset.catalogField]=input.value);const result=await fetchJson("/api/integrations/connections",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});if(!result.ok){throw new Error(result.error||"Failed to save connection");}await loadIntegrations();}));
+    }
+
+    async function runIdeAutomation(action){
+      const payload={
+        action,
+        target:document.getElementById("ideTarget").value,
+        project_name:document.getElementById("ideProjectName").value.trim(),
+        project_path:document.getElementById("ideProjectPath").value.trim(),
+        prompt:document.getElementById("idePrompt").value.trim(),
+        wait_for_response:true
+      };
+      const result=await fetchJson("/api/ide/automation",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      document.getElementById("ideAutomationResult").textContent=result.ok ? (result.response||`Sent to ${result.target} in ${result.project_root}`) : (result.error||"IDE automation failed");
+      await loadRuntime();
     }
     async function loadWorkflows(){
       const data=await fetchJson("/api/workflows");
@@ -551,6 +604,8 @@
     document.getElementById("cancelKeyForm").onclick=()=>document.getElementById("keyFormCard").style.display="none";
     document.getElementById("saveCustomKey").onclick=async()=>{await fetchJson("/api/apikeys",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({service:document.getElementById("customKeyService").value,value:document.getElementById("customKeyValue").value})});document.getElementById("keyFormCard").style.display="none";await loadApiKeys();};
     document.getElementById("refreshSkills").onclick=async()=>{await fetchJson("/api/skills/refresh",{method:"POST"});await loadSkills();};
+    document.getElementById("runIdeAutomation").onclick=()=>runIdeAutomation("start").catch((error)=>alert(error.message));
+    document.getElementById("continueIdeAutomation").onclick=()=>runIdeAutomation("continue").catch((error)=>alert(error.message));
     document.getElementById("showWorkflowForm").onclick=()=>{state.editingWorkflowId="";document.getElementById("workflowFormCard").style.display="block";};
     document.getElementById("cancelWorkflowForm").onclick=()=>{state.editingWorkflowId="";document.getElementById("workflowFormCard").style.display="none";};
     document.getElementById("saveWorkflow").onclick=()=>saveWorkflow().catch((error)=>alert(error.message));

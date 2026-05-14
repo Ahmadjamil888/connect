@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, urlparse
 from core import model_manager
 from core.runtime_session import runtime_session
 from config.config import load_config, save_config
+from imos.hub import delete_connection, list_connection_catalog, list_connections, upsert_connection
 from service.status import read_service_status
 from setup.autostart import disable_autostart, enable_autostart, safe_autostart_status
 
@@ -142,6 +143,8 @@ class DashboardService:
                 "groq": {"key": "GROQ_API_KEY", "model": "GROQ_MODEL"},
                 "gemini": {"key": "GOOGLE_GEMINI_API_KEY", "model": "GOOGLE_GEMINI_MODEL"},
                 "openrouter": {"key": "OPENROUTER_API_KEY", "model": "OPENROUTER_MODEL"},
+                "huggingface": {"key": "HUGGINGFACE_API_KEY", "model": "HUGGINGFACE_MODEL"},
+                "nvidia": {"key": "NVIDIA_API_KEY", "model": "NVIDIA_MODEL"},
                 "together": {"key": "TOGETHER_API_KEY", "model": "TOGETHER_MODEL"},
                 "mistral": {"key": "MISTRAL_API_KEY", "model": "MISTRAL_MODEL"},
                 "cohere": {"key": "COHERE_API_KEY", "model": "COHERE_MODEL"},
@@ -254,6 +257,8 @@ class DashboardService:
                 ("Groq", "GROQ_API_KEY"),
                 ("Gemini", "GOOGLE_GEMINI_API_KEY"),
                 ("OpenRouter", "OPENROUTER_API_KEY"),
+                ("Hugging Face", "HUGGINGFACE_API_KEY"),
+                ("NVIDIA", "NVIDIA_API_KEY"),
                 ("Together", "TOGETHER_API_KEY"),
                 ("Mistral", "MISTRAL_API_KEY"),
                 ("Cohere", "COHERE_API_KEY"),
@@ -303,6 +308,58 @@ class DashboardService:
             if not workflows_path.exists():
                 write_json_file(workflows_path, items)
             return {"items": items}
+
+        def integrations_payload() -> dict[str, Any]:
+            env_values = read_env()
+            runtime = runtime_snapshot()
+            return {
+                "catalog": list_connection_catalog(),
+                "connections": list_connections(),
+                "legacy": {
+                    "whatsapp": {
+                        "status": os.path.exists(str(Path(os.getenv("LOCALAPPDATA", "")) / "WhatsApp" / "WhatsApp.exe")),
+                        "description": "WhatsApp Desktop integration",
+                    },
+                    "email": {
+                        "smtp_host": env_values.get("EMAIL_SMTP_SERVER", ""),
+                        "smtp_port": env_values.get("EMAIL_SMTP_PORT", "587"),
+                        "email_address": env_values.get("EMAIL_FROM", ""),
+                        "password": mask_key(env_values.get("EMAIL_PASSWORD", "")),
+                    },
+                    "telegram": {"bot_token": mask_key(env_values.get("IMOS_TELEGRAM_BOT_TOKEN", ""))},
+                    "mcp": {
+                        "running": bool(runtime["mcp_server"]["running"]),
+                        "endpoint": runtime["mcp_server"]["endpoint"],
+                    },
+                    "browser": {"status": "ok"},
+                },
+                "ide_targets": [
+                    {"id": "cursor", "label": "Cursor", "available": bool(shutil.which("cursor"))},
+                    {"id": "windsurf", "label": "Windsurf", "available": bool(shutil.which("windsurf"))},
+                    {"id": "vscode", "label": "VS Code", "available": bool(shutil.which("code"))},
+                    {"id": "claude-code", "label": "Claude Code", "available": bool(shutil.which("claude"))},
+                    {"id": "codex", "label": "Codex CLI", "available": bool(shutil.which("codex"))},
+                    {"id": "aider", "label": "Aider", "available": bool(shutil.which("aider"))},
+                ],
+            }
+
+        def run_skill(name: str, args: dict[str, Any], *, session_id: str | None = None) -> dict[str, Any]:
+            session = context.session_manager.get_active()
+            skill = next((item for item in context.skill_registry.load_all() if item.name == name), None)
+            if skill is None:
+                return {"ok": False, "error": f"Unknown skill: {name}"}
+            try:
+                return skill.handler(
+                    args,
+                    workspace=str(context.workspace),
+                    memory_store=context.memory_store,
+                    session_id=session_id or session.session_id,
+                    model_config=context.model_config_getter(),
+                    audit_logger=context.audit_logger,
+                    process_manager=context.process_manager,
+                )
+            except Exception as exc:
+                return {"ok": False, "error": str(exc)}
 
         def runtime_snapshot() -> dict[str, Any]:
             session = context.session_manager.get_active()
@@ -464,23 +521,6 @@ class DashboardService:
             def do_GET(self):
                 parsed = urlparse(self.path)
                 params = parse_qs(parsed.query)
-                session = context.session_manager.get_active()
-                def run_skill(name: str, args: dict[str, Any]) -> dict[str, Any]:
-                    skill = next((item for item in context.skill_registry.load_all() if item.name == name), None)
-                    if skill is None:
-                        return {"ok": False, "error": f"Unknown skill: {name}"}
-                    try:
-                        return skill.handler(
-                            args,
-                            workspace=str(context.workspace),
-                            memory_store=context.memory_store,
-                            session_id=session.session_id,
-                            model_config=context.model_config_getter(),
-                            audit_logger=context.audit_logger,
-                            process_manager=context.process_manager,
-                        )
-                    except Exception as exc:
-                        return {"ok": False, "error": str(exc)}
                 if parsed.path == "/api/status":
                     snapshot = runtime_snapshot()
                     snapshot["local_ide"] = "none found"
@@ -597,27 +637,7 @@ class DashboardService:
                     self._send_json(skills_payload())
                     return
                 if parsed.path == "/api/integrations":
-                    env_values = read_env()
-                    items = {
-                        "whatsapp": {
-                            "status": os.path.exists(str(Path(os.getenv("LOCALAPPDATA", "")) / "WhatsApp" / "WhatsApp.exe")),
-                            "description": "WhatsApp Desktop integration",
-                        },
-                        "email": {
-                            "smtp_host": env_values.get("EMAIL_SMTP_SERVER", ""),
-                            "smtp_port": env_values.get("EMAIL_SMTP_PORT", "587"),
-                            "email_address": env_values.get("EMAIL_FROM", ""),
-                            "password": mask_key(env_values.get("EMAIL_PASSWORD", "")),
-                        },
-                        "telegram": {"bot_token": mask_key(env_values.get("IMOS_TELEGRAM_BOT_TOKEN", ""))},
-                        "mcp": {
-                            "running": bool(runtime_snapshot()["mcp_server"]["running"]),
-                            "endpoint": runtime_snapshot()["mcp_server"]["endpoint"],
-                        },
-                        "ide": {"status": "found" if shutil.which("cursor") or shutil.which("code") else "not found"},
-                        "browser": {"status": "ok"},
-                    }
-                    self._send_json(items)
+                    self._send_json(integrations_payload())
                     return
                 if parsed.path == "/api/workflows":
                     self._send_json(workflows_payload())
@@ -879,6 +899,15 @@ class DashboardService:
                     write_env(updates)
                     self._send_json({"ok": True, "saved": True})
                     return
+                if parsed.path == "/api/integrations/connections":
+                    payload = self._read_json()
+                    try:
+                        connection = upsert_connection(payload)
+                    except Exception as exc:
+                        self._send_json({"ok": False, "error": str(exc)}, status=400)
+                        return
+                    self._send_json({"ok": True, "connection": connection, **integrations_payload()})
+                    return
                 if parsed.path.startswith("/api/integrations/") and method == "POST":
                     name = parsed.path.split("/")[-1]
                     payload = self._read_json()
@@ -896,6 +925,21 @@ class DashboardService:
                     elif name == "mcp":
                         write_env({"MCP_ENDPOINT": str(payload.get("endpoint", "")).strip(), "MCP_ENABLED": str(payload.get("running", False)).lower()})
                     self._send_json({"ok": True})
+                    return
+                if parsed.path == "/api/ide/automation":
+                    payload = self._read_json()
+                    result = run_skill(
+                        "ide_orchestrator",
+                        {
+                            "action": str(payload.get("action", "start")).strip() or "start",
+                            "target": str(payload.get("target", "cursor")).strip() or "cursor",
+                            "prompt": str(payload.get("prompt", "")).strip(),
+                            "project_name": str(payload.get("project_name", "")).strip(),
+                            "project_path": str(payload.get("project_path", "")).strip(),
+                            "wait_for_response": bool(payload.get("wait_for_response", True)),
+                        },
+                    )
+                    self._send_json(result, status=200 if result.get("ok", True) else 400)
                     return
                 if parsed.path.startswith("/api/integrations/") and parsed.path.endswith("/test") and method == "POST":
                     name = parsed.path.split("/")[-2]
@@ -1084,6 +1128,11 @@ class DashboardService:
                     provider_id = parsed.path.rsplit("/", 1)[-1]
                     removed = model_manager.remove_provider(provider_id)
                     self._send_json({"ok": removed, **config_models_payload()})
+                    return
+                if parsed.path.startswith("/api/integrations/connections/"):
+                    connection_id = parsed.path.rsplit("/", 1)[-1]
+                    delete_connection(connection_id)
+                    self._send_json({"ok": True, **integrations_payload()})
                     return
                 if parsed.path.startswith("/api/apikeys/"):
                     service = parsed.path.rsplit("/", 1)[-1]

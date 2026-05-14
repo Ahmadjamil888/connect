@@ -48,7 +48,7 @@
     "name": "Groq",
     "type": "groq",
     "provider": "groq",
-    "api_key": "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",
+    "api_key": "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",
     "base_url": "https://api.groq.com/openai/v1",
     "model": "llama-3.3-70b-versatile",
     "enabled": true,

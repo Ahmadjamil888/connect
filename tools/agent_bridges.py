@@ -10,7 +10,7 @@ import urllib.parse
 from pathlib import Path
 from typing import Any
 
-from config.config import get_model_config, get_provider_defaults
+from config.config import get_client, get_model_config, get_provider_defaults
 
 
 def chat_with_claude_code(prompt: str, project_path: str = ".") -> dict[str, Any]:
@@ -112,10 +112,65 @@ def chat_with_gemini(prompt: str, history: list[dict[str, str]] | None = None, m
         return {"success": False, "error": str(exc)}
 
 
+def chat_with_configured_model(prompt: str, history: list[dict[str, str]] | None = None, model: str | None = None) -> dict[str, Any]:
+    try:
+        config = dict(get_model_config() or {})
+    except Exception as exc:
+        return {"success": False, "error": f"Model config unavailable: {exc}"}
+
+    provider = str(config.get("provider") or config.get("type") or "").strip().lower()
+    if not provider or config.get("no_provider_configured"):
+        return {"success": False, "error": "No configured AI provider available for fallback."}
+
+    chosen_model = str(model or config.get("model") or "").strip()
+    if chosen_model:
+        config["model"] = chosen_model
+
+    try:
+        client = get_client(config)
+        messages = list(history or [])
+        messages.append({"role": "user", "content": prompt})
+        if provider in {"anthropic", "gcp"}:
+            response = client.messages.create(
+                model=str(config.get("model") or chosen_model),
+                max_tokens=2048,
+                messages=messages,
+            )
+            reply_parts = []
+            for block in getattr(response, "content", []) or []:
+                if getattr(block, "type", "") == "text" and getattr(block, "text", ""):
+                    reply_parts.append(block.text)
+            reply = "\n".join(part for part in reply_parts if part).strip()
+        else:
+            response = client.chat.completions.create(
+                model=str(config.get("model") or chosen_model),
+                messages=messages,
+            )
+            reply = response.choices[0].message.content if response.choices else ""
+        return {
+            "success": True,
+            "reply": reply or "",
+            "model": str(config.get("model") or chosen_model),
+            "provider": provider,
+        }
+    except Exception as exc:
+        return {"success": False, "error": str(exc), "provider": provider, "model": str(config.get("model") or chosen_model)}
+
+
 def run_cli_agent(command_name: str, prompt: str, project_path: str = ".", install_hint: str = "") -> dict[str, Any]:
     executable = shutil.which(command_name)
     if not executable:
-        return {"success": False, "error": f"{command_name} not found. Install: {install_hint or command_name}"}
+        fallback = chat_with_configured_model(prompt)
+        if fallback.get("success"):
+            fallback["fallback_used"] = True
+            fallback["fallback_reason"] = f"{command_name} executable not found"
+            fallback["requested_command"] = command_name
+            fallback["project_path"] = project_path
+            return fallback
+        error = f"{command_name} not found. Install: {install_hint or command_name}"
+        if fallback.get("error"):
+            error = f"{error}. API fallback unavailable: {fallback['error']}"
+        return {"success": False, "error": error}
     attempts = [
         [executable, "-p", prompt],
         [executable, "--prompt", prompt],
@@ -137,7 +192,17 @@ def run_cli_agent(command_name: str, prompt: str, project_path: str = ".", insta
             last_error = (result.stderr or result.stdout or f"exit code {result.returncode}").strip()
         except Exception as exc:
             last_error = str(exc)
-    return {"success": False, "error": last_error or f"{command_name} failed."}
+    fallback = chat_with_configured_model(prompt)
+    if fallback.get("success"):
+        fallback["fallback_used"] = True
+        fallback["fallback_reason"] = last_error or f"{command_name} failed"
+        fallback["requested_command"] = command_name
+        fallback["project_path"] = project_path
+        return fallback
+    error = last_error or f"{command_name} failed."
+    if fallback.get("error"):
+        error = f"{error}. API fallback unavailable: {fallback['error']}"
+    return {"success": False, "error": error}
 
 
 def start_imos_mcp_server_http(project_root: str | Path) -> subprocess.Popen[Any]:
