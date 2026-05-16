@@ -20,6 +20,8 @@ PROVIDER_TYPES: dict[str, dict[str, Any]] = {
     "ollama": {"name": "Ollama", "base_url": "http://localhost:11434/v1", "requires_key": False},
     "lmstudio": {"name": "LM Studio", "base_url": "http://localhost:1234/v1", "requires_key": False},
     "huggingface": {"name": "Hugging Face", "base_url": "https://router.huggingface.co/v1", "requires_key": True},
+    "deepseek": {"name": "DeepSeek", "base_url": "https://api.deepseek.com/v1", "requires_key": True},
+    "alibaba": {"name": "Alibaba Cloud DashScope", "base_url": "", "requires_key": True},
     "together": {"name": "Together AI", "base_url": "https://api.together.xyz/v1", "requires_key": True},
     "mistral": {"name": "Mistral", "base_url": "https://api.mistral.ai/v1", "requires_key": True},
     "cohere": {"name": "Cohere", "base_url": "https://api.cohere.com/compatibility/v1", "requires_key": True},
@@ -103,6 +105,24 @@ ENV_PROVIDER_SPECS = [
         "model_env": "HUGGINGFACE_MODEL",
         "default_model": "meta-llama/Llama-3.1-8B-Instruct:cerebras",
     },
+    {
+        "env_provider": "deepseek",
+        "id": "deepseek-main",
+        "name": "DeepSeek",
+        "type": "deepseek",
+        "key_env": "DEEPSEEK_API_KEY",
+        "model_env": "DEEPSEEK_MODEL",
+        "default_model": "deepseek-chat",
+    },
+    {
+        "env_provider": "alibaba",
+        "id": "alibaba-main",
+        "name": "Alibaba Cloud DashScope",
+        "type": "alibaba",
+        "key_env": "ALIBABA_API_KEY",
+        "model_env": "ALIBABA_MODEL",
+        "default_model": "qwen-plus",
+    },
 ]
 
 
@@ -127,6 +147,10 @@ def infer_provider_type(model_name: str) -> str:
         return "anthropic"
     if model.startswith("gemini-"):
         return "gemini"
+    if model.startswith("deepseek-"):
+        return "deepseek"
+    if model.startswith(("qwen", "qvq")):
+        return "alibaba"
     return ""
 
 

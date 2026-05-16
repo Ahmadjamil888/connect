@@ -16,6 +16,7 @@ from core import model_manager
 from imos.hub import list_connection_catalog, list_model_catalog, upsert_connection
 from setup.autostart import enable_autostart
 from setup.consent import ConsentManager
+from tools.connection_auth import AUTH_PROVIDERS, open_connection_signin
 
 try:
     from colorama import init as colorama_init
@@ -115,6 +116,8 @@ def _provider_env_mapping(provider: str) -> tuple[str, str] | tuple[None, None]:
         "gemini": ("GOOGLE_GEMINI_API_KEY", "GOOGLE_GEMINI_MODEL"),
         "openrouter": ("OPENROUTER_API_KEY", "OPENROUTER_MODEL"),
         "huggingface": ("HUGGINGFACE_API_KEY", "HUGGINGFACE_MODEL"),
+        "deepseek": ("DEEPSEEK_API_KEY", "DEEPSEEK_MODEL"),
+        "alibaba": ("ALIBABA_API_KEY", "ALIBABA_MODEL"),
         "nvidia": ("NVIDIA_API_KEY", "NVIDIA_MODEL"),
         "together": ("TOGETHER_API_KEY", "TOGETHER_MODEL"),
         "mistral": ("MISTRAL_API_KEY", "MISTRAL_MODEL"),
@@ -299,7 +302,14 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
             "SMTP_PORT": smtp_port,
             "SMTP_USER": smtp_user,
             "SMTP_PASSWORD": smtp_pass,
+            "EMAIL_SMTP_SERVER": smtp_host,
+            "EMAIL_SMTP_HOST": smtp_host,
+            "EMAIL_SMTP_PORT": smtp_port,
+            "EMAIL_FROM": smtp_user,
+            "EMAIL_USERNAME": smtp_user,
+            "EMAIL_PASSWORD": smtp_pass,
             "TELEGRAM_BOT_TOKEN": telegram_token,
+            "IMOS_TELEGRAM_BOT_TOKEN": telegram_token,
         },
     )
     if _yes_no("Configure additional app/cloud connections now? (yes/no): "):
@@ -324,6 +334,22 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
                 print(f"{WHITE}Saved {selected['name']}.{RESET}")
             except Exception as exc:
                 print(f"{WHITE}Failed to save connection: {exc}{RESET}")
+    if _yes_no("Open browser sign-in helpers for Gmail, Supabase, Firebase, GitHub, Vercel, or Netlify now? (yes/no): "):
+        browser_choices = {str(index): key for index, key in enumerate(sorted(AUTH_PROVIDERS.keys()), start=1)}
+        while True:
+            print()
+            for index, key in browser_choices.items():
+                print(f"{WHITE}{index}. {AUTH_PROVIDERS[key]['label']}{RESET}")
+            print()
+            choice = _ask(f"Choose browser helper (1-{len(browser_choices)}) or Enter to stop: ", default="")
+            if not choice:
+                break
+            key = browser_choices.get(choice)
+            if not key:
+                print(f"{WHITE}Invalid choice.{RESET}")
+                continue
+            result = open_connection_signin(key)
+            print(f"{WHITE}{result.get('post_login_hint', result.get('error', 'Opened browser flow.'))}{RESET}")
 
     _step_title("Step 7  Auto-start")
     autostart_enabled = _yes_no("Start IMOS on Windows boot? (yes/no): ")

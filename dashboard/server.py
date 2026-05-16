@@ -20,6 +20,10 @@ from config.config import load_config, save_config
 from imos.hub import delete_connection, list_connection_catalog, list_connections, upsert_connection
 from service.status import read_service_status
 from setup.autostart import disable_autostart, enable_autostart, safe_autostart_status
+from tools.connection_auth import auth_metadata, open_connection_signin
+from tools.context_transfer import build_transfer_package
+from tools.email_manager import gmail_signin, gmail_status, read_email_detail, read_emails, reply_to_email, search_emails, send_email
+from tools.outreach_manager import list_campaigns, run_campaign, save_campaign
 
 
 @dataclass
@@ -144,6 +148,8 @@ class DashboardService:
                 "gemini": {"key": "GOOGLE_GEMINI_API_KEY", "model": "GOOGLE_GEMINI_MODEL"},
                 "openrouter": {"key": "OPENROUTER_API_KEY", "model": "OPENROUTER_MODEL"},
                 "huggingface": {"key": "HUGGINGFACE_API_KEY", "model": "HUGGINGFACE_MODEL"},
+                "deepseek": {"key": "DEEPSEEK_API_KEY", "model": "DEEPSEEK_MODEL"},
+                "alibaba": {"key": "ALIBABA_API_KEY", "model": "ALIBABA_MODEL"},
                 "nvidia": {"key": "NVIDIA_API_KEY", "model": "NVIDIA_MODEL"},
                 "together": {"key": "TOGETHER_API_KEY", "model": "TOGETHER_MODEL"},
                 "mistral": {"key": "MISTRAL_API_KEY", "model": "MISTRAL_MODEL"},
@@ -258,6 +264,8 @@ class DashboardService:
                 ("Gemini", "GOOGLE_GEMINI_API_KEY"),
                 ("OpenRouter", "OPENROUTER_API_KEY"),
                 ("Hugging Face", "HUGGINGFACE_API_KEY"),
+                ("DeepSeek", "DEEPSEEK_API_KEY"),
+                ("Alibaba Cloud", "ALIBABA_API_KEY"),
                 ("NVIDIA", "NVIDIA_API_KEY"),
                 ("Together", "TOGETHER_API_KEY"),
                 ("Mistral", "MISTRAL_API_KEY"),
@@ -312,8 +320,13 @@ class DashboardService:
         def integrations_payload() -> dict[str, Any]:
             env_values = read_env()
             runtime = runtime_snapshot()
+            catalog = []
+            for item in list_connection_catalog():
+                merged = dict(item)
+                merged.update(auth_metadata(str(item.get("provider", ""))))
+                catalog.append(merged)
             return {
-                "catalog": list_connection_catalog(),
+                "catalog": catalog,
                 "connections": list_connections(),
                 "legacy": {
                     "whatsapp": {
@@ -341,6 +354,8 @@ class DashboardService:
                     {"id": "codex", "label": "Codex CLI", "available": bool(shutil.which("codex"))},
                     {"id": "aider", "label": "Aider", "available": bool(shutil.which("aider"))},
                 ],
+                "gmail": gmail_status(),
+                "outreach": {"campaigns": list_campaigns()},
             }
 
         def run_skill(name: str, args: dict[str, Any], *, session_id: str | None = None) -> dict[str, Any]:
@@ -568,9 +583,46 @@ class DashboardService:
                     self.end_headers()
                     self.wfile.write(raw)
                     return
+                if parsed.path.startswith("/api/sessions/") and parsed.path.endswith("/transfer"):
+                    requested = parsed.path.split("/")[-2]
+                    provider = str((params.get("provider") or ["generic"])[0]).strip() or "generic"
+                    target = context.session_manager.get(requested) or context.session_manager.get_by_id(requested)
+                    if target is None:
+                        self._send_json({"ok": False, "error": "Session not found"}, status=404)
+                        return
+                    try:
+                        payload = build_transfer_package(context.session_manager, target.name, target=provider)
+                    except KeyError:
+                        self._send_json({"ok": False, "error": "Session not found"}, status=404)
+                        return
+                    self._send_json(payload)
+                    return
                 if parsed.path.startswith("/api/sessions/"):
                     requested = parsed.path.rsplit("/", 1)[-1]
                     self._send_json({"items": context.session_manager.history_by_id(requested, limit=200)})
+                    return
+                if parsed.path == "/api/gmail":
+                    action = str((params.get("action") or ["status"])[0]).strip().lower()
+                    if action == "status":
+                        self._send_json(gmail_status())
+                        return
+                    if action == "signin":
+                        self._send_json(gmail_signin())
+                        return
+                    if action == "inbox":
+                        count = int(str((params.get("count") or ["10"])[0]).strip() or "10")
+                        self._send_json({"ok": True, "items": read_emails(count=count)})
+                        return
+                    if action == "search":
+                        query = str((params.get("query") or [""])[0]).strip()
+                        self._send_json({"ok": True, "items": search_emails(query)})
+                        return
+                    if action == "read":
+                        email_id = str((params.get("id") or [""])[0]).strip()
+                        self._send_json({"ok": True, "item": read_email_detail(email_id)})
+                        return
+                if parsed.path == "/api/outreach":
+                    self._send_json({"ok": True, "items": list_campaigns()})
                     return
                 if parsed.path == "/api/memory":
                     snapshot = runtime_snapshot()["memory"]
@@ -656,6 +708,14 @@ class DashboardService:
                             "dashboard_port": int(env_values.get("DASHBOARD_PORT", self.server.server_address[1])),
                             "autostart": autostart,
                             "active_session": context.session_manager.get_active().__dict__,
+                            "help_commands": [
+                                "/gmail status",
+                                "/gmail inbox 10",
+                                "/outreach list",
+                                "/outreach create <name>|<subject>|<body>|<leads>",
+                                "/session transfer claude",
+                                "/publish vercel",
+                            ],
                         }
                     )
                     return
@@ -908,6 +968,12 @@ class DashboardService:
                         return
                     self._send_json({"ok": True, "connection": connection, **integrations_payload()})
                     return
+                if parsed.path == "/api/integrations/auth":
+                    payload = self._read_json()
+                    provider = str(payload.get("provider", "")).strip()
+                    open_console = bool(payload.get("open_console", False))
+                    self._send_json(open_connection_signin(provider, open_console=open_console))
+                    return
                 if parsed.path.startswith("/api/integrations/") and method == "POST":
                     name = parsed.path.split("/")[-1]
                     payload = self._read_json()
@@ -925,6 +991,39 @@ class DashboardService:
                     elif name == "mcp":
                         write_env({"MCP_ENDPOINT": str(payload.get("endpoint", "")).strip(), "MCP_ENABLED": str(payload.get("running", False)).lower()})
                     self._send_json({"ok": True})
+                    return
+                if parsed.path == "/api/gmail" and method == "POST":
+                    payload = self._read_json()
+                    action = str(payload.get("action", "status")).strip().lower()
+                    if action == "signin":
+                        self._send_json(gmail_signin())
+                        return
+                    if action == "send":
+                        self._send_json({"ok": True, "result": send_email(str(payload.get("to", "")).strip(), str(payload.get("subject", "")).strip(), str(payload.get("body", "")).strip())})
+                        return
+                    if action == "reply":
+                        self._send_json({"ok": True, "result": reply_to_email(str(payload.get("id", "")).strip(), str(payload.get("body", "")).strip())})
+                        return
+                    self._send_json(gmail_status())
+                    return
+                if parsed.path == "/api/outreach" and method == "POST":
+                    payload = self._read_json()
+                    action = str(payload.get("action", "save")).strip().lower()
+                    if action == "save":
+                        campaign = save_campaign(payload)
+                        self._send_json({"ok": True, "campaign": campaign, "items": list_campaigns()})
+                        return
+                    if action in {"run", "preview"}:
+                        campaign_id = str(payload.get("id", "")).strip()
+                        result = run_campaign(campaign_id, dry_run=action == "preview")
+                        self._send_json(result)
+                        return
+                    self._send_json({"ok": False, "error": f"Unknown outreach action: {action}"}, status=400)
+                    return
+                if parsed.path == "/api/vibe/publish" and method == "POST":
+                    payload = self._read_json()
+                    result = run_skill("vibe_coder", {"action": "publish", "tool": str(payload.get("target", "")).strip().lower()})
+                    self._send_json(result, status=200 if result.get("ok", True) else 400)
                     return
                 if parsed.path == "/api/ide/automation":
                     payload = self._read_json()

@@ -140,11 +140,14 @@ class CommandRouter:
             "continue": "/continue",
             "gemini": "/gemini",
             "email": "/email",
+            "gmail": "/gmail",
+            "outreach": "/outreach",
             "whatsapp": "/whatsapp",
             "telegram": "/telegram",
             "v0": "/v0",
             "lovable": "/lovable",
             "bolt": "/bolt",
+            "publish": "/publish",
             "doctor": "/doctor",
             "route": "/route",
             "terminal": "/terminal",
@@ -329,7 +332,10 @@ def universal_route(
         name = text[8:-8].strip()
         return run_skill("vibe_coder", {"action": "continue", "project_name": name, "messages": ["continue"]}, f"continue_project({name})")
     if lowered in {"deploy it", "publish it", "go live"} and active_vibe_tool():
-        return run_skill("vibe_coder", {"action": "continue", "messages": ["Deploy this project and make it live."]}, "vibe_deploy")
+        return run_skill("vibe_coder", {"action": "publish"}, "vibe_publish")
+    if lowered.startswith("publish to ") or lowered.startswith("deploy to "):
+        target = text.split(" to ", 1)[1].strip().lower()
+        return run_skill("vibe_coder", {"action": "publish", "tool": target}, f"vibe_publish({target})")
     if lowered == "push to github" and active_vibe_tool():
         return run_skill("vibe_coder", {"action": "continue", "messages": ["Push this project to GitHub."]}, "vibe_github")
     if lowered in {"migrate to local", "download the project"}:

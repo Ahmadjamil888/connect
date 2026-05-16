@@ -157,6 +157,27 @@ MODEL_CONNECTIONS = [
         ],
     },
     {
+        "provider": "deepseek",
+        "name": "DeepSeek",
+        "category": "model-cloud",
+        "description": "DeepSeek chat and coder models.",
+        "fields": [
+            {"key": "api_key", "label": "API key", "secret": True},
+            {"key": "model", "label": "Model ID", "required": True, "default": "deepseek-chat"},
+        ],
+    },
+    {
+        "provider": "alibaba",
+        "name": "Alibaba Cloud / DashScope",
+        "category": "model-cloud",
+        "description": "Qwen and other Alibaba-hosted models through an OpenAI-compatible endpoint.",
+        "fields": [
+            {"key": "api_key", "label": "API key", "secret": True},
+            {"key": "base_url", "label": "Endpoint URL", "required": True},
+            {"key": "model", "label": "Model ID", "required": True, "default": "qwen-plus"},
+        ],
+    },
+    {
         "provider": "ollama",
         "name": "Ollama",
         "category": "model-local",

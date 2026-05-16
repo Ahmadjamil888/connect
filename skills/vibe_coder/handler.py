@@ -23,6 +23,7 @@ TOOL_SCHEMA = {
 }
 
 _ACTIVE_STATE: dict[str, str] = {}
+_SESSION_STATE: dict[str, Any] = {}
 _CREDIT_PATH = Path(__file__).resolve().parents[2] / "config" / "vibe_credits.json"
 _DEFAULT_CREDITS = {
     "lovable": {"exhausted": False, "last_checked": ""},
@@ -109,6 +110,39 @@ def get_active_project() -> str:
     return _ACTIVE_STATE.get("project_name", "") or str(runtime_session.active_project or "")
 
 
+def _session_messages() -> list[str]:
+    messages = _SESSION_STATE.get("messages")
+    return messages if isinstance(messages, list) else []
+
+
+def _set_session(project_name: str, tool_name: str, source_prompt: str, build_prompt: str) -> None:
+    _SESSION_STATE.clear()
+    _SESSION_STATE.update(
+        {
+            "project_name": project_name,
+            "tool_name": tool_name,
+            "source_prompt": source_prompt,
+            "build_prompt": build_prompt,
+            "messages": [source_prompt],
+        }
+    )
+
+
+def _set_session_path(path: str) -> None:
+    if path:
+        _SESSION_STATE["path"] = path
+
+
+def _append_session_messages(messages: list[str]) -> None:
+    history = _session_messages()
+    history.extend(messages)
+    _SESSION_STATE["messages"] = history[-24:]
+
+
+def _session_path() -> str:
+    return str(_SESSION_STATE.get("path", "") or "")
+
+
 def _derive_project_name(prompt: str) -> str:
     words = prompt.lower().split()[:4]
     project_name = "-".join(
@@ -122,6 +156,46 @@ def _vibe_output_base(project_name: str) -> tuple[str, str]:
     output_dir = os.path.join(output_base, project_name)
     os.makedirs(output_dir, exist_ok=True)
     return output_base, output_dir
+
+
+def _heuristic_build_prompt(prompt: str, project_name: str) -> str:
+    cleaned = " ".join(prompt.split())
+    return "\n".join(
+        [
+            f"Build a production-ready AI SaaS application named {project_name}.",
+            "",
+            "Primary request:",
+            cleaned,
+            "",
+            "Requirements:",
+            "- Do not generate a generic starter or placeholder project.",
+            "- Expand the request into a complete scoped product with real flows and detailed implementation.",
+            "- Include auth, onboarding, settings, data persistence, billing-ready structure, and responsive UI.",
+            "- Preserve project context so future prompts continue the same app instead of restarting.",
+            "- Include deployment and publish flow support where relevant.",
+            "- Build the actual app, not only a landing page.",
+        ]
+    )
+
+
+def _build_generation_prompt(prompt: str, project_name: str) -> str:
+    from tools.agent_bridges import chat_with_configured_model
+
+    rewrite_prompt = (
+        "Rewrite the user's request into a single detailed build brief for a vibe-coding tool.\n"
+        "The output must force the tool to build the real product, not a generic starter.\n"
+        "Use these sections exactly: Product, Users, Core Features, AI Providers and Model Support, Integrations, "
+        "Dashboard and Admin, Data and Storage, Auth and Access, Deployment, Quality Bar.\n"
+        "Do not use markdown code fences. Do not say 'make a project'.\n\n"
+        f"Project name: {project_name}\n"
+        f"User request:\n{prompt}"
+    )
+    result = chat_with_configured_model(rewrite_prompt)
+    if result.get("success"):
+        reply = str(result.get("reply", "")).strip()
+        if reply and "make a project" not in reply.lower():
+            return reply
+    return _heuristic_build_prompt(prompt, project_name)
 
 
 def _local_scaffold(prompt: str, project_name: str, workspace: str) -> dict[str, Any]:
@@ -170,8 +244,12 @@ def _extract_current(tool_name: str, project_name: str, output_base: str, output
 
 def _run_orchestrator(prompt: str, project_name: str | None, preferred_tool: str | None, workspace: str) -> dict[str, Any]:
     project = project_name or _derive_project_name(prompt)
+    build_prompt = _build_generation_prompt(prompt, project)
     runtime_session.update_state(active_project=project)
-    runtime_session.log_operation("vibe_coder", {"prompt": prompt, "project_name": project, "preferred_tool": preferred_tool or ""})
+    runtime_session.log_operation(
+        "vibe_coder",
+        {"prompt": prompt, "build_prompt": build_prompt, "project_name": project, "preferred_tool": preferred_tool or ""},
+    )
     event_bus.publish("tool_progress", message=f"Starting build orchestration for {project}")
     output_base, output_dir = _vibe_output_base(project)
     if not preferred_tool:
@@ -193,7 +271,7 @@ def _run_orchestrator(prompt: str, project_name: str | None, preferred_tool: str
             continue
         print(f"\n  Trying {tool_name}...")
         event_bus.publish("tool_progress", message=f"Trying {tool_name}...")
-        result = tool_fn(prompt, project)
+        result = tool_fn(build_prompt, project)
         status = result.get("status")
         if status == "exhausted":
             print(f"  {tool_name}: credits exhausted  trying next tool")
@@ -201,12 +279,20 @@ def _run_orchestrator(prompt: str, project_name: str | None, preferred_tool: str
             mark_exhausted(tool_name)
             credits = load_credit_state()
             continue
+        if status == "auth_required":
+            set_active_tool(tool_name, project)
+            _set_session(project, tool_name, prompt, build_prompt)
+            auth_message = result.get("error", f"{tool_name} requires sign-in before it can continue.")
+            runtime_session.complete_operation("vibe_coder", {"tool": tool_name, "status": status, "message": auth_message})
+            return {"ok": False, "tool": tool_name, "status": status, "message": auth_message}
         if status == "complete":
             print(f"  {tool_name}: generation complete  extracting code")
             event_bus.publish("tool_progress", message=f"{tool_name} generation complete  extracting code")
             set_active_tool(tool_name, project)
+            _set_session(project, tool_name, prompt, build_prompt)
             extracted = _extract_current(tool_name, project, output_base, output_dir)
             if extracted.get("ok"):
+                _set_session_path(str(extracted.get("path", "")))
                 event_bus.publish("tool_progress", message=f"Done  project at {extracted['path']}")
                 event_bus.publish("tool_progress", message="Opening in editor...")
                 runtime_session.complete_operation("vibe_coder", {"tool": tool_name, "path": extracted["path"]})
@@ -272,7 +358,38 @@ def run(inputs, *, workspace: str, **_kwargs):
         if not messages:
             single = str(inputs.get("prompt", "")).strip()
             messages = [single] if single else []
-        return continue_conversation(tool_name, [str(item) for item in messages if str(item).strip()])
+        cleaned = [str(item).strip() for item in messages if str(item).strip()]
+        if cleaned:
+            _append_session_messages(cleaned)
+        return continue_conversation(
+            tool_name,
+            cleaned,
+            project_name=get_active_project(),
+            session_messages=_session_messages(),
+        )
+    if action == "publish":
+        tool_name = get_active_tool()
+        target = str(inputs.get("tool", "")).strip().lower()
+        project_path = _session_path()
+        if project_path and target in {"vercel", "netlify"}:
+            if target == "vercel":
+                from skills.deploy_vercel.handler import run as deploy_vercel_run
+
+                return deploy_vercel_run(
+                    {"action": "deploy", "project_dir": project_path, "project_name": get_active_project() or Path(project_path).name},
+                    workspace=workspace,
+                )
+            from skills.deploy_netlify.handler import run as deploy_netlify_run
+
+            return deploy_netlify_run(
+                {"action": "deploy", "project_dir": project_path, "site_name": get_active_project() or Path(project_path).name},
+                workspace=workspace,
+            )
+        if tool_name:
+            from skills.vibe_coder.browser import automate_publish
+
+            return automate_publish(tool_name, project_name=get_active_project(), target=target or "publish")
+        return {"ok": False, "error": "No active vibe coding session or extracted project to publish."}
 
     prompt = str(inputs.get("prompt", "")).strip()
     project_name = str(inputs.get("project_name", "")).strip() or None

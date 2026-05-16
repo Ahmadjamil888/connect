@@ -84,6 +84,10 @@ from tools.agent_bridges import (
     start_imos_mcp_server_http,
     start_imos_mcp_server_http_on,
 )
+from tools.connection_auth import AUTH_PROVIDERS, open_connection_signin
+from tools.context_transfer import build_transfer_package
+from tools.email_manager import gmail_signin, gmail_status, read_email_detail, read_emails, reply_to_email, search_emails, send_email
+from tools.outreach_manager import list_campaigns, run_campaign, save_campaign
 
 console = Console(highlight=False)
 colorama_init(autoreset=True)
@@ -231,7 +235,7 @@ HELP = """
   [#ff6b00]/history[/#ff6b00]                  show recent IMOS run history
   [#ff6b00]/adapters[/#ff6b00]                 show connected adapter registry
   [#ff6b00]/sessions[/#ff6b00]                 list local runtime sessions
-  [#ff6b00]/session[/#ff6b00] [dim]new|list|resume|save|export[/dim]
+  [#ff6b00]/session[/#ff6b00] [dim]new|list|resume|save|export|transfer[/dim]
   [#ff6b00]/tasks[/#ff6b00]                    list long-running task records
   [#ff6b00]/workflows[/#ff6b00]                list YAML workflows
   [#ff6b00]/runflow[/#ff6b00] [dim]<name>[/dim]              run a workflow by name
@@ -262,11 +266,14 @@ HELP = """
   [#ff6b00]/continue[/#ff6b00] [dim]<prompt>[/dim]        send one task to Continue CLI
   [#ff6b00]/gemini[/#ff6b00] [dim]<prompt>[/dim]          send one prompt directly to Gemini
   [#ff6b00]/email[/#ff6b00] [dim]<to>|<subject>|<body>[/dim] send email through SMTP env vars
+  [#ff6b00]/gmail[/#ff6b00] [dim]status|signin|inbox [n]|search <query>|read <id>|send <to>|<subject>|<body>|reply <id>|<body>[/dim]
+  [#ff6b00]/outreach[/#ff6b00] [dim]list|create <name>|<subject>|<body>|<leads>|run <id>|preview <id>[/dim]
   [#ff6b00]/whatsapp[/#ff6b00] [dim]<contact>|<message>[/dim] best-effort desktop/web handoff
   [#ff6b00]/telegram[/#ff6b00] [dim]<contact>|<message>[/dim] best-effort desktop/web handoff
   [#ff6b00]/v0[/#ff6b00] [dim]<prompt>[/dim]              open v0.dev with the prompt
   [#ff6b00]/lovable[/#ff6b00] [dim]<prompt>[/dim]         open lovable.dev with the prompt
   [#ff6b00]/bolt[/#ff6b00] [dim]<prompt>[/dim]            open bolt.new with the prompt
+  [#ff6b00]/publish[/#ff6b00] [dim][vercel|netlify][/dim]      publish current vibe/local project using active context
   [#ff6b00]/doctor[/#ff6b00]                   run IMOS doctor report
   [#ff6b00]/route[/#ff6b00] [dim]set <type> <provider>|list[/dim]
   [#ff6b00]/contact[/#ff6b00] [dim]add <name> <number>|list|remove <name>[/dim]
@@ -2028,6 +2035,69 @@ def build_gateway(workspace: str):
         result = send_email_smtp(to_addr, subject, body)
         return CommandResult(True, json.dumps(result, indent=2))
 
+    def _cmd_gmail(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=2)
+        if len(parts) == 1 or parts[1].lower() == "status":
+            return CommandResult(True, json.dumps(gmail_status(), indent=2))
+        action = parts[1].lower()
+        if action == "signin":
+            return CommandResult(True, json.dumps(gmail_signin(), indent=2))
+        if action == "inbox":
+            count = 10
+            if len(parts) >= 3 and parts[2].strip().isdigit():
+                count = int(parts[2].strip())
+            return CommandResult(True, json.dumps(read_emails(count=count), indent=2))
+        if action == "search":
+            if len(parts) < 3 or not parts[2].strip():
+                return CommandResult(True, "Usage: /gmail search <query>")
+            return CommandResult(True, json.dumps(search_emails(parts[2].strip()), indent=2))
+        if action == "read":
+            if len(parts) < 3 or not parts[2].strip():
+                return CommandResult(True, "Usage: /gmail read <id>")
+            return CommandResult(True, json.dumps(read_email_detail(parts[2].strip()), indent=2))
+        if action == "send":
+            if len(parts) < 3 or "|" not in parts[2]:
+                return CommandResult(True, "Usage: /gmail send <to>|<subject>|<body>")
+            to_addr, subject, body = [item.strip() for item in parts[2].split("|", 2)]
+            return CommandResult(True, json.dumps({"result": send_email(to_addr, subject, body)}, indent=2))
+        if action == "reply":
+            if len(parts) < 3 or "|" not in parts[2]:
+                return CommandResult(True, "Usage: /gmail reply <id>|<body>")
+            email_id, body = [item.strip() for item in parts[2].split("|", 1)]
+            return CommandResult(True, json.dumps({"result": reply_to_email(email_id, body)}, indent=2))
+        return CommandResult(True, "Usage: /gmail status|signin|inbox [n]|search <query>|read <id>|send <to>|<subject>|<body>|reply <id>|<body>")
+
+    def _cmd_outreach(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=2)
+        if len(parts) == 1 or parts[1].lower() == "list":
+            return CommandResult(True, json.dumps(list_campaigns(), indent=2))
+        action = parts[1].lower()
+        if action == "create":
+            if len(parts) < 3 or parts[2].count("|") < 3:
+                return CommandResult(True, "Usage: /outreach create <name>|<subject>|<body>|<lead lines name|email|company|notes>")
+            name, subject, body, leads_blob = [item.strip() for item in parts[2].split("|", 3)]
+            payload = save_campaign(
+                {
+                    "name": name,
+                    "channel": "email",
+                    "subject_template": subject,
+                    "body_template": body,
+                    "leads": leads_blob,
+                }
+            )
+            return CommandResult(True, json.dumps(payload, indent=2))
+        if action in {"run", "preview"}:
+            if len(parts) < 3 or not parts[2].strip():
+                return CommandResult(True, f"Usage: /outreach {action} <id>")
+            result = run_campaign(parts[2].strip(), dry_run=action == "preview")
+            return CommandResult(True, json.dumps(result, indent=2))
+        return CommandResult(True, "Usage: /outreach list|create <name>|<subject>|<body>|<leads>|run <id>|preview <id>")
+
+    def _cmd_publish(raw: str) -> CommandResult:
+        parts = raw.split(maxsplit=1)
+        target = parts[1].strip().lower() if len(parts) == 2 else ""
+        return _run_skill_direct("vibe_coder", {"action": "publish", "tool": target}, summary=f"publish({target or 'default'})")
+
     def _cmd_whatsapp(raw: str) -> CommandResult:
         parts = raw.split(maxsplit=1)
         if len(parts) == 1 or "|" not in parts[1]:
@@ -2403,7 +2473,18 @@ def build_gateway(workspace: str):
             except KeyError:
                 return CommandResult(True, f"Session not found: {parts[2].strip()}")
             return CommandResult(True, payload.get("export_path", ""))
-        return CommandResult(True, "Usage: /session new <name> | /session list | /session resume <name> | /session save | /session export <name>")
+        if action == "transfer":
+            transfer_parts = raw.split(maxsplit=3)
+            if len(transfer_parts) < 3 or not transfer_parts[2].strip():
+                return CommandResult(True, "Usage: /session transfer <provider> [name]")
+            target = transfer_parts[2].strip()
+            session_name = transfer_parts[3].strip() if len(transfer_parts) >= 4 and transfer_parts[3].strip() else session_manager.get_active().name
+            try:
+                payload = build_transfer_package(session_manager, session_name, target=target)
+            except KeyError:
+                return CommandResult(True, f"Session not found: {session_name}")
+            return CommandResult(True, payload.get("transfer_path", ""))
+        return CommandResult(True, "Usage: /session new <name> | /session list | /session resume <name> | /session save | /session export <name> | /session transfer <provider> [name]")
 
     def _cmd_route(raw: str) -> CommandResult:
         parts = raw.split(maxsplit=3)
@@ -2491,6 +2572,8 @@ def build_gateway(workspace: str):
             "messaging": cfg.get("messaging", {}),
             "clerk_publishable_key": bool(_clerk_env()[0]),
             "clerk_secret_key": bool(_clerk_env()[1]),
+            "gmail": gmail_status(),
+            "browser_auth_helpers": sorted(AUTH_PROVIDERS.keys()),
         }
         return CommandResult(True, json.dumps(payload, indent=2))
 
@@ -2810,11 +2893,14 @@ def build_gateway(workspace: str):
             "/continue": _cmd_continue,
             "/gemini": _cmd_gemini,
             "/email": _cmd_email,
+            "/gmail": _cmd_gmail,
+            "/outreach": _cmd_outreach,
             "/whatsapp": _cmd_whatsapp,
             "/telegram": _cmd_telegram,
             "/v0": _cmd_v0,
             "/lovable": _cmd_lovable,
             "/bolt": _cmd_bolt,
+            "/publish": _cmd_publish,
             "/doctor": _cmd_doctor,
             "/setmodel": _cmd_setmodel,
             "/pickmodel": _cmd_pickmodel,

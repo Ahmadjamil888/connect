@@ -211,6 +211,42 @@
               </div>
               <div class="muted" id="ideAutomationResult"></div>
             </div>
+            <div class="card">
+              <h3>Gmail Control</h3>
+              <div class="grid-2">
+                <div class="field"><label>To</label><input id="gmailTo" placeholder="person@example.com" /></div>
+                <div class="field"><label>Subject</label><input id="gmailSubject" placeholder="Quick follow-up" /></div>
+              </div>
+              <div class="field"><label>Body</label><textarea id="gmailBody" placeholder="Write the email body here."></textarea></div>
+              <div class="actions-row">
+                <button class="btn" id="gmailSigninBtn">Browser Sign In</button>
+                <button class="btn" id="gmailInboxBtn">Load Inbox</button>
+                <button class="btn" id="gmailSendBtn">Send Email</button>
+              </div>
+              <div class="muted" id="gmailStatusText"></div>
+            </div>
+            <div class="card">
+              <h3>Outreach Campaigns</h3>
+              <div class="field"><label>Campaign Name</label><input id="outreachName" placeholder="resume-saas-launch" /></div>
+              <div class="field"><label>Subject Template</label><input id="outreachSubject" placeholder="Hi {{name}}, quick idea for {{company}}" /></div>
+              <div class="field"><label>Body Template</label><textarea id="outreachBody" placeholder="Hi {{name}},&#10;&#10;I wanted to reach out about..."></textarea></div>
+              <div class="field"><label>Leads</label><textarea id="outreachLeads" placeholder="Name|email@company.com|Company|Notes"></textarea></div>
+              <div class="actions-row">
+                <button class="btn" id="outreachSaveBtn">Save Campaign</button>
+                <button class="btn" id="outreachPreviewBtn">Preview First Campaign</button>
+                <button class="btn" id="outreachRunBtn">Run First Campaign</button>
+              </div>
+              <div class="muted" id="outreachStatusText"></div>
+            </div>
+            <div class="card">
+              <h3>Publish Active Project</h3>
+              <div class="actions-row">
+                <button class="btn" id="publishDefaultBtn">Publish In Active Tool</button>
+                <button class="btn" id="publishVercelBtn">Deploy To Vercel</button>
+                <button class="btn" id="publishNetlifyBtn">Deploy To Netlify</button>
+              </div>
+              <div class="muted" id="publishStatusText"></div>
+            </div>
             <div class="panel-title">CONNECTED SERVICES</div>
             <div class="card-list" id="integrationConnectionsList"></div>
             <div class="panel-title">SERVICE CATALOG</div>
@@ -249,6 +285,10 @@
               <div class="field"><label>Dashboard Port</label><input id="settingPort" type="number" /></div>
               <div class="field"><label>Voice</label><select id="settingVoice"><option value="true">on</option><option value="false">off</option></select></div>
               <div class="actions-row"><button class="btn" id="saveSettings">Save</button></div>
+            </div>
+            <div class="card">
+              <h3>Updated Help Commands</h3>
+              <div class="config-list" id="helpCommandsList"></div>
             </div>
             <div class="panel-title">SESSIONS</div>
             <div class="card">
@@ -328,6 +368,8 @@
       ollama:{name:"Ollama (local)",base_url:"http://localhost:11434/v1",requires_key:false},
       lmstudio:{name:"LM Studio (local)",base_url:"http://localhost:1234/v1",requires_key:false},
       huggingface:{name:"Hugging Face",base_url:"https://router.huggingface.co/v1",requires_key:true},
+      deepseek:{name:"DeepSeek",base_url:"https://api.deepseek.com/v1",requires_key:true},
+      alibaba:{name:"Alibaba Cloud DashScope",base_url:"",requires_key:true},
       together:{name:"Together AI",base_url:"https://api.together.xyz/v1",requires_key:true},
       mistral:{name:"Mistral",base_url:"https://api.mistral.ai/v1",requires_key:true},
       cohere:{name:"Cohere",base_url:"https://api.cohere.com/compatibility/v1",requires_key:true},
@@ -459,7 +501,7 @@
     function syncProviderFields(){
       const type=document.getElementById("providerType").value;
       const meta=providerTypes[type];
-      document.getElementById("providerBaseField").style.display=["ollama","lmstudio","custom","azure"].includes(type) ? "grid" : "none";
+      document.getElementById("providerBaseField").style.display=["ollama","lmstudio","custom","azure","alibaba"].includes(type) ? "grid" : "none";
       document.getElementById("providerKeyField").style.display=meta.requires_key ? "grid" : "none";
       if(!state.editingProviderId){document.getElementById("providerBaseUrl").value=meta.base_url||"";document.getElementById("providerName").value=meta.name;}
     }
@@ -528,8 +570,11 @@
       connectionsRoot.querySelectorAll("[data-remove-connection]").forEach((button)=>button.addEventListener("click",async()=>{await fetchJson(`/api/integrations/connections/${encodeURIComponent(button.dataset.removeConnection)}`,{method:"DELETE"});await loadIntegrations();}));
 
       const catalogRoot=document.getElementById("integrationCatalogList");catalogRoot.innerHTML="";
-      (data.catalog||[]).forEach((item)=>{const node=document.createElement("div");node.className="card";const fields=(item.fields||[]).map((field)=>`<div class="field"><label>${escapeHtml(field.label)}</label><input data-catalog-field="${escapeHtml(field.key)}" ${field.secret ? 'type="password"' : ""} value="${escapeHtml(field.default||"")}" /></div>`).join("");node.innerHTML=`<h3>${escapeHtml(item.name)}</h3><div class="muted">${escapeHtml(item.category)} · ${escapeHtml(item.provider)}</div><div class="muted">${escapeHtml(item.description||"")}</div>${fields}<div class="actions-row"><button class="btn" data-save-connection="${escapeHtml(item.provider)}">Connect</button></div>`;catalogRoot.appendChild(node);});
+      (data.catalog||[]).forEach((item)=>{const node=document.createElement("div");node.className="card";const fields=(item.fields||[]).map((field)=>`<div class="field"><label>${escapeHtml(field.label)}</label><input data-catalog-field="${escapeHtml(field.key)}" ${field.secret ? 'type="password"' : ""} value="${escapeHtml(field.default||"")}" /></div>`).join("");const authButton=item.auth_url ? `<button class="btn" data-auth-connection="${escapeHtml(item.provider)}">Browser Sign In</button>` : "";node.innerHTML=`<h3>${escapeHtml(item.name)}</h3><div class="muted">${escapeHtml(item.category)} · ${escapeHtml(item.provider)}</div><div class="muted">${escapeHtml(item.description||"")}</div><div class="muted">${escapeHtml(item.post_login_hint||"")}</div>${fields}<div class="actions-row">${authButton}<button class="btn" data-save-connection="${escapeHtml(item.provider)}">Connect</button></div>`;catalogRoot.appendChild(node);});
       catalogRoot.querySelectorAll("[data-save-connection]").forEach((button)=>button.addEventListener("click",async()=>{const card=button.closest(".card");const payload={provider:button.dataset.saveConnection,values:{}};card.querySelectorAll("[data-catalog-field]").forEach((input)=>payload.values[input.dataset.catalogField]=input.value);const result=await fetchJson("/api/integrations/connections",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});if(!result.ok){throw new Error(result.error||"Failed to save connection");}await loadIntegrations();}));
+      catalogRoot.querySelectorAll("[data-auth-connection]").forEach((button)=>button.addEventListener("click",async()=>{const result=await fetchJson("/api/integrations/auth",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:button.dataset.authConnection})});alert(result.post_login_hint||result.error||"Opened browser sign-in flow.");}));
+      document.getElementById("gmailStatusText").textContent=(data.gmail?.ok ? `Configured for ${data.gmail?.from||"-"}` : "Gmail not configured yet.");
+      document.getElementById("outreachStatusText").textContent=`Campaigns: ${Number((data.outreach?.campaigns||[]).length)}`;
     }
 
     async function runIdeAutomation(action){
@@ -564,11 +609,12 @@
       document.getElementById("settingPort").value=data.dashboard_port||8766;
       document.getElementById("settingVoice").value=String(Boolean(data.voice_enabled));
       document.getElementById("activeSessionName").textContent=data.active_session?.name||"-";
+      const helpRoot=document.getElementById("helpCommandsList");helpRoot.innerHTML="";(data.help_commands||[]).forEach((item)=>{const row=document.createElement("div");row.className="row";row.innerHTML=`<div class="mono">${escapeHtml(item)}</div>`;helpRoot.appendChild(row);});
     }
     async function loadSessions(){
       const data=await fetchJson("/api/sessions");
       const root=document.getElementById("sessionsTable");root.innerHTML="";
-      (data.items||[]).forEach((item)=>{const row=document.createElement("div");row.className="row session-row";row.innerHTML=`<div>${escapeHtml(item.name)}</div><div>${escapeHtml(item.status)} | ${escapeHtml(String(item.message_count||0))} messages</div><div class="actions-row"><button class="btn" data-action="resume">Resume</button><button class="btn" data-action="export">Export</button><button class="btn" data-action="delete">Delete</button></div>`;row.querySelector('[data-action="resume"]').onclick=async()=>{await fetchJson(`/api/sessions/${encodeURIComponent(item.session_id)}/resume`,{method:"POST"});await loadSettings();};row.querySelector('[data-action="export"]').onclick=()=>window.open(`/api/sessions/${encodeURIComponent(item.session_id)}/export`, "_blank");row.querySelector('[data-action="delete"]').onclick=async()=>{await fetchJson(`/api/sessions/${encodeURIComponent(item.session_id)}`,{method:"DELETE"});await loadSessions();};root.appendChild(row);});
+      (data.items||[]).forEach((item)=>{const row=document.createElement("div");row.className="row session-row";row.innerHTML=`<div>${escapeHtml(item.name)}</div><div>${escapeHtml(item.status)} | ${escapeHtml(String(item.message_count||0))} messages</div><div class="actions-row"><button class="btn" data-action="resume">Resume</button><button class="btn" data-action="export">Export</button><button class="btn" data-action="transfer">Transfer</button><button class="btn" data-action="delete">Delete</button></div>`;row.querySelector('[data-action="resume"]').onclick=async()=>{await fetchJson(`/api/sessions/${encodeURIComponent(item.session_id)}/resume`,{method:"POST"});await loadSettings();};row.querySelector('[data-action="export"]').onclick=()=>window.open(`/api/sessions/${encodeURIComponent(item.session_id)}/export`, "_blank");row.querySelector('[data-action="transfer"]').onclick=async()=>{const provider=prompt("Transfer target", "claude");if(!provider){return;}const result=await fetchJson(`/api/sessions/${encodeURIComponent(item.session_id)}/transfer?provider=${encodeURIComponent(provider)}`);navigator.clipboard.writeText(result.transfer_text||"");alert(result.transfer_path ? `Transfer package copied. File: ${result.transfer_path}` : "Transfer package copied.");};row.querySelector('[data-action="delete"]').onclick=async()=>{await fetchJson(`/api/sessions/${encodeURIComponent(item.session_id)}`,{method:"DELETE"});await loadSessions();};root.appendChild(row);});
     }
     async function loadRouting(){
       const data=await fetchJson("/api/routing");
@@ -606,6 +652,15 @@
     document.getElementById("refreshSkills").onclick=async()=>{await fetchJson("/api/skills/refresh",{method:"POST"});await loadSkills();};
     document.getElementById("runIdeAutomation").onclick=()=>runIdeAutomation("start").catch((error)=>alert(error.message));
     document.getElementById("continueIdeAutomation").onclick=()=>runIdeAutomation("continue").catch((error)=>alert(error.message));
+    document.getElementById("gmailSigninBtn").onclick=async()=>{const result=await fetchJson("/api/gmail",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"signin"})});document.getElementById("gmailStatusText").textContent=result.post_login_hint||result.error||"Opened Gmail sign-in.";};
+    document.getElementById("gmailInboxBtn").onclick=async()=>{const result=await fetchJson("/api/gmail?action=inbox&count=10");document.getElementById("gmailStatusText").textContent=(result.items||[]).map((item)=>`${item.from}: ${item.subject}`).slice(0,3).join(" | ")||"No inbox items.";};
+    document.getElementById("gmailSendBtn").onclick=async()=>{const result=await fetchJson("/api/gmail",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"send",to:document.getElementById("gmailTo").value,subject:document.getElementById("gmailSubject").value,body:document.getElementById("gmailBody").value})});document.getElementById("gmailStatusText").textContent=result.result||result.error||"Sent.";};
+    document.getElementById("outreachSaveBtn").onclick=async()=>{const result=await fetchJson("/api/outreach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save",name:document.getElementById("outreachName").value,subject_template:document.getElementById("outreachSubject").value,body_template:document.getElementById("outreachBody").value,leads:document.getElementById("outreachLeads").value})});document.getElementById("outreachStatusText").textContent=result.campaign?.id||result.error||"Saved.";await loadIntegrations();};
+    document.getElementById("outreachPreviewBtn").onclick=async()=>{const campaigns=await fetchJson("/api/outreach");const first=(campaigns.items||[])[0];if(!first){alert("No campaign saved yet.");return;}const result=await fetchJson("/api/outreach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"preview",id:first.id})});document.getElementById("outreachStatusText").textContent=JSON.stringify((result.processed||[])[0]||result);};
+    document.getElementById("outreachRunBtn").onclick=async()=>{const campaigns=await fetchJson("/api/outreach");const first=(campaigns.items||[])[0];if(!first){alert("No campaign saved yet.");return;}const result=await fetchJson("/api/outreach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"run",id:first.id})});document.getElementById("outreachStatusText").textContent=`Sent ${result.sent_count||0} messages`;await loadIntegrations();};
+    document.getElementById("publishDefaultBtn").onclick=async()=>{const result=await fetchJson("/api/vibe/publish",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({target:""})});document.getElementById("publishStatusText").textContent=result.message||result.error||JSON.stringify(result);};
+    document.getElementById("publishVercelBtn").onclick=async()=>{const result=await fetchJson("/api/vibe/publish",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({target:"vercel"})});document.getElementById("publishStatusText").textContent=result.url||result.message||result.error||JSON.stringify(result);};
+    document.getElementById("publishNetlifyBtn").onclick=async()=>{const result=await fetchJson("/api/vibe/publish",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({target:"netlify"})});document.getElementById("publishStatusText").textContent=result.url||result.message||result.error||JSON.stringify(result);};
     document.getElementById("showWorkflowForm").onclick=()=>{state.editingWorkflowId="";document.getElementById("workflowFormCard").style.display="block";};
     document.getElementById("cancelWorkflowForm").onclick=()=>{state.editingWorkflowId="";document.getElementById("workflowFormCard").style.display="none";};
     document.getElementById("saveWorkflow").onclick=()=>saveWorkflow().catch((error)=>alert(error.message));

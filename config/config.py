@@ -45,6 +45,16 @@ PROVIDER_DEFAULTS = {
         "api_key": "",
         "base_url": "https://router.huggingface.co/v1",
     },
+    "deepseek": {
+        "model": "deepseek-chat",
+        "api_key": "",
+        "base_url": "https://api.deepseek.com/v1",
+    },
+    "alibaba": {
+        "model": "qwen-plus",
+        "api_key": "",
+        "base_url": "",
+    },
     "lmstudio": {
         "model": "local-model",
         "base_url": "http://localhost:1234/v1",
@@ -249,6 +259,8 @@ def _env_default_model() -> dict[str, Any]:
         "openrouter": _env_value("OPENROUTER_API_KEY"),
         "gemini": _env_value("GOOGLE_AI_API_KEY", "GOOGLE_GEMINI_API_KEY"),
         "huggingface": _env_value("HF_TOKEN", "HUGGINGFACE_API_KEY"),
+        "deepseek": _env_value("DEEPSEEK_API_KEY"),
+        "alibaba": _env_value("ALIBABA_API_KEY"),
         "nvidia": _env_value("NVIDIA_API_KEY"),
     }
     if provider in key_map:
@@ -303,6 +315,10 @@ def get_model_config() -> dict[str, Any]:
             defaults["api_key"] = _env_value("GOOGLE_AI_API_KEY", "GOOGLE_GEMINI_API_KEY")
         elif provider == "huggingface" and not str(defaults.get("api_key", "")).strip():
             defaults["api_key"] = _env_value("HF_TOKEN", "HUGGINGFACE_API_KEY")
+        elif provider == "deepseek" and not str(defaults.get("api_key", "")).strip():
+            defaults["api_key"] = _env_value("DEEPSEEK_API_KEY")
+        elif provider == "alibaba" and not str(defaults.get("api_key", "")).strip():
+            defaults["api_key"] = _env_value("ALIBABA_API_KEY")
         elif provider == "nvidia" and not str(defaults.get("api_key", "")).strip():
             defaults["api_key"] = _env_value("NVIDIA_API_KEY")
         elif provider == "gcp" and not str(defaults.get("project_id", "")).strip():
@@ -419,6 +435,24 @@ def get_client(model_config: dict[str, Any]):
             base_url=model_config.get("base_url", PROVIDER_DEFAULTS["huggingface"]["base_url"]),
         )
 
+    if provider == "deepseek":
+        import openai
+
+        _require_api_key("DeepSeek", api_key)
+        return openai.OpenAI(
+            api_key=api_key,
+            base_url=model_config.get("base_url", PROVIDER_DEFAULTS["deepseek"]["base_url"]),
+        )
+
+    if provider == "alibaba":
+        import openai
+
+        _require_api_key("Alibaba Cloud", api_key)
+        custom_base = str(model_config.get("base_url", PROVIDER_DEFAULTS["alibaba"]["base_url"])).strip()
+        if not custom_base:
+            raise ValueError("Alibaba Cloud base_url is empty.")
+        return openai.OpenAI(api_key=api_key, base_url=custom_base)
+
     if provider == "ollama":
         import openai
 
@@ -509,7 +543,7 @@ def is_configured() -> bool:
         provider = cfg.get("provider") or cfg.get("type", "")
         if not provider:
             return False
-        if provider in {"anthropic", "groq", "openai", "openrouter", "gemini", "huggingface", "nvidia", "together", "mistral", "cohere"}:
+        if provider in {"anthropic", "groq", "openai", "openrouter", "gemini", "huggingface", "deepseek", "alibaba", "nvidia", "together", "mistral", "cohere"}:
             return bool(str(cfg.get("api_key", "")).strip())
         if provider in {"ollama", "lmstudio"}:
             return True
