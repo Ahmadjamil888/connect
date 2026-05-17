@@ -4,7 +4,9 @@ Open Claw is an autonomous agentic AI CLI that uses a configurable model backend
 
 ## IMOS
 
-This repository now also includes IMOS, the Intelligent Multi-agent Operating System, which layers a universal adapter-based orchestration runtime on top of the existing assistant stack. See [IMOS_README.md](IMOS_README.md) for the full architecture, adapter catalog, CLI, MCP integration, dashboard, and setup details.
+This repository now also includes IMOS, a controlled operator system for teams that need AI sessions, routing, dashboard visibility, and real execution to stay aligned from prompt to delivery across models, IDEs, apps, browsers, and the local machine.
+
+IMOS is the coordination layer for work that spans multiple tools, people, long-running tasks, and machine-level actions. It keeps context persistent, execution visible, permissions explicit, and handoffs operational instead of manual. See [IMOS_README.md](IMOS_README.md) for the full architecture, adapter catalog, CLI, MCP integration, dashboard, and setup details.
 
 ## Setup
 

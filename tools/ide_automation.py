@@ -18,6 +18,44 @@ CLI_AGENT_TARGETS = {
 }
 
 
+def choose_best_build_target(preferred: str = "") -> str:
+    normalized_preferred = (preferred or "").strip().lower()
+    if normalized_preferred in CLI_AGENT_TARGETS:
+        command_name, _install_hint = CLI_AGENT_TARGETS[normalized_preferred]
+        if agent_bridges.shutil.which(command_name):
+            return normalized_preferred
+    if normalized_preferred in GUI_IDE_TARGETS:
+        return normalized_preferred
+
+    for target, (command_name, _install_hint) in (
+        ("codex", CLI_AGENT_TARGETS["codex"]),
+        ("claude-code", CLI_AGENT_TARGETS["claude-code"]),
+        ("aider", CLI_AGENT_TARGETS["aider"]),
+    ):
+        if agent_bridges.shutil.which(command_name):
+            return target
+
+    local_appdata = agent_bridges.os.getenv("LOCALAPPDATA", "").strip()
+    program_files = agent_bridges.os.getenv("ProgramFiles", "").strip()
+    program_files_x86 = agent_bridges.os.getenv("ProgramFiles(x86)", "").strip()
+    cursor_candidates = [
+        Path(local_appdata) / "Programs" / "cursor" / "Cursor.exe" if local_appdata else None,
+        Path(local_appdata) / "Programs" / "Cursor" / "Cursor.exe" if local_appdata else None,
+        Path(program_files) / "Cursor" / "Cursor.exe" if program_files else None,
+        Path(program_files_x86) / "Cursor" / "Cursor.exe" if program_files_x86 else None,
+    ]
+    if any(candidate and candidate.exists() for candidate in cursor_candidates):
+        return "cursor"
+    if agent_bridges.shutil.which("windsurf"):
+        return "windsurf"
+    if agent_bridges.shutil.which("code"):
+        return "vscode"
+    if agent_bridges.shutil.which("zed"):
+        return "zed"
+
+    return "browser"
+
+
 def _workspace_root(workspace: str, project_name: str, project_path: str = "") -> Path:
     if project_path:
         target = Path(project_path)
@@ -107,6 +145,8 @@ def start_ide_session(
     wait_for_response: bool = True,
 ) -> dict[str, Any]:
     normalized_target = (target or "cursor").strip().lower()
+    if normalized_target in {"auto", "best", ""}:
+        normalized_target = choose_best_build_target()
     root = _workspace_root(workspace, project_name, project_path).resolve()
     root.mkdir(parents=True, exist_ok=True)
     runtime_session.update_state(active_tool=normalized_target, active_project=root.name)
@@ -125,6 +165,21 @@ def start_ide_session(
             "response": result.get("output", "") or result.get("reply", ""),
             "error": result.get("error", ""),
             "mode": "cli",
+        }
+        runtime_session.complete_operation("ide_orchestrator", payload)
+        return payload
+
+    if normalized_target == "browser":
+        launch_result = agent_bridges.open_best_ide(root, prompt=prompt)
+        payload = {
+            "ok": bool(launch_result.get("success")),
+            "target": normalized_target,
+            "project_root": str(root),
+            "urls": launch_result.get("urls", []),
+            "prompt": launch_result.get("prompt", prompt),
+            "mode": "browser",
+            "fallback_used": True,
+            "error": launch_result.get("error", ""),
         }
         runtime_session.complete_operation("ide_orchestrator", payload)
         return payload

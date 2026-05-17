@@ -65,6 +65,7 @@ def _research_design(description: str, model_config: dict) -> str:
         from config.config import get_client
         client = get_client(model_config)
         provider = model_config.get("provider", "anthropic")
+        custom_system_prompt = str(model_config.get("custom_system_prompt", "")).strip()
         prompt = (
             f"You are a senior UI/UX designer. For this project: '{description}'\n"
             "Describe in 3-5 sentences: the best color scheme, layout style, key pages needed, "
@@ -74,14 +75,18 @@ def _research_design(description: str, model_config: dict) -> str:
             msg = client.messages.create(
                 model=model_config.get("model", "claude-sonnet-4-5"),
                 max_tokens=400,
+                system=custom_system_prompt or None,
                 messages=[{"role": "user", "content": prompt}],
             )
             return msg.content[0].text.strip()
         else:
+            messages = [{"role": "user", "content": prompt}]
+            if custom_system_prompt:
+                messages.insert(0, {"role": "system", "content": custom_system_prompt})
             msg = client.chat.completions.create(
                 model=model_config.get("model", "gpt-4o"),
                 max_tokens=400,
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
             )
             return msg.choices[0].message.content.strip()
     except Exception as e:
@@ -94,6 +99,7 @@ def _generate_page_code(description: str, page: str, design_notes: str, model_co
         from config.config import get_client
         client = get_client(model_config)
         provider = model_config.get("provider", "anthropic")
+        custom_system_prompt = str(model_config.get("custom_system_prompt", "")).strip()
         prompt = (
             f"Project: {description}\nDesign: {design_notes}\n"
             f"Write a complete Next.js 14 App Router page for: {page}\n"
@@ -104,14 +110,18 @@ def _generate_page_code(description: str, page: str, design_notes: str, model_co
             msg = client.messages.create(
                 model=model_config.get("model", "claude-sonnet-4-5"),
                 max_tokens=1500,
+                system=custom_system_prompt or None,
                 messages=[{"role": "user", "content": prompt}],
             )
             return msg.content[0].text.strip()
         else:
+            messages = [{"role": "user", "content": prompt}]
+            if custom_system_prompt:
+                messages.insert(0, {"role": "system", "content": custom_system_prompt})
             msg = client.chat.completions.create(
                 model=model_config.get("model", "gpt-4o"),
                 max_tokens=1500,
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
             )
             return msg.choices[0].message.content.strip()
     except Exception:

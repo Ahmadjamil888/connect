@@ -347,6 +347,7 @@ input,textarea,select{font-family:inherit}
         <div class="chat-sidebar">
           <div class="chat-sidebar-section">
             <div class="chat-sidebar-title">Session Stats</div>
+            <div class="stat-row"><span class="k">Session</span><span class="v" id="cs-session">--</span></div>
             <div class="stat-row"><span class="k">Tokens</span><span class="v" id="cs-tokens">0</span></div>
             <div class="stat-row"><span class="k">Cost</span><span class="v" id="cs-cost">$0.0000</span></div>
             <div class="stat-row"><span class="k">Tasks</span><span class="v" id="cs-tasks">0</span></div>
@@ -354,6 +355,8 @@ input,textarea,select{font-family:inherit}
           </div>
           <div class="chat-sidebar-section">
             <div class="chat-sidebar-title">Quick Actions</div>
+            <button class="quick-btn" onclick="startNewChatSession()">New chat</button>
+            <button class="quick-btn" onclick="reloadCurrentChat()">Reload saved chat</button>
             <button class="quick-btn" onclick="sendChatText('What is my system status? CPU, RAM, disk usage.')">System status</button>
             <button class="quick-btn" onclick="sendChatText('Clean my PC temp files.')">Clean PC</button>
             <button class="quick-btn" onclick="sendChatText('What is the weather in my city?')">Weather</button>
@@ -532,6 +535,15 @@ input,textarea,select{font-family:inherit}
               <span class="tag active">NVIDIA</span><span class="tag active">GCP</span><span class="tag active">RunPod</span>
             </div>
           </div>
+          <div class="card">
+            <div class="card-title">Shared System Prompt</div>
+            <div class="card-desc">Applied to every provider after the built-in IMOS system prompt, matching setup and runtime behavior.</div>
+            <div class="form-group">
+              <label class="form-label">Custom LLM behavior</label>
+              <textarea class="form-input" id="model-system-prompt" rows="8" placeholder="Optional behavior instructions to append after the IMOS base prompt." style="min-height:180px;resize:vertical"></textarea>
+            </div>
+            <button class="btn-primary" onclick="saveSystemPrompt()">Save Prompt</button>
+          </div>
         </div>
       </div>
     </div>
@@ -686,7 +698,8 @@ input,textarea,select{font-family:inherit}
 <script>
 // ── STATE ──
 let activePanel = 'chat';
-let chatSessionId = 'imos-default';
+const CHAT_SESSION_STORAGE_KEY = 'imos.dashboard.chatSessionId';
+let chatSessionId = localStorage.getItem(CHAT_SESSION_STORAGE_KEY) || '';
 let shellCwd = 'C:\\';
 let shellHistory = [];
 let shellHistoryIdx = -1;
@@ -914,22 +927,108 @@ function formatUptime(s) {
 }
 
 // ── CHAT ──
-function addMsg(role, text, typing=false) {
+function escapeHtml(text) {
+  return String(text || '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+}
+
+function renderMessageHtml(text) {
+  return escapeHtml(text)
+    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+}
+
+function persistChatSessionId(sessionId) {
+  chatSessionId = sessionId || '';
+  if (chatSessionId) localStorage.setItem(CHAT_SESSION_STORAGE_KEY, chatSessionId);
+  else localStorage.removeItem(CHAT_SESSION_STORAGE_KEY);
+  const sessionEl = document.getElementById('cs-session');
+  if (sessionEl) sessionEl.textContent = chatSessionId ? chatSessionId.slice(0, 12) : '--';
+}
+
+function clearChatMessages() {
+  document.getElementById('chat-messages').innerHTML = '';
+}
+
+function addMsg(role, text, typing=false, ts=null) {
   const wrap = document.getElementById('chat-messages');
   const div = document.createElement('div');
   div.className = 'msg ' + role + (typing ? ' msg-typing' : '');
   const name = role === 'user' ? 'You' : 'IMOS';
-  const time = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-  // Render markdown-ish: code blocks, inline code
-  let html = text
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  const stamp = ts ? new Date(ts) : new Date();
+  const time = stamp.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const html = renderMessageHtml(text);
   div.innerHTML = `<div class="msg-meta">${name} <span style="color:var(--text3)">${time}</span></div><div class="msg-bubble">${html}</div>`;
   wrap.appendChild(div);
   wrap.scrollTop = wrap.scrollHeight;
   return div;
+}
+
+function renderWelcomeState() {
+  clearChatMessages();
+  addMsg('assistant', 'Online and ready. I keep runtime context, saved chat history, and execution state across sessions. What do you need?');
+}
+
+async function loadChatTranscript(sessionId) {
+  if (!sessionId) {
+    renderWelcomeState();
+    return;
+  }
+  try {
+    const data = await api('/api/sessions/' + encodeURIComponent(sessionId));
+    const items = data.items || [];
+    clearChatMessages();
+    if (!items.length) {
+      renderWelcomeState();
+      return;
+    }
+    items.forEach(item => {
+      const role = item.role === 'user' ? 'user' : 'assistant';
+      addMsg(role, item.content || '', false, item.ts || null);
+    });
+  } catch (e) {
+    renderWelcomeState();
+    toast('Failed to restore chat history: ' + e.message, 'error');
+  }
+}
+
+async function initializeChatSession() {
+  try {
+    const settings = await api('/api/settings');
+    const activeSessionId = settings.active_session && settings.active_session.session_id ? settings.active_session.session_id : '';
+    const promptField = document.getElementById('model-system-prompt');
+    if (promptField) promptField.value = settings.system_prompt || '';
+    persistChatSessionId(chatSessionId || activeSessionId);
+    await loadChatTranscript(chatSessionId);
+  } catch (e) {
+    renderWelcomeState();
+    toast('Chat session init failed: ' + e.message, 'error');
+  }
+}
+
+async function startNewChatSession() {
+  try {
+    const data = await api('/api/sessions', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({name: 'dashboard-' + Date.now()})
+    });
+    const session = data.session || {};
+    persistChatSessionId(session.session_id || '');
+    renderWelcomeState();
+    toast('New chat session started');
+    loadStats();
+  } catch (e) {
+    toast('Failed to create chat session: ' + e.message, 'error');
+  }
+}
+
+async function reloadCurrentChat() {
+  await loadChatTranscript(chatSessionId);
+  toast(chatSessionId ? 'Chat history restored' : 'No saved chat session yet');
 }
 
 async function sendChat() {
@@ -965,24 +1064,13 @@ async function sendChat() {
         try {
           const d = JSON.parse(line.slice(5).trim());
           if (d.type === 'token') {
-            fullText += d.token;
-            // Re-render with markdown
-            let html = fullText
-              .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-              .replace(/```(\w*)\n([\s\S]*?)```/g,'<pre><code>$2</code></pre>')
-              .replace(/`([^`]+)`/g,'<code>$1</code>')
-              .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
-            bubble.innerHTML = html;
+            fullText += d.text || '';
+            bubble.innerHTML = renderMessageHtml(fullText);
             document.getElementById('chat-messages').scrollTop = 99999;
           } else if (d.type === 'done') {
-            if (d.session_id) chatSessionId = d.session_id;
-            if (d.text && d.text !== fullText) {
-              let html = d.text
-                .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-                .replace(/```(\w*)\n([\s\S]*?)```/g,'<pre><code>$2</code></pre>')
-                .replace(/`([^`]+)`/g,'<code>$1</code>')
-                .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
-              bubble.innerHTML = html;
+            if (d.session_id) persistChatSessionId(d.session_id);
+            if (d.response && d.response !== fullText) {
+              bubble.innerHTML = renderMessageHtml(d.response);
             }
           }
         } catch(e) {}
@@ -1019,7 +1107,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if (si) {
     si.addEventListener('keydown', handleShellKey);
   }
+  renderWelcomeState();
   loadUiSettings();
+  initializeChatSession();
   loadStats();
   statsInterval = setInterval(loadStats, 5000);
   loadModelStatus();
@@ -1075,8 +1165,8 @@ async function runAIShell(prompt) {
         if (!l.startsWith('data:')) continue;
         try {
           const d = JSON.parse(l.slice(5).trim());
-          if (d.type === 'token') { fullText += d.token; line.textContent = fullText; document.getElementById('shell-output').scrollTop = 99999; }
-          else if (d.type === 'done' && d.text) { line.textContent = d.text; }
+          if (d.type === 'token') { fullText += d.text || ''; line.textContent = fullText; document.getElementById('shell-output').scrollTop = 99999; }
+          else if (d.type === 'done' && d.response) { line.textContent = d.response; }
         } catch(e) {}
       }
     }
@@ -1121,8 +1211,8 @@ async function execShell(cmd) {
           if (!l.startsWith('data:')) continue;
           try {
             const d = JSON.parse(l.slice(5).trim());
-            if (d.type === 'token') { fullText += d.token; line.textContent = fullText; document.getElementById('shell-output').scrollTop = 99999; }
-            else if (d.type === 'done' && d.text) { line.textContent = d.text; }
+            if (d.type === 'token') { fullText += d.text || ''; line.textContent = fullText; document.getElementById('shell-output').scrollTop = 99999; }
+            else if (d.type === 'done' && d.response) { line.textContent = d.response; }
           } catch(e) {}
         }
       }
@@ -1308,6 +1398,14 @@ async function loadModelStatus() {
       for (const opt of mSel.options) { if (opt.value === status.model) { mSel.value = status.model; break; } }
       document.getElementById('model-name-input').value = status.model;
     }
+    try {
+      const settings = await api('/api/settings');
+      const promptField = document.getElementById('model-system-prompt');
+      if (promptField) promptField.value = settings.system_prompt || '';
+      if (settings.active_session && settings.active_session.session_id && !chatSessionId) {
+        persistChatSessionId(settings.active_session.session_id);
+      }
+    } catch (e) {}
   } catch(e) {}
 }
 
@@ -1317,11 +1415,25 @@ async function saveModel() {
   const api_key = document.getElementById('model-apikey').value.trim();
   if (!model) { showAlert('model-alert','Model name is required','error'); return; }
   try {
-    await api('/api/config/model', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider,model,api_key})});
+    await api('/api/config/models', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider,model,api_key})});
     showAlert('model-alert','Model saved! Restart IMOS to apply.','success');
     toast('Model saved');
     loadModelStatus();
   } catch(e) { showAlert('model-alert','Error: '+e.message,'error'); }
+}
+
+async function saveSystemPrompt() {
+  const system_prompt = document.getElementById('model-system-prompt').value.trim();
+  try {
+    await api('/api/settings', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({system_prompt})
+    });
+    toast('System prompt saved');
+  } catch (e) {
+    showAlert('model-alert', 'Error: ' + e.message, 'error');
+  }
 }
 
 // ── API KEYS ──
@@ -1677,6 +1789,12 @@ async function loadSettings() {
   loadStats();
   loadUiSettings();
   try {
+    const settings = await api('/api/settings');
+    const promptField = document.getElementById('model-system-prompt');
+    if (promptField) promptField.value = settings.system_prompt || '';
+    if (settings.active_session && settings.active_session.session_id) {
+      persistChatSessionId(chatSessionId || settings.active_session.session_id);
+    }
     const r = await api('/api/skills');
     document.getElementById('st-skills').textContent = (r.items||[]).length;
   } catch(e){}

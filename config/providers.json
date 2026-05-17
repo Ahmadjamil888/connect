@@ -44,13 +44,27 @@
     "is_default": false
   },
   {
+    "id": "bedrock-wizard",
+    "name": "AWS Bedrock",
+    "type": "bedrock",
+    "provider": "bedrock",
+    "api_key": "",
+    "base_url": "",
+    "model": "anthropic.claude-sonnet-4-5-20251101-v1:0",
+    "enabled": true,
+    "is_default": false,
+    "aws_access_key_id": "",
+    "aws_secret_access_key": "",
+    "aws_region": "us-east-1"
+  },
+  {
     "id": "groq-wizard",
     "name": "Groq",
     "type": "groq",
     "provider": "groq",
-    "api_key": "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",
+    "api_key": "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",
     "base_url": "https://api.groq.com/openai/v1",
-    "model": "llama-3.3-70b-versatile",
+    "model": "llama-3.1-8b-instant",
     "enabled": true,
     "is_default": true
   }

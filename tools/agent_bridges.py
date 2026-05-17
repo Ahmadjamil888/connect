@@ -77,6 +77,9 @@ def chat_with_openai(prompt: str, history: list[dict[str, str]] | None = None, m
     try:
         client = openai.OpenAI(api_key=api_key)
         messages = list(history or [])
+        custom_system_prompt = str(current.get("custom_system_prompt", "")).strip()
+        if custom_system_prompt and not any(msg.get("role") == "system" for msg in messages):
+            messages.insert(0, {"role": "system", "content": custom_system_prompt})
         messages.append({"role": "user", "content": prompt})
         response = client.chat.completions.create(
             model=chosen_model,
@@ -104,6 +107,10 @@ def chat_with_gemini(prompt: str, history: list[dict[str, str]] | None = None, m
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         )
         messages = list(history or [])
+        current = get_model_config()
+        custom_system_prompt = str(current.get("custom_system_prompt", "")).strip()
+        if custom_system_prompt and not any(msg.get("role") == "system" for msg in messages):
+            messages.insert(0, {"role": "system", "content": custom_system_prompt})
         messages.append({"role": "user", "content": prompt})
         response = client.chat.completions.create(model=chosen_model, messages=messages)
         reply = response.choices[0].message.content if response.choices else ""
@@ -129,12 +136,16 @@ def chat_with_configured_model(prompt: str, history: list[dict[str, str]] | None
     try:
         client = get_client(config)
         messages = list(history or [])
+        custom_system_prompt = str(config.get("custom_system_prompt", "")).strip()
+        if custom_system_prompt and not any(msg.get("role") == "system" for msg in messages):
+            messages.insert(0, {"role": "system", "content": custom_system_prompt})
         messages.append({"role": "user", "content": prompt})
         if provider in {"anthropic", "gcp"}:
             response = client.messages.create(
                 model=str(config.get("model") or chosen_model),
                 max_tokens=2048,
-                messages=messages,
+                system=custom_system_prompt or None,
+                messages=[msg for msg in messages if msg.get("role") != "system"],
             )
             reply_parts = []
             for block in getattr(response, "content", []) or []:

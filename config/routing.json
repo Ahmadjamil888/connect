@@ -1,8 +1,8 @@
 {
   "default": "groq",
-  "code": "anthropic",
+  "code": "groq",
   "research": "openai",
   "writing": "openai",
-  "computer_control": "anthropic",
+  "computer_control": "groq",
   "devops": ""
 }

@@ -191,6 +191,41 @@ class DashboardService:
             save_config(cfg)
             return cfg
 
+        def dashboard_settings_payload() -> dict[str, Any]:
+            env_values = read_env()
+            autostart = safe_autostart_status(project_root)
+            listener = context.listener_service.status() if context.listener_service is not None else {"active": False, "mode": "always-on"}
+            shared_cfg = load_config()
+            return {
+                **read_settings_file(),
+                "assistant_name": "IMOS",
+                "wake_word": "IMOS",
+                "voice_mode": listener.get("mode", "always-on"),
+                "voice_enabled": str(env_values.get("IMOS_VOICE_ENABLED", "true")).lower() == "true",
+                "dashboard_port": int(env_values.get("DASHBOARD_PORT", service.port)),
+                "autostart": autostart,
+                "active_session": context.session_manager.get_active().__dict__,
+                "system_prompt": str(shared_cfg.get("system_prompt", "") or env_values.get("IMOS_SYSTEM_PROMPT", "")).strip(),
+                "help_commands": [
+                    "/gmail status",
+                    "/gmail inbox 10",
+                    "/outreach list",
+                    "/outreach create <name>|<subject>|<body>|<leads>",
+                    "/session transfer claude",
+                    "/publish vercel",
+                ],
+            }
+
+        def resolve_requested_session(payload: dict[str, Any] | None = None):
+            body = payload or {}
+            requested = str(body.get("session_id", "") or body.get("session", "")).strip()
+            if requested:
+                session = context.session_manager.get_by_id(requested) or context.session_manager.get(requested)
+                if session is not None:
+                    context.session_manager.set_active(session.name)
+                    return session
+            return context.session_manager.get_active()
+
         def apply_autostart(enabled: bool) -> dict[str, Any]:
             if enabled:
                 return enable_autostart(project_root)
@@ -695,29 +730,7 @@ class DashboardService:
                     self._send_json(workflows_payload())
                     return
                 if parsed.path == "/api/settings":
-                    env_values = read_env()
-                    autostart = safe_autostart_status(project_root)
-                    listener = context.listener_service.status() if context.listener_service is not None else {"active": False, "mode": "always-on"}
-                    self._send_json(
-                        {
-                            **read_settings_file(),
-                            "assistant_name": "IMOS",
-                            "wake_word": "IMOS",
-                            "voice_mode": listener.get("mode", "always-on"),
-                            "voice_enabled": str(env_values.get("IMOS_VOICE_ENABLED", "true")).lower() == "true",
-                            "dashboard_port": int(env_values.get("DASHBOARD_PORT", self.server.server_address[1])),
-                            "autostart": autostart,
-                            "active_session": context.session_manager.get_active().__dict__,
-                            "help_commands": [
-                                "/gmail status",
-                                "/gmail inbox 10",
-                                "/outreach list",
-                                "/outreach create <name>|<subject>|<body>|<leads>",
-                                "/session transfer claude",
-                                "/publish vercel",
-                            ],
-                        }
-                    )
+                    self._send_json(dashboard_settings_payload())
                     return
                 if parsed.path == "/api/routing":
                     self._send_json({"items": context.routing_rules.list_rules()})
@@ -765,15 +778,16 @@ class DashboardService:
                     if not text:
                         self._send_json({"ok": False, "error": "Missing text"}, status=400)
                         return
-                    session_hint = context.session_manager.get_active().name
+                    session = resolve_requested_session(payload)
                     envelope = context.cli_channel.normalize(
                         user_id="dashboard-user",
                         text=text,
-                        session_hint=session_hint,
+                        session_hint=session.name,
                         source="dashboard",
                     )
                     result = context.gateway.handle(envelope, str(context.workspace), context.model_config_getter())
-                    self._send_json({"ok": True, "response": result.output, "session_id": context.session_manager.get_active().session_id})
+                    active_session = context.session_manager.get_active()
+                    self._send_json({"ok": True, "response": result.output, "session_id": active_session.session_id})
                     return
                 if parsed.path == "/api/prompt":
                     payload = self._read_json()
@@ -1075,7 +1089,13 @@ class DashboardService:
                 if parsed.path == "/api/settings" and method == "POST":
                     payload = self._read_json()
                     settings = read_settings_file()
+                    system_prompt = None
+                    if "system_prompt" in payload:
+                        system_prompt = str(payload.get("system_prompt", "") or "").strip()
+                        payload = dict(payload)
+                        payload.pop("system_prompt", None)
                     settings.update(payload)
+                    settings.pop("system_prompt", None)
                     write_settings_file(settings)
                     env_updates = {}
                     env_updates["WAKE_WORD"] = "IMOS"
@@ -1091,9 +1111,18 @@ class DashboardService:
                         update_runtime_config(autostart_enabled=enabled)
                     if "voice_enabled" in payload:
                         update_runtime_config(voice_enabled=bool(payload.get("voice_enabled")))
+                    if system_prompt is not None:
+                        cfg = load_config()
+                        if system_prompt:
+                            cfg["system_prompt"] = system_prompt
+                            env_updates["IMOS_SYSTEM_PROMPT"] = system_prompt
+                        else:
+                            cfg.pop("system_prompt", None)
+                            env_updates["IMOS_SYSTEM_PROMPT"] = None
+                        save_config(cfg)
                     if env_updates:
                         write_env(env_updates)
-                    self._send_json({"ok": True, **settings})
+                    self._send_json({"ok": True, **dashboard_settings_payload()})
                     return
                 if parsed.path == "/api/sessions" and method == "POST":
                     payload = self._read_json()
@@ -1165,10 +1194,11 @@ class DashboardService:
                         self.send_response(400)
                         self.end_headers()
                         return
+                    session = resolve_requested_session(payload)
                     envelope = context.cli_channel.normalize(
                         user_id="dashboard-user",
                         text=text,
-                        session_hint=context.session_manager.get_active().name,
+                        session_hint=session.name,
                         source="dashboard",
                     )
                     self._send_sse_headers()
@@ -1178,7 +1208,8 @@ class DashboardService:
 
                     try:
                         result = context.gateway.handle_with_meta(envelope, str(context.workspace), context.model_config_getter(), on_text_delta=emit_token)
-                        self._send_sse({"type": "done", "response": result.get("output", ""), "session_id": context.session_manager.get_active().session_id, "usage": result.get("usage", {})})
+                        active_session = context.session_manager.get_active()
+                        self._send_sse({"type": "done", "response": result.get("output", ""), "session_id": active_session.session_id, "usage": result.get("usage", {})})
                     except Exception as exc:
                         self._send_sse({"type": "error", "error": str(exc)})
                     return

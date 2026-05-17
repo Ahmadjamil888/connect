@@ -41,10 +41,12 @@ TOOL USAGE RULES:
 - For terminal or command execution, call the OS tool action `run_shell`.
 - If a prompt mentions shell, terminal, PowerShell, or command line, map it to `run_shell`.
 - Prefer a real tool call over a plain-text reply whenever a request maps to an available skill.
-- "build me a website" -> use `scaffold_react_app` unless the user explicitly asks for Next.js.
-- "build me a Next.js website" -> use `scaffold_nextjs`.
-- "run a command" or shell/terminal requests -> use `bash`.
-- "open cursor" or "launch vscode" -> use `open_application`.
+- Do not rely on brittle keyword matching. Infer intent from the whole request, execution state, available tools, and prior context.
+- When the user wants a project built, shipped, continued, fixed, deployed, or moved across providers or IDEs, prefer `project_operator` when available.
+- Use `ide_orchestrator` when the request explicitly targets a coding IDE or agent and the task should be delegated into that environment.
+- Use `scaffold_nextjs` or `scaffold_react_app` only when they are the best concrete execution tool for the full request, not just because one word appeared in the prompt.
+- Use `bash` for terminal execution when the user is asking to run or verify commands directly.
+- Use `open_application` for app launching when the primary intent is opening software rather than delegating implementation work.
 - For "scan my pc for unwanted files", "junk files", or "temporary files", call OS action `scan_unwanted_files`.
 - For "remove/delete/clean unwanted files", call OS action `delete_unwanted_files`.
 - For process inspection use `list_processes`; for opening apps use `start_process`; for machine details use `system_info`.
@@ -53,11 +55,12 @@ TOOL USAGE RULES:
 - Do not invent new action names when an existing tool action already covers the request.
 
 WHEN BUILDING APPS:
-- Use scaffold_nextjs skill for full Next.js projects with DB + deploy
-- Use scaffold_react_app for simple React/Vite apps
-- Use bash skill to run any shell command
-- Use github_push skill to push to GitHub
-- Use deploy_vercel or deploy_netlify to deploy
+- Prefer an end-to-end operator flow that can preserve context, verify artifacts, continue across turns, and hand off between IDEs, browser builders, and providers without restarting.
+- Use scaffold_nextjs skill for full Next.js projects with DB + deploy when that is the most reliable execution path.
+- Use scaffold_react_app for simple React/Vite apps when a lighter scaffold is sufficient.
+- Use bash skill to run any shell command.
+- Use github_push skill to push to GitHub.
+- Use deploy_vercel or deploy_netlify to deploy.
 - Show every step as it happens — never summarize fake steps
 
 WHEN USER SAYS "clean my pc", "open chrome", "what's on my screen", etc:
@@ -99,7 +102,7 @@ class IMOSRuntime:
     # System prompt
     # ------------------------------------------------------------------
 
-    def _system_prompt(self, workspace: str, memory_blocks: List[str], skills: List[Any]) -> str:
+    def _system_prompt(self, workspace: str, memory_blocks: List[str], skills: List[Any], model_config: dict | None = None) -> str:
         skill_lines = [f"- {s.name}: {s.description}" for s in skills]
         if self.mcp_runtime is not None:
             for tool in self.mcp_runtime.list_tools():
@@ -109,6 +112,9 @@ class IMOSRuntime:
             f"Workspace: {workspace}",
             "Available tools:\n" + "\n".join(skill_lines),
         ]
+        custom_system_prompt = str((model_config or {}).get("custom_system_prompt", "") or "").strip()
+        if custom_system_prompt:
+            sections.append("User-configured LLM behavior:\n" + custom_system_prompt)
         if memory_blocks:
             sections.append("Memory context:\n" + "\n\n".join(memory_blocks))
         return "\n\n".join(sections)
@@ -170,6 +176,7 @@ class IMOSRuntime:
 
     def _guess_project_name(self, text: str) -> str:
         lowered = text.lower()
+        banned = {"and", "with", "for", "to", "a", "an", "the", "it", "deployed", "deploy", "website", "app", "project"}
         patterns = [
             r"(?:called|named)\s+([a-zA-Z0-9._-]+)",
             r"project\s+([a-zA-Z0-9._-]+)",
@@ -180,8 +187,10 @@ class IMOSRuntime:
         for pattern in patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                return match.group(1).strip(" .,:;")
-        if "ecommerce" in lowered or "e-commerce" in lowered:
+                candidate = match.group(1).strip(" .,:;").lower()
+                if candidate and candidate not in banned:
+                    return candidate
+        if "ecommerce" in lowered or "e-commerce" in lowered or "e commerce" in lowered:
             return "ecommerce-store"
         if "website" in lowered:
             return "website-app"
@@ -233,13 +242,114 @@ class IMOSRuntime:
                 return target
         return ""
 
-    def _infer_direct_tool_call(self, user_text: str, skills: List[Any]) -> Dict[str, Any] | None:
+    def _llm_direct_tool_call(self, user_text: str, skills: List[Any], model_config: dict) -> Dict[str, Any] | None:
+        if not model_config or not model_config.get("model"):
+            return None
+        available = []
+        for skill_name in [
+            "project_operator",
+            "ide_orchestrator",
+            "scaffold_nextjs",
+            "scaffold_react_app",
+            "open_application",
+            "bash",
+        ]:
+            if self._find_skill(skills, skill_name):
+                available.append(skill_name)
+        if not available:
+            return None
+
+        selector_prompt = (
+            "You are selecting the single best first execution tool for IMOS.\n"
+            "Return strict JSON only with keys: tool, reason, input.\n"
+            "tool must be one of: " + ", ".join(available) + ", none.\n"
+            "Prefer project_operator for end-to-end build, deploy, continue, migrate, or multi-step delivery requests.\n"
+            "Prefer ide_orchestrator when the user explicitly wants an IDE or coding agent to do the work.\n"
+            "Prefer scaffold_nextjs or scaffold_react_app only when a direct local scaffold is clearly the best first move.\n"
+            "Prefer bash only for direct command execution requests.\n"
+            "Prefer open_application only when the primary intent is opening software.\n"
+            "If no direct tool shortcut is appropriate, return tool=none.\n\n"
+            f"User request:\n{user_text}"
+        )
+        try:
+            client = get_client(model_config)
+            provider = str(model_config.get("provider") or model_config.get("type") or "").strip().lower()
+            raw = ""
+            if provider in {"anthropic", "gcp"}:
+                response = client.messages.create(
+                    model=model_config.get("model", ""),
+                    max_tokens=500,
+                    messages=[{"role": "user", "content": selector_prompt}],
+                )
+                parts = []
+                for block in getattr(response, "content", []) or []:
+                    if getattr(block, "type", "") == "text" and getattr(block, "text", ""):
+                        parts.append(block.text)
+                raw = "\n".join(parts).strip()
+            else:
+                response = client.chat.completions.create(
+                    model=model_config.get("model", ""),
+                    messages=[{"role": "user", "content": selector_prompt}],
+                    max_tokens=500,
+                )
+                raw = str(response.choices[0].message.content or "").strip() if response.choices else ""
+            if not raw:
+                return None
+            data = json.loads(raw)
+        except Exception:
+            return None
+
+        tool = str(data.get("tool", "")).strip().lower()
+        if tool in {"", "none"} or tool not in available:
+            return None
+        payload = data.get("input", {}) if isinstance(data.get("input"), dict) else {}
+
+        if tool == "project_operator":
+            payload.setdefault("action", "continue" if any(term in user_text.lower() for term in ["continue", "keep going", "fix", "edit", "change"]) else "orchestrate")
+            payload.setdefault("prompt", user_text.strip())
+            payload.setdefault("project_name", self._guess_project_name(user_text))
+            payload.setdefault("deploy_target", "vercel" if "vercel" in user_text.lower() else "netlify" if "netlify" in user_text.lower() else "")
+            return {"id": "direct-project-operator-llm", "name": tool, "input": payload}
+        if tool == "ide_orchestrator":
+            payload.setdefault("action", "start")
+            payload.setdefault("target", self._guess_ide_target(user_text) or "auto")
+            payload.setdefault("prompt", user_text.strip())
+            payload.setdefault("project_name", self._guess_project_name(user_text))
+            payload.setdefault("wait_for_response", True)
+            return {"id": "direct-ide-orchestrator-llm", "name": tool, "input": payload}
+        if tool == "scaffold_nextjs":
+            payload.setdefault("description", user_text.strip())
+            payload.setdefault("project_name", self._guess_project_name(user_text))
+            payload.setdefault("db_type", "none")
+            payload.setdefault("deploy_target", "none")
+            return {"id": "direct-scaffold-nextjs-llm", "name": tool, "input": payload}
+        if tool == "scaffold_react_app":
+            payload.setdefault("project_name", self._guess_project_name(user_text))
+            payload.setdefault("template", "react")
+            payload.setdefault("package_manager", "npm")
+            return {"id": "direct-scaffold-react-app-llm", "name": tool, "input": payload}
+        if tool == "open_application":
+            app_name = str(payload.get("name_or_path", "")).strip() or self._guess_application_name(user_text)
+            if app_name:
+                return {"id": "direct-open-application-llm", "name": tool, "input": {"name_or_path": app_name}}
+            return None
+        if tool == "bash":
+            command = str(payload.get("command", "")).strip()
+            if command:
+                return {"id": "direct-bash-llm", "name": tool, "input": {"command": command}}
+            return None
+        return None
+
+    def _infer_direct_tool_call(self, user_text: str, skills: List[Any], model_config: dict) -> Dict[str, Any] | None:
         lowered = (user_text or "").strip().lower()
         if not lowered:
             return None
+        llm_choice = self._llm_direct_tool_call(user_text, skills, model_config)
+        if llm_choice is not None:
+            return llm_choice
 
-        wants_build = any(term in lowered for term in ["build", "create", "make", "scaffold"])
         requested_ide = self._guess_ide_target(user_text)
+        wants_build = any(term in lowered for term in ["build", "create", "make", "scaffold"])
         if requested_ide and wants_build and self._find_skill(skills, "ide_orchestrator"):
             return {
                 "id": "direct-ide-orchestrator",
@@ -581,7 +691,7 @@ class IMOSRuntime:
             tools.extend(self.mcp_runtime.tool_definitions())
 
         memory_blocks = self.memory_store.context_blocks(session_id=session_id, query=user_text)
-        system_prompt = self._system_prompt(workspace, memory_blocks, skills)
+        system_prompt = self._system_prompt(workspace, memory_blocks, skills, model_config)
         messages = self._trim_messages(
             self._serialize_messages(system_prompt, session_history, user_text)
         )
@@ -590,7 +700,7 @@ class IMOSRuntime:
         if self.task_manager and actionable:
             task = self.task_manager.create(user_text, session_id)
 
-        direct_tool_call = self._infer_direct_tool_call(user_text, skills) if actionable else None
+        direct_tool_call = self._infer_direct_tool_call(user_text, skills, model_config) if actionable else None
         if direct_tool_call is not None:
             tool_outcomes = self._execute_tool_calls(
                 skills, [direct_tool_call], "direct", messages, workspace, session_id, model_config
@@ -637,7 +747,7 @@ class IMOSRuntime:
 
             if not tool_calls:
                 if actionable:
-                    direct_tool_call = self._infer_direct_tool_call(user_text, skills)
+                    direct_tool_call = self._infer_direct_tool_call(user_text, skills, model_config)
                     if direct_tool_call is not None:
                         messages.append({"role": "assistant", "content": response_text})
                         tool_outcomes.extend(

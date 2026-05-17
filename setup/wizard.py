@@ -259,7 +259,16 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
             break
         print()
 
-    _step_title("Step 4  Voice Output")
+    _step_title("Step 4  LLM Behavior")
+    existing_system_prompt = str(cfg.get("system_prompt", "")).strip()
+    print(f"{WHITE}Optional: add a custom system prompt for your preferred LLM behavior.{RESET}")
+    print(f"{WHITE}This is appended after the built-in IMOS system prompt and will apply across providers.{RESET}")
+    print()
+    custom_system_prompt = _ask("Custom system prompt (Enter to keep empty): ", default=existing_system_prompt)
+    cfg["system_prompt"] = custom_system_prompt.strip()
+    _write_env(env_file, {"IMOS_SYSTEM_PROMPT": custom_system_prompt.strip()})
+
+    _step_title("Step 5  Voice Output")
     print(f"{WHITE}Choose voice provider:{RESET}")
     print()
     print(f"{WHITE}1. Google Gemini TTS  {DIM}(gemini-2.0-flash-preview-tts){RESET}")
@@ -282,14 +291,14 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
         },
     )
 
-    _step_title("Step 5  Wake Word")
+    _step_title("Step 6  Wake Word")
     wake_word = _ask("Wake word (default: IMOS, Enter to keep): ", default="IMOS")
     _write_env(env_file, {"WAKE_WORD": wake_word})
     cfg.setdefault("listen", {})
     cfg["listen"]["wake_word"] = wake_word
     cfg["listen"].setdefault("enabled", False)
 
-    _step_title("Step 6  Integrations")
+    _step_title("Step 7  Integrations")
     smtp_host = _ask("Email SMTP host     (Enter to skip): ")
     smtp_port = _ask("Email SMTP port     (Enter to skip): ")
     smtp_user = _ask("Email address       (Enter to skip): ")
@@ -351,7 +360,7 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
             result = open_connection_signin(key)
             print(f"{WHITE}{result.get('post_login_hint', result.get('error', 'Opened browser flow.'))}{RESET}")
 
-    _step_title("Step 7  Auto-start")
+    _step_title("Step 8  Auto-start")
     autostart_enabled = _yes_no("Start IMOS on Windows boot? (yes/no): ")
     if autostart_enabled:
         enable_autostart(project_root)
@@ -370,7 +379,7 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
     save_config(cfg)
     _setup_flag_path(cfg["workspace"]).write_text("complete\n", encoding="utf-8")
 
-    _step_title("Step 8  Complete")
+    _step_title("Step 9  Complete")
     print(f"{WHITE}IMOS configured successfully.{RESET}")
     print()
     summary_provider = str((default_provider_payload or {}).get("name", "") or provider_label)
@@ -386,6 +395,7 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
         "provider": str((default_provider_payload or {}).get("type", "") or provider),
         "voice_provider": voice_provider,
         "wake_word": wake_word,
+        "system_prompt": custom_system_prompt.strip(),
         "autostart": autostart_enabled,
         "forced": forced,
     }

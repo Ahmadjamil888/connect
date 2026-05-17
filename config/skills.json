@@ -54,5 +54,10 @@
   "world_health": true,
   "write_file": true,
   "vision": true,
-  "whatsapp": true
+  "whatsapp": true,
+  "connection_auth": true,
+  "context_transfer": true,
+  "ide_automation": true,
+  "outreach_manager": true,
+  "ide_orchestrator": true
 }

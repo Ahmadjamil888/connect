@@ -228,7 +228,7 @@ WELCOME_ART = [
 ]
 
 HELP = """
-  [bold bright_white]IMOS Shell Commands[/bold bright_white]
+  [bold bright_white]Slash Commands[/bold bright_white]
 
   [#ff6b00]/setup[/#ff6b00]                    re-run the setup wizard
   [#ff6b00]/status[/#ff6b00]                   show IMOS runtime status
@@ -296,31 +296,6 @@ HELP = """
   [#ff6b00]/clear[/#ff6b00]                    clear screen
   [#ff6b00]/help[/#ff6b00]                     show this
   [#ff6b00]/exit[/#ff6b00]                     quit
-
-  [bold bright_white]IMOS CLI Commands[/bold bright_white]
-
-  [#ff6b00]imos[/#ff6b00]                               start IMOS shell
-  [#ff6b00]imos shell[/#ff6b00] [dim]--session main[/dim]        open a named shell session
-  [#ff6b00]imos shell[/#ff6b00] [dim]--beast[/dim]                open shell with multi-adapter orchestration
-  [#ff6b00]imos run[/#ff6b00] [dim]"<prompt>"[/dim]                run one orchestration task
-  [#ff6b00]imos run[/#ff6b00] [dim]"<prompt>" --beast[/dim]        run across configured model and IDE adapters
-  [#ff6b00]imos run[/#ff6b00] [dim]"<prompt>" --adapters a,b[/dim] target specific adapters
-  [#ff6b00]imos dashboard[/#ff6b00]                     open IMOS dashboard
-  [#ff6b00]imos adapters list[/#ff6b00]                 list adapters
-  [#ff6b00]imos adapters add[/#ff6b00] [dim]<type> <name>[/dim]
-  [#ff6b00]imos adapters test[/#ff6b00] [dim]<name>[/dim]
-  [#ff6b00]imos adapters remove[/#ff6b00] [dim]<name>[/dim]
-  [#ff6b00]imos sessions list[/#ff6b00]                 list runtime sessions
-  [#ff6b00]imos sessions history[/#ff6b00] [dim]<id>[/dim]         show session transcript
-  [#ff6b00]imos sessions status[/#ff6b00] [dim]<id>[/dim]          show session status
-  [#ff6b00]imos sessions export[/#ff6b00] [dim]<id>[/dim]          export parent and worker session graph
-  [#ff6b00]imos history[/#ff6b00]                       show recent history
-  [#ff6b00]imos status[/#ff6b00]                        show runtime status
-  [#ff6b00]imos uninstall[/#ff6b00]                     remove launcher and editable install
-  [#ff6b00]imos mcp install[/#ff6b00]                   install editor bridge
-  [#ff6b00]imos wake install[/#ff6b00]                  install wake listener
-  [#ff6b00]imos wake status[/#ff6b00]                   show wake listener status
-  [#ff6b00]imos palette set[/#ff6b00] [dim]--shell <name> --dashboard <name>[/dim]
 """
 
 
@@ -477,59 +452,88 @@ def _print_assistant_output(text: object) -> None:
 def _help_output() -> str:
     sections = [
         (
-            "RUNTIME",
+            "SESSIONS AND RUNTIME",
             [
-                ("imos", "Start server + dashboard + shell"),
-                ("imos --setup", "Run first-time setup wizard"),
-                ("imos --shell", "Interactive shell only"),
-                ("imos --server", "Server only"),
-                ("imos --status", "Show system status"),
-            ],
-        ),
-        (
-            "SESSIONS",
-            [
+                ("/setup", "Re-run the setup wizard"),
+                ("/status", "Show IMOS runtime status"),
+                ("/history", "Show recent IMOS run history"),
+                ("/adapters", "Show connected adapter registry"),
+                ("/sessions", "List local runtime sessions"),
                 ("/session new <name>", "Create and switch to session"),
                 ("/session list", "List all sessions"),
                 ("/session resume <name>", "Resume a session"),
                 ("/session save", "Save current session"),
                 ("/session export <name>", "Export session to file"),
+                ("/session transfer <provider> [name]", "Move session to another provider"),
+                ("/tasks", "List long-running task records"),
+                ("/workflows", "List YAML workflows"),
+                ("/runflow <name>", "Run a workflow by name"),
             ],
         ),
         (
-            "ROUTING",
+            "MODELS AND ROUTING",
             [
+                ("/model", "Show current model config"),
+                ("/provider", "Show active provider and model"),
+                ("/models", "List all providers and status"),
+                ("/use <provider>", "Switch provider interactively"),
+                ("/setmodel <model>", "Set model for current provider"),
+                ("/pickmodel", "Pick any provider/model pair interactively"),
+                ("/setkey <provider> <key>", "Set API key directly"),
+                ("/settoken <svc> <tok>", "Set deploy token"),
                 ("/route set <type> <provider>", "Set routing rule"),
                 ("/route list", "Show all routing rules"),
+                ("/integrations", "Show configured integration keys"),
             ],
         ),
         (
-            "VOICE",
+            "IDE AND MCP",
             [
+                ("/mcp", "List MCP servers and discovered tools"),
+                ("/mcp serve", "Start MCP server"),
+                ("/mcp install", "Write Cursor/Windsurf MCP config"),
+                ("/claude-code <prompt>", "Send task to Claude Code CLI"),
+                ("/claude-code", "Open Claude Code interactive shell"),
+                ("/openai <prompt>", "Send one prompt directly to OpenAI"),
+                ("/codex <prompt>", "Alias for /openai"),
+                ("/cursor", "Open workspace in Cursor with MCP setup"),
+                ("/ide <prompt>", "Open the best available IDE"),
+                ("/vscode", "Open workspace in VS Code"),
+                ("/windsurf <prompt>", "Send one task to Windsurf CLI"),
+                ("/aider <prompt>", "Send one task to aider CLI"),
+                ("/continue <prompt>", "Send one task to Continue CLI"),
+                ("/gemini <prompt>", "Send one prompt directly to Gemini"),
+            ],
+        ),
+        (
+            "COMMUNICATION AND PUBLISHING",
+            [
+                ("/email <to>|<subject>|<body>", "Send email through SMTP env vars"),
+                ("/gmail status|signin|inbox|search|read|send|reply", "Run Gmail actions"),
+                ("/outreach list|create|run|preview", "Manage outreach campaigns"),
+                ("/whatsapp <contact>|<message>", "Best-effort desktop/web handoff"),
+                ("/telegram <contact>|<message>", "Best-effort desktop/web handoff"),
+                ("/v0 <prompt>", "Open v0.dev with the prompt"),
+                ("/lovable <prompt>", "Open lovable.dev with the prompt"),
+                ("/bolt <prompt>", "Open bolt.new with the prompt"),
+                ("/publish [vercel|netlify]", "Publish current project using active context"),
+            ],
+        ),
+        (
+            "VOICE AND CONTACTS",
+            [
+                ("/contact add <name> <number>", "Add contact"),
+                ("/contact list", "List contacts"),
+                ("/contact remove <name>", "Remove contact"),
                 ("/listen start", "Start wake word listener"),
                 ("/listen stop", "Stop listener"),
                 ("/listen status", "Show listener status"),
                 ("/voice test", "Speak test phrase"),
                 ("/voice set <name>", "Change voice"),
-                ("/voice off / on", "Mute toggle"),
-            ],
-        ),
-        (
-            "INTEGRATIONS",
-            [
-                ("/ide", "Open project in best available IDE"),
-                ("/mcp serve", "Start MCP server"),
-                ("/mcp install", "Write Cursor/Windsurf MCP config"),
-                ("/claude-code <prompt>", "Send task to Claude Code CLI"),
-                ("/codex <prompt>", "Send task to OpenAI"),
-            ],
-        ),
-        (
-            "CONTACTS",
-            [
-                ("/contact add <name> <number>", "Add contact"),
-                ("/contact list", "List contacts"),
-                ("/contact remove <name>", "Remove contact"),
+                ("/voice off", "Mute voice output"),
+                ("/voice on", "Enable voice output"),
+                ("/voice status", "Show voice settings"),
+                ("/wake status|start|stop|install|uninstall", "Manage wake listener"),
             ],
         ),
         (
@@ -538,26 +542,31 @@ def _help_output() -> str:
                 ("/dashboard", "Open dashboard in browser"),
                 ("/dashboard stop", "Stop dashboard server"),
                 ("/doctor", "Show full system health"),
+                ("/palette list", "List shell and dashboard palettes"),
+                ("/palette set shell <name>", "Change shell palette"),
+                ("/palette set dashboard <name>", "Change dashboard palette"),
                 ("/autostart enable", "Enable Windows autostart"),
                 ("/autostart disable", "Disable autostart"),
-                ("/consent", "Re-show consent screen"),
-            ],
-        ),
-        (
-            "NATURAL LANGUAGE (no slash needed)",
-            [
-                ('open [app]', "Open any application"),
-                ('message [contact] [text]', "Send WhatsApp message"),
-                ('email [person] about [topic]', "Draft and send email"),
-                ('create folder [name]', "Create folder"),
-                ('screenshot', "Take screenshot"),
-                ('shut down / restart', "System power commands"),
-                ('build [project]', "Scaffold + open in IDE"),
-                ('find clients in [niche]', "Prospect and outreach"),
+                ("/autostart status", "Show autostart status"),
+                ("/terminal", "List managed terminal sessions"),
+                ("/processes", "List managed background processes"),
+                ("/audit", "Show recent audit log entries"),
+                ("/memory <query>", "Search local memory index"),
+                ("/git status|branch|commit|diff|log", "Run managed git actions"),
+                ("/config get <path>", "Inspect YAML config"),
+                ("/config set <path> <json>", "Update YAML config path"),
+                ("/workspace", "Show workspace path"),
+                ("/cd <path>", "Change workspace"),
+                ("/imos <cli args>", "Run IMOS CLI command from this shell"),
+                ("/login", "Run Clerk login flow"),
+                ("/logout", "Clear Clerk session"),
+                ("/clear", "Clear screen"),
+                ("/help", "Show this slash-command list"),
+                ("/exit", "Quit"),
             ],
         ),
     ]
-    lines = [f"{ORANGE}IMOS  Intelligent Machine Operating System{RESET}", ""]
+    lines = [f"{ORANGE}IMOS Slash Commands{RESET}", ""]
     for title, rows in sections:
         lines.append(f"{ORANGE}{title}{RESET}")
         for command, description in rows:

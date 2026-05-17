@@ -1,6 +1,21 @@
 # IMOS
 
-IMOS, the Intelligent Multi-agent Operating System, is a universal orchestration runtime layered on top of this assistant codebase. One prompt can be decomposed into multiple subtasks, routed across models, IDEs, messaging apps, Git providers, browser automation, payments, meeting platforms, OS tooling, and generic REST services, then synthesized back into one response.
+IMOS has evolved into a controlled operator system for teams that need AI sessions, routing, dashboard visibility, and real execution to stay aligned from prompt to delivery across models, IDEs, apps, browsers, and the local machine.
+
+That stack breaks the moment work spans multiple tools, people, long-running tasks, and machine-level actions. IMOS is the coordination layer that keeps context persistent, execution visible, permissions explicit, and handoffs operational instead of manual.
+
+One prompt can be decomposed into multiple subtasks, routed across models, IDEs, messaging apps, Git providers, browser automation, payments, meeting platforms, OS tooling, and generic REST services, then synthesized back into one response under one shared runtime state.
+
+## Practical example
+
+One launch, multiple models, IDEs, apps, browser actions, and local machine controls, all under one shared operational state:
+
+1. A product lead starts an IMOS session with a shipping goal.
+2. The router sends code generation to one model, research to another, and editor work to the best available IDE adapter.
+3. Browser automation logs into a service, collects live state, and returns it to the same session context.
+4. Local machine controls open apps, manage files, run commands, or capture screenshots with explicit permission boundaries.
+5. Long-running tasks remain visible in the dashboard with audit history, handoff state, and resumable context.
+6. Final output lands back in one operational thread instead of being split across disconnected tools.
 
 ## How IMOS works
 

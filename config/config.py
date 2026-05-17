@@ -144,6 +144,14 @@ def _env_value(*keys: str) -> str:
     return ""
 
 
+def get_custom_system_prompt() -> str:
+    cfg = load_config()
+    configured = str(cfg.get("system_prompt", "") or "").strip()
+    if configured:
+        return configured
+    return _env_value("IMOS_SYSTEM_PROMPT")
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     try:
         if path.exists():
@@ -244,11 +252,18 @@ def resolve_runtime_state_root(workspace: str | Path | None = None) -> Path:
 
 def _env_default_model() -> dict[str, Any]:
     migrated_default = model_manager.get_default()
+    custom_system_prompt = get_custom_system_prompt()
     if migrated_default and not migrated_default.get("no_provider_configured"):
-        return dict(migrated_default)
+        payload = dict(migrated_default)
+        if custom_system_prompt:
+            payload["custom_system_prompt"] = custom_system_prompt
+        return payload
     provider = os.getenv("AI_PROVIDER", "").strip().lower()
     if not provider:
-        return dict(migrated_default or {})
+        payload = dict(migrated_default or {})
+        if custom_system_prompt:
+            payload["custom_system_prompt"] = custom_system_prompt
+        return payload
     defaults = dict(PROVIDER_DEFAULTS.get(provider, PROVIDER_DEFAULTS["anthropic"]))
     defaults["provider"] = provider
     defaults["type"] = provider
@@ -265,6 +280,8 @@ def _env_default_model() -> dict[str, Any]:
     }
     if provider in key_map:
         defaults["api_key"] = key_map[provider]
+    if custom_system_prompt:
+        defaults["custom_system_prompt"] = custom_system_prompt
     return defaults
 
 
@@ -291,11 +308,19 @@ def _provider_payload_is_configured(model: dict[str, Any] | None) -> bool:
     return bool(str(model.get("api_key", "")).strip())
 
 
+def is_provider_payload_configured(model: dict[str, Any] | None) -> bool:
+    return _provider_payload_is_configured(model)
+
+
 def get_model_config() -> dict[str, Any]:
     migrated_default = model_manager.get_default()
-    if migrated_default and not migrated_default.get("no_provider_configured"):
-        return dict(migrated_default)
     cfg = load_config()
+    custom_system_prompt = str(cfg.get("system_prompt", "") or _env_value("IMOS_SYSTEM_PROMPT")).strip()
+    if migrated_default and not migrated_default.get("no_provider_configured"):
+        payload = dict(migrated_default)
+        if custom_system_prompt:
+            payload["custom_system_prompt"] = custom_system_prompt
+        return payload
     model = cfg.get("model", {})
     if model and model.get("provider"):
         provider = str(model["provider"]).strip().lower()
@@ -323,8 +348,13 @@ def get_model_config() -> dict[str, Any]:
             defaults["api_key"] = _env_value("NVIDIA_API_KEY")
         elif provider == "gcp" and not str(defaults.get("project_id", "")).strip():
             defaults["project_id"] = _env_value("GOOGLE_CLOUD_PROJECT", "GCP_PROJECT_ID")
+        if custom_system_prompt:
+            defaults["custom_system_prompt"] = custom_system_prompt
         return defaults
-    return _env_default_model()
+    payload = _env_default_model()
+    if custom_system_prompt:
+        payload["custom_system_prompt"] = custom_system_prompt
+    return payload
 
 
 def save_model_config(model_cfg: dict[str, Any]):

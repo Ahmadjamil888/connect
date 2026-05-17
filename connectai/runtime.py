@@ -80,7 +80,7 @@ class ConnectAIRuntime:
             plan.append({"step": "Verify the result with real filesystem or process evidence", "status": "pending"})
         return plan
 
-    def _system_prompt(self, workspace: str, memory_blocks: List[str], skills: List[Any]) -> str:
+    def _system_prompt(self, workspace: str, memory_blocks: List[str], skills: List[Any], model_config: dict | None = None) -> str:
         skill_lines = []
         for skill in skills:
             skill_lines.append(f"- {skill.name}: {skill.description}")
@@ -122,6 +122,9 @@ class ConnectAIRuntime:
             f"Workspace: {workspace}",
             "Available skills:\n" + "\n".join(skill_lines),
         ]
+        custom_system_prompt = str((model_config or {}).get("custom_system_prompt", "") or "").strip()
+        if custom_system_prompt:
+            sections.append("User-configured LLM behavior:\n" + custom_system_prompt)
         if memory_blocks:
             sections.append("Memory context:\n" + "\n\n".join(memory_blocks))
         return "\n\n".join(sections)
@@ -702,7 +705,7 @@ class ConnectAIRuntime:
         plan = self._make_plan(user_text, skills) if actionable else []
         task = self.task_manager.create(user_text, session_id, plan=plan) if self.task_manager and actionable else None
         memory_blocks = self.memory_store.context_blocks(session_id=session_id, query=user_text)
-        system_prompt = self._system_prompt(workspace, memory_blocks, skills)
+        system_prompt = self._system_prompt(workspace, memory_blocks, skills, model_config)
         messages = self._trim_messages(self._serialize_messages(system_prompt, session_history, user_text))
         direct_tool_call = self._infer_direct_tool_call(user_text, skills) if actionable else None
         if direct_tool_call is not None:

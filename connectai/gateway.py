@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 from typing import Dict
 
-from config.config import get_model_config, get_provider_defaults
+from config.config import get_model_config, get_provider_defaults, is_provider_payload_configured
 from core import model_manager
 
 from connectai.channels import MessageEnvelope
@@ -95,7 +95,8 @@ class ConnectAIGateway:
             merged = dict(defaults)
             merged["provider"] = provider
             merged["type"] = defaults.get("type", provider)
-            resolved = self._normalize_model_config(merged)
+            if is_provider_payload_configured(merged):
+                resolved = self._normalize_model_config(merged)
         return resolved, task_type
 
     def handle_with_meta(self, envelope: MessageEnvelope, workspace: str, model_config: dict, on_text_delta=None) -> Dict[str, object]:
