@@ -95,12 +95,43 @@ def scaffold_plain_html(project_name: str, root: Path) -> Path:
 def scaffold_minimal_react(project_name: str, root: Path) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     (root / "src").mkdir(parents=True, exist_ok=True)
-    (root / "package.json").write_text('{"name":"%s"}' % project_name, encoding="utf-8")
+    (root / "package.json").write_text(
+        (
+            '{\n'
+            f'  "name": "{project_name}",\n'
+            '  "private": true,\n'
+            '  "version": "0.0.0",\n'
+            '  "type": "module",\n'
+            '  "scripts": {\n'
+            '    "dev": "vite",\n'
+            '    "build": "vite build",\n'
+            '    "preview": "vite preview"\n'
+            '  }\n'
+            '}\n'
+        ),
+        encoding="utf-8",
+    )
     (root / "src" / "App.jsx").write_text(
         "export default function App() { return <div>Demo</div>; }\n",
         encoding="utf-8",
     )
-    (root / "index.html").write_text("<!doctype html><html><body><div id='root'></div></body></html>\n", encoding="utf-8")
+    (root / "src" / "main.jsx").write_text(
+        (
+            "import React from 'react'\n"
+            "import ReactDOM from 'react-dom/client'\n"
+            "import App from './App'\n\n"
+            "ReactDOM.createRoot(document.getElementById('root')).render(\n"
+            "  <React.StrictMode>\n"
+            "    <App />\n"
+            "  </React.StrictMode>,\n"
+            ")\n"
+        ),
+        encoding="utf-8",
+    )
+    (root / "index.html").write_text(
+        "<!doctype html><html><body><div id='root'></div><script type='module' src='/src/main.jsx'></script></body></html>\n",
+        encoding="utf-8",
+    )
     return root
 
 
@@ -164,19 +195,14 @@ def run(inputs, *, workspace: str, **_kwargs):
     npx_executable = shutil.which("npx") or shutil.which("npx.cmd") or "npx"
     create_command = [
         npx_executable,
-        "create-next-app@latest",
+        "create-vite@latest",
         project_name,
-        "--yes",
-        "--typescript",
-        "--tailwind",
-        "--eslint",
-        "--app",
-        "--no-git",
-        "--no-import-alias",
+        "--template",
+        "react",
     ]
     event_bus.publish(
         "tool_progress",
-        message=f"Running: npx create-next-app@latest {project_name} --yes",
+        message=f"Running: npx create-vite@latest {project_name} --template react",
     )
     event_bus.publish(
         "tool_progress",
@@ -184,19 +210,19 @@ def run(inputs, *, workspace: str, **_kwargs):
     )
     create_returncode, create_output, create_error = run_with_output(create_command, cwd=str(root), timeout=300)
     if create_returncode != 0:
-        return _fallback_result(project_name, target, create_error or create_output or "create-next-app failed")
+        return _fallback_result(project_name, target, create_error or create_output or "create-vite failed")
 
     package_json = target / "package.json"
     src_dir = target / "src"
-    app_dir = target / "app"
     index_html = target / "index.html"
-    app_page = target / "app" / "page.tsx"
-    app_layout = target / "app" / "layout.tsx"
+    main_file = target / "src" / "main.jsx"
+    app_file = target / "src" / "App.jsx"
     verified_files = {
         "package_json": package_json.exists() and package_json.stat().st_size > 0,
-        "src_dir": src_dir.exists() or app_dir.exists(),
-        "app_file": (app_page.exists() and app_page.stat().st_size > 0) or (app_layout.exists() and app_layout.stat().st_size > 0) or src_dir.exists(),
-        "index_html": (index_html.exists() and index_html.stat().st_size > 0) or app_dir.exists(),
+        "src_dir": src_dir.exists(),
+        "app_file": app_file.exists() and app_file.stat().st_size > 0,
+        "index_html": index_html.exists() and index_html.stat().st_size > 0,
+        "main_file": main_file.exists() and main_file.stat().st_size > 0,
     }
     event_bus.publish("tool_progress", message=f"Done  project at {target}")
     event_bus.publish("tool_progress", message="Opening in editor...")

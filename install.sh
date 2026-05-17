@@ -39,7 +39,7 @@ echo -e "${D}    Guided install with loader and staged verification${X}"
 echo -e "${O}  ========================================================${X}"
 echo ""
 
-step "1/7" "Resolving repository source"
+step "1/8" "Resolving repository source"
 if [[ -f "$SCRIPT_DIR/setup.py" && -d "$SCRIPT_DIR/imos" ]]; then
   REPO_DIR="$SCRIPT_DIR"
   ok "Using current repository"
@@ -65,7 +65,7 @@ else
   fi
 fi
 
-step "2/7" "Checking Python runtime"
+step "2/8" "Checking Python runtime"
 if command -v python3 >/dev/null 2>&1; then
   PY="python3"
 elif command -v python >/dev/null 2>&1; then
@@ -75,7 +75,7 @@ else
 fi
 ok "$($PY --version 2>&1)"
 
-step "3/7" "Preparing virtual environment"
+step "3/8" "Preparing virtual environment"
 if [[ ! -d "$REPO_DIR/venv" ]]; then
   progress "Creating virtual environment" "$PY" -m venv "$REPO_DIR/venv"
 else
@@ -84,12 +84,14 @@ fi
 VENV_PY="$REPO_DIR/venv/bin/python"
 [[ -x "$VENV_PY" ]] || fail "Virtual environment is missing"
 
-step "4/7" "Installing IMOS runtime"
+step "4/8" "Installing IMOS runtime"
 progress "Upgrading pip" "$VENV_PY" -m pip install --upgrade pip
 progress "Installing project dependencies" "$VENV_PY" -m pip install -r "$REPO_DIR/requirements.txt"
 progress "Installing IMOS command" "$VENV_PY" -m pip install -e "$REPO_DIR"
+step "5/8" "Installing Playwright browser runtime"
+progress "Installing Chromium for Playwright" "$VENV_PY" -m playwright install chromium
 
-step "5/7" "Preparing local configuration"
+step "6/8" "Preparing local configuration"
 if [[ ! -f "$REPO_DIR/.env" ]]; then
   if [[ -f "$REPO_DIR/.env.example" ]]; then
     cp "$REPO_DIR/.env.example" "$REPO_DIR/.env"
@@ -104,7 +106,7 @@ fi
 mkdir -p "$HOME/.imos"
 progress "Initializing IMOS home" "$VENV_PY" -c "from imos.config import ensure_default_files; ensure_default_files()"
 
-step "6/7" "Installing global launcher"
+step "7/8" "Installing global launcher"
 BIN_DIR="$HOME/.local/bin"
 mkdir -p "$BIN_DIR"
 cat > "$BIN_DIR/imos" <<EOF
@@ -124,7 +126,7 @@ case ":$PATH:" in
     ;;
 esac
 
-step "7/7" "Running guided setup checks"
+step "8/8" "Running guided setup checks"
 progress "Installing editor bridge config" "$VENV_PY" -m imos.cli mcp install
 progress "Installing wake listener" "$VENV_PY" -m imos.cli wake install
 progress "Checking runtime status" "$VENV_PY" -m imos.cli status

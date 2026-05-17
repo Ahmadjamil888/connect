@@ -1,0 +1,7 @@
+{
+  "dashboard_port": 8766,
+  "voice_enabled": false,
+  "autostart": {
+    "enabled": false
+  }
+}

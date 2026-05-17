@@ -1,7 +1,6 @@
 import json
 import os
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, Dict, List
 
 from dotenv import load_dotenv
@@ -19,6 +18,15 @@ TOOL_FALLBACK_MODEL = "llama-3.3-70b-versatile"
 SYSTEM_PROMPT = """You are NEXUS, an autonomous AI operator running on Windows.
 
 You control a real PC. Every action you take has real consequences.
+
+RULES:
+- You have access to real tools via function calling. Use them.
+- NEVER write tool call syntax in plain text like `run_shell(...)`.
+- NEVER generate fake JSON output pretending to be a tool result.
+- NEVER describe what you are about to do and then not do it.
+- When you need to run a command: call the run_shell tool. Wait for the real result. Report what actually happened.
+- If a tool returns an error, report the real error. Do not retry silently.
+- Do not ask the user which platform to deploy to AFTER starting execution. Ask BEFORE.
 
 YOUR DECISION PROCESS (follow this every single time):
 1. Look at what is currently on screen
@@ -42,20 +50,6 @@ Think about WHY it failed and try a different method.
 COMPLETION RULE:
 When the goal is fully done and verified, output exactly: GOAL_COMPLETE
 """
-
-
-def _build_synthetic_response(payload: Dict[str, Any]):
-    if payload.get("status") == "GOAL_COMPLETE":
-        message = SimpleNamespace(content="GOAL_COMPLETE", tool_calls=[])
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
-
-    tool_name = str(payload.get("tool_name", "")).strip()
-    tool_args = payload.get("tool_args", {})
-    tool_call = SimpleNamespace(
-        function=SimpleNamespace(name=tool_name, arguments=json.dumps(tool_args))
-    )
-    message = SimpleNamespace(content="", tool_calls=[tool_call])
-    return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
 def think(goal: str, screen_b64: str, history: List[Dict[str, Any]], tools: List[dict]):
@@ -107,34 +101,4 @@ def think(goal: str, screen_b64: str, history: List[Dict[str, Any]], tools: List
             last_error = exc
             continue
 
-    fallback_messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": (
-                f"Current Goal: {goal}\n\nRecent Actions:\n{json.dumps(history[-8:], indent=2)}\n\n"
-                "Return strict JSON only.\n"
-                'If complete: {"status":"GOAL_COMPLETE"}\n'
-                'Otherwise: {"tool_name":"one_of_the_available_tools","tool_args":{}}\n'
-                f"Available tools: {[tool['function']['name'] for tool in tools]}\n"
-                f"Environment: {json.dumps(environment_hint)}"
-            ),
-        },
-    ]
-    for model_name in [TOOL_FALLBACK_MODEL, FAST_MODEL]:
-        try:
-            fallback_response = client.chat.completions.create(
-                model=model_name,
-                messages=fallback_messages,
-                max_tokens=256,
-                temperature=0.1,
-            )
-            content = fallback_response.choices[0].message.content or ""
-            start = content.find("{")
-            end = content.rfind("}")
-            payload = json.loads(content[start : end + 1])
-            return _build_synthetic_response(payload)
-        except Exception as exc:
-            last_error = exc
-            continue
     raise RuntimeError(str(last_error) if last_error else "No available model could decide the next action.")

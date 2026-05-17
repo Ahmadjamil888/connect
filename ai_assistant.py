@@ -577,7 +577,7 @@ def _help_output() -> str:
 
 def _workspace_root_from_cfg(cfg: dict | None = None) -> Path:
     cfg = cfg or load_config()
-    return Path(cfg.get("workspace", str(Path.home() / "imos_workspace")))
+    return Path(cfg.get("workspace", str(default_workspace_path())))
 
 
 def _read_env_value(path: Path, key: str) -> str:
@@ -1615,6 +1615,7 @@ def build_gateway(workspace: str):
     import asyncio
     from imos.orchestrator import IMOSOrchestrator
     from imos.registry import AdapterRegistry
+    from imos.runtime import IMOSRuntime
 
     workspace_path = Path(workspace)
     cfg = load_config()
@@ -1643,7 +1644,7 @@ def build_gateway(workspace: str):
             continue
     skill_registry = SkillRegistry(workspace_path, bundled_root=Path.cwd() / "skills")
     workflow_registry = WorkflowRegistry(workspace_path)
-    runtime = ConnectAIRuntime(
+    runtime = IMOSRuntime(
         skill_registry,
         memory_store,
         shell_runner=shell_runner,
@@ -1652,8 +1653,6 @@ def build_gateway(workspace: str):
         task_manager=task_manager,
         cost_tracker=cost_tracker,
         mcp_runtime=mcp_runtime,
-        event_bus=event_bus,
-        session_manager=session_manager,
     )
     runtime.consent_manager = consent_manager
     registry = AdapterRegistry()
@@ -3256,7 +3255,7 @@ def run_setup_wizard():
     console.print(Rule("  [dim]Step 6 of 6    Workspace[/dim]", style="dim"))
     console.print("  [dim]Default folder where IMOS reads and writes files.[/dim]\n")
 
-    default_ws = str(Path.home() / "imos_workspace")
+    default_ws = str(default_workspace_path())
     workspace = _text("Workspace path", default=default_ws)
     Path(workspace).mkdir(parents=True, exist_ok=True)
     cfg["workspace"] = workspace

@@ -1,3 +1,4 @@
+import json
 from typing import Any, Callable, Dict, List
 
 
@@ -37,14 +38,13 @@ class ToolRegistry:
     def register(self, name: str, description: str, parameters: dict, fn: Callable):
         self._tools[name] = Tool(name, description, parameters, fn)
 
-    def execute(self, name: str, args: dict) -> str:
+    def execute(self, name: str, args: dict) -> Any:
         if name not in self._tools:
-            return f"Unknown tool: {name}. Available: {list(self._tools.keys())}"
+            return {"status": "error", "error": f"Unknown tool: {name}. Available: {list(self._tools.keys())}"}
         try:
-            result = self._tools[name].fn(**args)
-            return str(result) if result is not None else "Done"
+            return self._tools[name].fn(**args)
         except Exception as exc:
-            return f"Tool error ({name}): {exc}"
+            return {"status": "error", "error": f"Tool error ({name}): {exc}"}
 
     def get_tool_definitions(self) -> List[dict]:
         return [tool.to_groq_definition() for tool in self._tools.values()]
@@ -56,7 +56,6 @@ class ToolRegistry:
 def build_registry() -> ToolRegistry:
     from core import vision
     from tools import browser, computer_control, filesystem, pc_manager, research, screen_control, shell
-    from tools.whatsapp import send_whatsapp
     from skills.computer_control import handler as computer_control_handler
     from skills.universal_runtime import handler as universal_runtime_handler
     from skills.vibe_coder import handler as vibe_coder_handler
@@ -125,11 +124,14 @@ def build_registry() -> ToolRegistry:
         {"pattern": {"type": "string", "required": True}, "directory": {"type": "string"}},
         filesystem.search_files,
     )
+    shell_schema = {"command": {"type": "string", "required": True}, "cwd": {"type": "string"}, "timeout": {"type": "integer"}}
+    registry.register("run_command", "Execute terminal/CMD command", shell_schema, shell.run)
+    registry.register("run_shell", "Execute a real shell command", shell_schema, shell.run)
     registry.register(
-        "run_command",
-        "Execute terminal/CMD command",
-        {"command": {"type": "string", "required": True}, "cwd": {"type": "string"}, "timeout": {"type": "integer"}},
-        shell.run,
+        "verify_path_exists",
+        "Verify that a filesystem path really exists before reporting success",
+        {"path": {"type": "string", "required": True}},
+        filesystem.verify_path_exists,
     )
     registry.register("list_processes", "List running processes", {"filter_name": {"type": "string"}}, pc_manager.list_processes)
     registry.register("kill_process", "Kill a process by name or PID", {"name": {"type": "string"}, "pid": {"type": "integer"}}, pc_manager.kill_process)
@@ -181,7 +183,7 @@ def build_registry() -> ToolRegistry:
             "contact_name": {"type": "string", "required": True},
             "message": {"type": "string", "required": True},
         },
-        send_whatsapp,
+        lambda contact_name, message: __import__("tools.whatsapp", fromlist=["send_whatsapp"]).send_whatsapp(contact_name, message),
     )
     registry.register("computer_control.click", "Click at screen coordinates", {"x": {"type": "integer", "required": True}, "y": {"type": "integer", "required": True}}, computer_control.click)
     registry.register("computer_control.click_element", "Click an element on screen using an image path", {"image_path": {"type": "string", "required": True}}, computer_control.click_element)

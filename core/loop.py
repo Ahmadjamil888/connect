@@ -1,5 +1,5 @@
 import json
-import time
+import os
 from typing import Any, Dict
 
 from core.brain import think
@@ -30,6 +30,13 @@ def _safe_preview(value: Any, limit: int = 400) -> str:
 
 
 def _result_failed(result: Any) -> bool:
+    if isinstance(result, dict):
+        status = str(result.get("status", "")).lower()
+        if status == "error":
+            return True
+        if "returncode" in result and int(result.get("returncode", 0) or 0) != 0:
+            return True
+        return False
     lowered = str(result).lower()
     error_markers = [
         "tool error",
@@ -106,12 +113,23 @@ def run(goal: str, registry: ToolRegistry, max_steps: int = 50) -> Dict[str, Any
 
             result = registry.execute(tool_name, tool_args)
             success = not _result_failed(result)
+            verification = None
+            if tool_name in {"run_shell", "run_command"} and isinstance(result, dict) and success:
+                candidate_paths = result.get("candidate_paths") or []
+                if candidate_paths:
+                    verification = registry.execute("verify_path_exists", {"path": candidate_paths[0]})
+                    success = success and bool(isinstance(verification, dict) and verification.get("exists"))
+            elif tool_name in {"write_file"} and isinstance(tool_args, dict) and tool_args.get("path"):
+                verification = registry.execute("verify_path_exists", {"path": tool_args["path"]})
+                success = success and bool(isinstance(verification, dict) and verification.get("exists"))
             if success:
                 failed_tools[tool_name] = 0
                 print(f"  Result: {_safe_preview(result)}")
             else:
                 failed_tools[tool_name] = failed_tools.get(tool_name, 0) + 1
                 print(f"  [ERROR] {_safe_preview(result)}")
+            if verification is not None:
+                print(f"  Verify: {_safe_preview(verification)}")
 
             history.append(
                 {
@@ -120,10 +138,9 @@ def run(goal: str, registry: ToolRegistry, max_steps: int = 50) -> Dict[str, Any
                     "tool": tool_name,
                     "args": tool_args,
                     "result": _safe_preview(result, 500),
+                    "verification": _safe_preview(verification, 300) if verification is not None else "",
                     "success": success,
                 }
             )
-
-        time.sleep(0.5)
 
     return {"status": "max_steps_reached", "steps": step, "history": history}

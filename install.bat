@@ -14,7 +14,7 @@ echo    One command, one runtime, one setup flow
 echo  ========================================================
 echo.
 
-call :step 1/7 Resolving repository source
+call :step 1/8 Resolving repository source
 if exist "%SCRIPT_DIR%\setup.py" if exist "%SCRIPT_DIR%\imos" (
     set "REPO_DIR=%SCRIPT_DIR%"
     call :ok Using current repository
@@ -49,7 +49,7 @@ if %errorlevel%==0 (
 )
 
 :resolve_python
-call :step 2/7 Checking Python runtime
+call :step 2/8 Checking Python runtime
 where py >nul 2>nul
 if %errorlevel%==0 (
     set "PY=py -3"
@@ -65,7 +65,7 @@ goto :error
 
 :create_venv
 call :ok Python found
-call :step 3/7 Preparing virtual environment
+call :step 3/8 Preparing virtual environment
 if not exist "%REPO_DIR%\venv\Scripts\python.exe" (
     call :progress Creating virtual environment %PY% -m venv "%REPO_DIR%\venv"
 ) else (
@@ -74,12 +74,14 @@ if not exist "%REPO_DIR%\venv\Scripts\python.exe" (
 set "VENV=%REPO_DIR%\venv\Scripts\python.exe"
 if not exist "%VENV%" goto :error
 
-call :step 4/7 Installing IMOS runtime
+call :step 4/8 Installing IMOS runtime
 call :progress Upgrading pip "%VENV%" -m pip install --upgrade pip
 call :progress Installing project dependencies "%VENV%" -m pip install -r "%REPO_DIR%\requirements.txt"
 call :progress Installing IMOS command "%VENV%" -m pip install -e "%REPO_DIR%"
+call :step 5/8 Installing Playwright browser runtime
+call :progress Installing Chromium for Playwright "%VENV%" -m playwright install chromium
 
-call :step 5/7 Preparing local configuration
+call :step 6/8 Preparing local configuration
 if not exist "%REPO_DIR%\.env" (
     if exist "%REPO_DIR%\.env.example" (
         copy "%REPO_DIR%\.env.example" "%REPO_DIR%\.env" >nul
@@ -94,7 +96,7 @@ if not exist "%REPO_DIR%\.env" (
 if not exist "%USERPROFILE%\.imos" mkdir "%USERPROFILE%\.imos" >nul 2>nul
 call :progress Initializing IMOS home "%VENV%" -c "from imos.config import ensure_default_files; ensure_default_files()"
 
-call :step 6/7 Installing global launcher
+call :step 7/8 Installing global launcher
 set "BIN_DIR=%USERPROFILE%\imos-bin"
 if not exist "%BIN_DIR%" mkdir "%BIN_DIR%" >nul 2>nul
 (
@@ -110,7 +112,7 @@ if errorlevel 1 (
     call :ok Launcher directory already on PATH
 )
 
-call :step 7/7 Running guided setup checks
+call :step 8/8 Running guided setup checks
 call :progress Installing editor bridge config "%VENV%" -m imos.cli mcp install
 call :progress Installing wake listener "%VENV%" -m imos.cli wake install
 call :progress Checking runtime status "%VENV%" -m imos.cli status

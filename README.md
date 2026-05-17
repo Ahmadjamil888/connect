@@ -33,7 +33,7 @@ IMOS is the coordination layer for work that spans multiple tools, people, long-
 
 ## Usage
 
-Run `python main.py [workspace_dir]` and type a goal at the prompt.
+Run `python connect.py` for the new audited real-action REPL, or `python main.py [workspace_dir]` for the older workspace runner.
 
 ## Example goals
 

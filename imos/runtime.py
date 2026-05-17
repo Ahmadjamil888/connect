@@ -630,6 +630,12 @@ class IMOSRuntime:
             for o in outcomes
         )
 
+    def _any_succeeded(self, outcomes: List[Dict[str, Any]]) -> bool:
+        return any(
+            isinstance(o.get("result"), dict) and o["result"].get("ok") is True
+            for o in outcomes
+        )
+
     def _failure_summary(self, outcomes: List[Dict[str, Any]]) -> str:
         lines = []
         for o in outcomes[-4:]:
@@ -775,7 +781,7 @@ class IMOSRuntime:
                 if actionable:
                     if task is not None:
                         self.task_manager.complete(task, "blocked", tool_outcomes)
-                    blocked_text = (
+                    blocked_text = self._verified_summary(tool_outcomes) if tool_outcomes else (
                         "No executable tool action was completed for this request. "
                         "The runtime refused to pretend success. Add or select a real skill for this task, "
                         "or use an explicit executable command such as a shell action or a project scaffold skill."
@@ -790,7 +796,9 @@ class IMOSRuntime:
                     self.task_manager.complete(task, status, tool_outcomes)
 
                 final = response_text
-                if actionable and tool_outcomes and self._looks_like_unverified_plan(response_text):
+                if actionable and tool_outcomes and (
+                    self._looks_like_unverified_plan(response_text) or not self._any_succeeded(tool_outcomes)
+                ):
                     final = self._verified_summary(tool_outcomes)
 
                 if return_meta:
@@ -831,7 +839,9 @@ class IMOSRuntime:
 
         # Max iterations reached
         final_text = response_text or self._verified_summary(tool_outcomes)
-        if actionable and tool_outcomes and self._looks_like_unverified_plan(response_text):
+        if actionable and tool_outcomes and (
+            self._looks_like_unverified_plan(response_text) or not self._any_succeeded(tool_outcomes)
+        ):
             final_text = self._verified_summary(tool_outcomes)
 
         if task is not None:

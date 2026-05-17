@@ -1,4 +1,5 @@
 import shutil
+import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -103,4 +104,14 @@ def move_file(src: str, dst: str) -> str:
         return f"Moved {source} -> {dest}"
     except Exception as exc:
         return f"Error moving {source} -> {dest}: {exc}"
+
+
+def verify_path_exists(path: str) -> Dict[str, Any]:
+    resolved = os.path.abspath(str(_resolve(path)))
+    exists = os.path.exists(resolved)
+    return {
+        "exists": exists,
+        "path": resolved,
+        "status": "verified" if exists else "NOT FOUND - tool may have lied",
+    }
 

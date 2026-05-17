@@ -11,7 +11,6 @@ from core.browser_driver import browser
 from core.events import event_bus
 from core.vision import ask_vision, ask_vision_coordinates
 from tools.computer_control import click, open_app, press_key, screenshot, type_text
-from tools.whatsapp import send_whatsapp
 
 
 def _update_runtime(**changes: Any) -> None:
@@ -98,6 +97,8 @@ class SocialDriver:
         print(f"  Saved '{name}'  '{identifier}'")
 
     def _send_whatsapp(self, contact: str, message: str) -> dict[str, Any]:
+        from tools.whatsapp import send_whatsapp
+
         result = send_whatsapp(contact, message)
         return {"ok": bool(result.get("success")), "platform": "whatsapp", "contact": contact, "message": message, **result}
 

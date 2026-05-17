@@ -59,5 +59,6 @@
   "context_transfer": true,
   "ide_automation": true,
   "outreach_manager": true,
-  "ide_orchestrator": true
+  "ide_orchestrator": true,
+  "project_operator": true
 }

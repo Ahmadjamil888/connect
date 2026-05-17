@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,12 @@ from core import model_manager
 CONFIG_DIR = Path.home() / ".connectai"
 CONFIG_PATH = CONFIG_DIR / "config.yaml"
 LEGACY_CONFIG_PATH = CONFIG_DIR / "config.json"
+
+
+def default_workspace_path() -> Path:
+    if sys.platform.startswith("win"):
+        return Path(r"C:\Users\Admin\connectai_workspace")
+    return Path.home() / "connectai_workspace"
 
 
 def _fallback_paths() -> tuple[Path, Path, Path]:
@@ -230,7 +237,7 @@ def resolve_runtime_state_root(workspace: str | Path | None = None) -> Path:
         if resolved is not None:
             return resolved
 
-    workspace_root = Path(workspace) if workspace else Path(cfg.get("workspace", str(Path.home() / "imos_workspace")))
+    workspace_root = Path(workspace) if workspace else Path(cfg.get("workspace", str(default_workspace_path())))
     candidates = [
         workspace_root / ".connectai",
         Path(os.getenv("APPDATA", str(Path.home() / "AppData" / "Roaming"))) / "connectai",
