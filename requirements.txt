@@ -1,97 +1,10 @@
-# Existing runtime
-anthropic>=0.40.0
-openai>=1.30.0
-groq>=0.11.0
-huggingface_hub>=0.30.0
-google-generativeai>=0.7.0
-boto3>=1.34.0
-httpx>=0.27.0
-requests>=2.32.3
-feedparser>=6.0.11
-wikipedia-api>=0.7.1
-pyjokes>=0.8.3
-geopy>=2.4.1
-python-dotenv>=1.0.0
-rich>=13.7.0
-prompt_toolkit>=3.0.43
-InquirerPy>=0.3.4
-PyYAML>=6.0.2
-PyJWT[crypto]>=2.10.1
-yt-dlp>=2025.4.30
-opencv-contrib-python>=4.10.0.84
-numpy>=2.1.1
-flask>=3.0.0
-flask-cors>=4.0.0
-flask-sock>=0.7.0
-mss>=10.0.0
-Pillow>=10.4.0
-keyboard>=0.13.5
-pyttsx3>=2.90
-SpeechRecognition>=3.10.4
-pyaudio>=0.2.14
-faster-whisper>=1.0.3
-sounddevice>=0.4.7
-scipy>=1.14.1
-pystray>=0.19.5
-elevenlabs>=1.8.0
-GitPython>=3.1.43
-
-# Model adapters
-openai>=1.0.0
-anthropic>=0.25.0
-google-generativeai>=0.5.0
-groq>=0.5.0
-cohere>=5.0.0
-mistralai>=0.4.0
-
-# IDE adapters
-pynvim>=0.5.0
-websockets>=12.0
-
-# Messaging adapters
-slack_sdk>=3.27.0
-discord.py>=2.3.0
-python-telegram-bot>=21.0
-twilio>=8.0.0
-google-auth>=2.0.0
-google-auth-oauthlib>=1.0.0
-google-api-python-client>=2.0.0
-msal>=1.0.0
-matrix-nio>=0.21.0
-
-# VCS adapters
-PyGithub>=2.0.0
-python-gitlab>=4.0.0
-gitpython>=3.1.0
-
-# Web/app adapters
-# After pip install, run: playwright install chromium
-playwright>=1.44.0
-notion-client>=2.2.0
-pyairtable>=2.0.0
-jira>=3.6.0
-py-trello>=0.19.0
-asana>=5.0.0
-stripe>=8.0.0
-paypal-checkout-serversdk>=1.0.0
-razorpay>=1.4.0
-
-# OS adapters
-pyautogui>=0.9.54
-PyGetWindow>=0.0.9
-paramiko>=3.4.0
-docker>=7.0.0
-watchdog>=4.0.0
-psutil>=5.9.0
-pyperclip>=1.9.0
-
-# Core infrastructure
-asyncio>=3.11
-aiohttp>=3.9.0
-pyyaml>=6.0
-click>=8.1.0
-rich>=13.0.0
-fastapi>=0.111.0
-uvicorn>=0.29.0
-pydantic>=2.0.0
-python-dotenv>=1.0.0
+anthropic
+openai
+groq
+google-generativeai
+requests
+python-dotenv
+playwright
+flask
+flask-socketio
+eventlet
