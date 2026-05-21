@@ -70,6 +70,11 @@ def _step_title(title: str) -> None:
     print()
 
 
+def _print_lines(*lines: str) -> None:
+    for line in lines:
+        print(f"{WHITE}{line}{RESET}")
+
+
 def _ask(prompt: str, default: str = "") -> str:
     value = input(f"{WHITE}{prompt}{RESET}")
     return value.strip() or default
@@ -234,22 +239,30 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
 
     os.system("cls" if os.name == "nt" else "clear")
 
-    _step_title("IMOS  First-time Setup")
+    _step_title("IMOS  Operator Setup")
     _print_logo()
     print()
-    print(f"{WHITE}Welcome. This wizard configures IMOS once.{RESET}")
-    print(f"{DIM}Runtime catalog: {bootstrap.get('services_total', 0)} services · add any model anytime{RESET}")
+    _print_lines(
+        "This setup configures IMOS as your operator runtime.",
+        "You can add more models, tools, and app connections later without rerunning the whole wizard.",
+    )
+    print(f"{DIM}Runtime catalog: {bootstrap.get('services_total', 0)} services available to wire into one runtime{RESET}")
     input(f"{WHITE}Press Enter to continue.{RESET}")
 
-    _step_title("Step 2  PC Control Consent")
-    print(f"{WHITE}IMOS can control your PC: open apps, send messages,{RESET}")
-    print(f"{WHITE}manage files, execute commands, and more.{RESET}")
+    _step_title("Step 1  Surface Consent")
+    _print_lines(
+        "IMOS can operate across shell, files, apps, browser flows, and connected services.",
+        "Approve PC control only if you want IMOS to execute actions instead of only planning them.",
+    )
     print()
     consent_granted = _yes_no("Grant full PC access? (yes/no): ")
     consent_manager.save(consent_granted)
 
-    _step_title("Step 3  AI Model Provider")
-    print(f"{WHITE}Choose your primary AI provider:{RESET}")
+    _step_title("Step 2  Primary Model")
+    _print_lines(
+        "Choose the default model provider for orchestration, reasoning, and tool routing.",
+        "You can add fallback or specialist models after this step.",
+    )
     print()
     model_catalog = list_model_catalog()
     provider_choices = {str(index): item for index, item in enumerate(model_catalog, start=1)}
@@ -327,17 +340,22 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
             default_provider_payload = dict(custom_row)
             model_manager.set_default(custom_row["id"])
 
-    _step_title("Step 4  LLM Behavior")
+    _step_title("Step 3  Shared Prompt")
     existing_system_prompt = str(cfg.get("system_prompt", "")).strip()
-    print(f"{WHITE}Optional: add a custom system prompt for your preferred LLM behavior.{RESET}")
-    print(f"{WHITE}This is appended after the built-in IMOS system prompt and will apply across providers.{RESET}")
+    _print_lines(
+        "Optional: add shared behavior instructions for all connected models.",
+        "This text is appended after the built-in IMOS operator prompt and applies across providers.",
+    )
     print()
     custom_system_prompt = _ask("Custom system prompt (Enter to keep empty): ", default=existing_system_prompt)
     cfg["system_prompt"] = custom_system_prompt.strip()
     _write_env(env_file, {"IMOS_SYSTEM_PROMPT": custom_system_prompt.strip()})
 
-    _step_title("Step 5  Voice Output")
-    print(f"{WHITE}Choose voice provider:{RESET}")
+    _step_title("Step 4  Voice Output")
+    _print_lines(
+        "Choose how IMOS should speak when voice output is enabled.",
+        "Local voice works without external keys. Cloud voices sound better but need credentials.",
+    )
     print()
     print(f"{WHITE}1. Google Gemini TTS  {DIM}(gemini-2.0-flash-preview-tts){RESET}")
     print(f"{WHITE}2. OpenAI TTS         {DIM}(tts-1, voices: alloy/echo/nova/shimmer){RESET}")
@@ -349,7 +367,7 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
     voice_provider, voice_label, voice_name = VOICE_CHOICES[voice_choice]
     voice_key = ""
     if voice_choice in {"1", "2"}:
-        voice_key = _ask("Enter API key (Enter to reuse Step 3 key): ", default=api_key)
+        voice_key = _ask("Enter API key (Enter to reuse Step 2 key): ", default=api_key)
     _write_env(
         env_file,
         {
@@ -359,21 +377,24 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
         },
     )
 
-    _step_title("Step 6  Wake Word")
+    _step_title("Step 5  Wake Word")
     wake_word = _ask("Wake word (default: IMOS, Enter to keep): ", default="IMOS")
     _write_env(env_file, {"WAKE_WORD": wake_word})
     cfg.setdefault("listen", {})
     cfg["listen"]["wake_word"] = wake_word
     cfg["listen"].setdefault("enabled", False)
 
-    _step_title("Step 7  Services and integrations")
+    _step_title("Step 6  Connectors")
     try:
         services = list_all_services()
         available = sum(1 for item in services if item.get("available"))
-        print(f"{WHITE}IMOS connects {len(services)} services ({available} available on this machine).{RESET}")
-        print(f"{DIM}Runtime: browser, desktop, filesystem, shell, dashboard, sessions{RESET}")
-        print(f"{DIM}IDE agents: Cursor, Claude Code, Codex, VS Code, and more{RESET}")
-        print(f"{DIM}After setup:  /services   /model list   /model add <type> <model>{RESET}")
+        _print_lines(
+            f"IMOS can connect {len(services)} services, with {available} already available on this machine.",
+            "Think in terms of connectors: models, IDEs, apps, deployment targets, messaging, and browser flows.",
+        )
+        print(f"{DIM}Runtime surfaces: browser, desktop, filesystem, shell, dashboard, sessions{RESET}")
+        print(f"{DIM}IDE surfaces: Cursor, Claude Code, Codex, VS Code, Zed, and more{RESET}")
+        print(f"{DIM}After setup: imos connect   imos models   imos tools   imos context export{RESET}")
         print()
     except Exception:
         pass
@@ -399,7 +420,7 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
             "IMOS_TELEGRAM_BOT_TOKEN": telegram_token,
         },
     )
-    if _yes_no("Configure additional app/cloud connections now? (yes/no): "):
+    if _yes_no("Configure additional app or cloud connectors now? (yes/no): "):
         catalog = [item for item in list_connection_catalog() if item.get("category") != "model-cloud" and item.get("category") != "model-local" and item.get("category") != "model-custom"]
         while True:
             print()
@@ -438,8 +459,8 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
             result = open_connection_signin(key)
             print(f"{WHITE}{result.get('post_login_hint', result.get('error', 'Opened browser flow.'))}{RESET}")
 
-    _step_title("Step 8  Auto-start")
-    autostart_enabled = _yes_no("Start IMOS on Windows boot? (yes/no): ")
+    _step_title("Step 7  Auto-start")
+    autostart_enabled = _yes_no("Start IMOS automatically on Windows boot? (yes/no): ")
     if autostart_enabled:
         enable_autostart(project_root)
         pythonw = Path(sys.executable).with_name("pythonw.exe")
@@ -457,8 +478,11 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
     save_config(cfg)
     _setup_flag_path(cfg["workspace"]).write_text("complete\n", encoding="utf-8")
 
-    _step_title("Step 9  Complete")
-    print(f"{WHITE}IMOS configured successfully.{RESET}")
+    _step_title("Step 8  Complete")
+    _print_lines(
+        "IMOS is configured and ready.",
+        "Next, start the runtime, connect more tools, and export or hand off context as needed.",
+    )
     print()
     summary_provider = str((default_provider_payload or {}).get("name", "") or provider_label)
     print(f"{WHITE}Provider:   {ORANGE}{summary_provider}{RESET}")
@@ -466,10 +490,12 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
     print(f"{WHITE}Wake word:  {ORANGE}{wake_word}{RESET}")
     print(f"{WHITE}Dashboard:  {ORANGE}http://127.0.0.1:7070{RESET}")
     print(f"{WHITE}Autostart:  {ORANGE}{'yes' if autostart_enabled else 'no'}{RESET}")
-    print(f"{WHITE}Models:     {ORANGE}/model add <type> <model-id>  (any model){RESET}")
-    print(f"{WHITE}Services:   {ORANGE}/services  ·  /service add <name>{RESET}")
+    print(f"{WHITE}Runtime:    {ORANGE}imos start{RESET}")
+    print(f"{WHITE}Chat:       {ORANGE}imos chat{RESET}")
+    print(f"{WHITE}Connect:    {ORANGE}imos connect{RESET}")
+    print(f"{WHITE}Capsules:   {ORANGE}imos context export  /  imos context handoff --to cursor{RESET}")
     print()
-    print(f"{WHITE}Say \"Hey IMOS\" to activate hands-free.{RESET}")
+    print(f"{WHITE}Say \"{wake_word}\" to activate hands-free, or use the CLI and dashboard directly.{RESET}")
     input(f"{WHITE}Press Enter to launch IMOS.{RESET}")
     return {
         "provider": str((default_provider_payload or {}).get("type", "") or provider),

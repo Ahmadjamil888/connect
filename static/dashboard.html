@@ -309,7 +309,7 @@ input,textarea,select{font-family:inherit}
 <div class="main">
   <!-- TOPBAR -->
   <header class="topbar">
-    <div class="topbar-logo">IMOS <span>Intelligent Machine OS</span></div>
+    <div class="topbar-logo">IMOS <span>Operator Runtime</span></div>
     <div class="topbar-divider"></div>
     <div class="topbar-stat"><span class="topbar-dot" id="tb-dot"></span><span>CPU</span><span class="val" id="tb-cpu">--</span></div>
     <div class="topbar-stat"><span>RAM</span><span class="val" id="tb-ram">--</span></div>
@@ -330,7 +330,7 @@ input,textarea,select{font-family:inherit}
           <div class="chat-messages" id="chat-messages">
             <div class="msg assistant">
               <div class="msg-meta">IMOS</div>
-              <div class="msg-bubble">Online and ready. I have full access to your PC — files, processes, shell, browser, and more. What do you need?</div>
+              <div class="msg-bubble">Online and ready. I keep model, shell, IDE, connector, and session context in one runtime. Give me a goal and I will route it through the right surfaces.</div>
             </div>
           </div>
           <div class="chat-input-area">
@@ -341,7 +341,7 @@ input,textarea,select{font-family:inherit}
                 Send
               </button>
             </div>
-            <div class="chat-hint">Enter to send &nbsp;·&nbsp; Shift+Enter for newline &nbsp;·&nbsp; <span id="chat-status">Ready</span></div>
+            <div class="chat-hint">Enter to send &nbsp;·&nbsp; Shift+Enter for newline &nbsp;·&nbsp; Sessions, memory, and audit stay attached to this runtime &nbsp;·&nbsp; <span id="chat-status">Ready</span></div>
           </div>
         </div>
         <div class="chat-sidebar">
@@ -355,8 +355,11 @@ input,textarea,select{font-family:inherit}
           </div>
           <div class="chat-sidebar-section">
             <div class="chat-sidebar-title">Quick Actions</div>
-            <button class="quick-btn" onclick="startNewChatSession()">New chat</button>
-            <button class="quick-btn" onclick="reloadCurrentChat()">Reload saved chat</button>
+            <button class="quick-btn" onclick="startNewChatSession()">New session</button>
+            <button class="quick-btn" onclick="reloadCurrentChat()">Reload session</button>
+            <button class="quick-btn" onclick="sendChatText('List connected models, tools, and connectors for this runtime.')">Runtime surfaces</button>
+            <button class="quick-btn" onclick="sendChatText('Summarize the current session memory and recent execution state.')">Session memory</button>
+            <button class="quick-btn" onclick="sendChatText('Export this session as an IMOS context capsule.')">Export capsule</button>
             <button class="quick-btn" onclick="sendChatText('What is my system status? CPU, RAM, disk usage.')">System status</button>
             <button class="quick-btn" onclick="sendChatText('Clean my PC temp files.')">Clean PC</button>
             <button class="quick-btn" onclick="sendChatText('What is the weather in my city?')">Weather</button>
@@ -386,8 +389,8 @@ input,textarea,select{font-family:inherit}
             <button class="btn-sm" onclick="shellCd()">cd</button>
           </div>
           <div class="shell-output" id="shell-output">
-            <div class="shell-line info">IMOS Shell — full PC access. Type any command.</div>
-            <div class="shell-line info">AI-powered: type natural language like "clean my pc" or raw commands like "dir".</div>
+            <div class="shell-line info">IMOS Shell — operator access to the local machine and runtime workspace.</div>
+            <div class="shell-line info">Use raw commands like "dir" or intent-driven requests like "clean my pc" or "verify the dev server".</div>
             <div class="shell-line info" style="margin-bottom:8px">─────────────────────────────────────────</div>
           </div>
           <div class="shell-input-row">
@@ -432,8 +435,8 @@ input,textarea,select{font-family:inherit}
     <div class="panel" id="panel-voice">
       <div class="voice-wrap">
         <div>
-          <h2 style="font-size:20px;font-weight:600;text-align:center;margin-bottom:6px">Voice Control</h2>
-          <p style="font-size:13px;color:var(--text3);text-align:center">Use browser speech when available, or fall back to server-side microphone capture.</p>
+          <h2 style="font-size:20px;font-weight:600;text-align:center;margin-bottom:6px">Voice Runtime</h2>
+          <p style="font-size:13px;color:var(--text3);text-align:center">Use browser speech when available, or fall back to server-side microphone capture for hands-free operator control.</p>
         </div>
         <div class="voice-orb" id="voice-orb" onclick="toggleVoice()">
           <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
@@ -477,8 +480,8 @@ input,textarea,select{font-family:inherit}
     <div class="panel" id="panel-models">
       <div class="settings-wrap">
         <div class="settings-header">
-          <h2>AI Models</h2>
-          <p>Configure your AI provider and model. IMOS supports any provider — local or cloud.</p>
+          <h2>Models</h2>
+          <p>Configure the primary model layer for orchestration. Add cloud, local, or compatible endpoints and keep a shared operator prompt across them.</p>
         </div>
         <div id="model-alert" class="alert"></div>
         <div class="settings-grid">
@@ -487,7 +490,7 @@ input,textarea,select{font-family:inherit}
               <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
               Active Model
             </div>
-            <div class="card-desc">Currently active provider and model</div>
+            <div class="card-desc">Current default model for runtime routing and synthesis.</div>
             <div class="form-group">
               <label class="form-label">Provider</label>
               <select class="form-select" id="model-provider" onchange="updateModelList()">
@@ -520,8 +523,8 @@ input,textarea,select{font-family:inherit}
             <button class="btn-primary" onclick="saveModel()">Save Model</button>
           </div>
           <div class="card">
-            <div class="card-title">Provider Status</div>
-            <div class="card-desc">Current runtime info</div>
+            <div class="card-title">Runtime Status</div>
+            <div class="card-desc">Live model-layer status and usage inside this runtime.</div>
             <div class="stat-row"><span class="k">Provider</span><span class="v" id="m-provider">--</span></div>
             <div class="stat-row"><span class="k">Model</span><span class="v" id="m-model">--</span></div>
             <div class="stat-row"><span class="k">Tokens used</span><span class="v" id="m-tokens">0</span></div>
@@ -537,7 +540,7 @@ input,textarea,select{font-family:inherit}
           </div>
           <div class="card">
             <div class="card-title">Shared System Prompt</div>
-            <div class="card-desc">Applied to every provider after the built-in IMOS system prompt, matching setup and runtime behavior.</div>
+            <div class="card-desc">Applied to every provider after the built-in IMOS operator prompt, matching setup and runtime behavior.</div>
             <div class="form-group">
               <label class="form-label">Custom LLM behavior</label>
               <textarea class="form-input" id="model-system-prompt" rows="8" placeholder="Optional behavior instructions to append after the IMOS base prompt." style="min-height:180px;resize:vertical"></textarea>
@@ -576,8 +579,8 @@ input,textarea,select{font-family:inherit}
     <div class="panel" id="panel-integrations">
       <div class="settings-wrap">
         <div class="settings-header">
-          <h2>Integrations</h2>
-          <p>Connect external services and APIs to IMOS.</p>
+          <h2>Connectors</h2>
+          <p>Prepare reusable app, deployment, messaging, and API connections for the IMOS runtime.</p>
         </div>
         <div class="settings-grid">
           <div class="card">
@@ -616,7 +619,7 @@ input,textarea,select{font-family:inherit}
     <div class="panel" id="panel-workflows">
       <div class="list-wrap">
         <div class="list-header">
-          <div><h2>Workflows</h2><p>Automated multi-step task sequences</p></div>
+          <div><h2>Workflows</h2><p>Reusable multi-surface routes across saved connections</p></div>
         </div>
         <div id="workflows-grid" class="item-grid"></div>
       </div>
@@ -626,7 +629,7 @@ input,textarea,select{font-family:inherit}
     <div class="panel" id="panel-activity">
       <div class="audit-wrap">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-          <div><h2 style="font-size:18px;font-weight:600">Activity Log</h2><p style="font-size:12px;color:var(--text3);margin-top:2px">All tool calls, commands, and events</p></div>
+          <div><h2 style="font-size:18px;font-weight:600">Audit Log</h2><p style="font-size:12px;color:var(--text3);margin-top:2px">Tool calls, commands, and runtime events captured for review</p></div>
           <button class="btn-sm" onclick="loadAudit()">Refresh</button>
         </div>
         <table class="audit-table">
@@ -641,12 +644,12 @@ input,textarea,select{font-family:inherit}
       <div class="settings-wrap">
         <div class="settings-header">
           <h2>Settings</h2>
-          <p>IMOS system configuration</p>
+          <p>Operator runtime configuration</p>
         </div>
         <div class="settings-grid">
           <div class="card">
             <div class="card-title">Workspace</div>
-            <div class="card-desc">The directory IMOS uses for files and projects.</div>
+            <div class="card-desc">The active workspace root used for files, sessions, delegated tasks, and runtime artifacts.</div>
             <div class="stat-row"><span class="k">Path</span><span class="v" id="ws-path" style="font-size:10px;max-width:180px;overflow:hidden;text-overflow:ellipsis">--</span></div>
             <div class="stat-row"><span class="k">Uptime</span><span class="v" id="ws-uptime">--</span></div>
           </div>
@@ -673,14 +676,21 @@ input,textarea,select{font-family:inherit}
           </div>
           <div class="card">
             <div class="card-title">Voice</div>
-            <div class="card-desc">Wake word and TTS settings</div>
+            <div class="card-desc">Wake word and speech output settings for the operator runtime.</div>
             <div class="stat-row"><span class="k">Wake word</span><span class="v">"IMOS" / "Hey IMOS"</span></div>
             <div class="stat-row"><span class="k">TTS rate</span><span class="v">175 wpm</span></div>
             <div class="stat-row"><span class="k">Engine</span><span class="v">pyttsx3</span></div>
           </div>
           <div class="card">
+            <div class="card-title">Context Capsules</div>
+            <div class="card-desc">Use IMOS context capsules to export a session, reload it later, or hand it to another tool without re-explaining scope.</div>
+            <div class="stat-row"><span class="k">Export</span><span class="v">imos context export</span></div>
+            <div class="stat-row"><span class="k">Handoff</span><span class="v">imos context handoff --to cursor</span></div>
+            <div class="stat-row"><span class="k">Import</span><span class="v">imos context import --from cursor</span></div>
+          </div>
+          <div class="card">
             <div class="card-title">About IMOS</div>
-            <div class="card-desc">Unifies AI models, IDEs, terminals, browser automation, apps, and local execution into one persistent runtime — visible coordination with shared memory, routing, permissions, and auditability.</div>
+            <div class="card-desc">One runtime for models, IDEs, shell, browser, apps, routing, memory, permissions, and auditability.</div>
             <div class="stat-row"><span class="k">Version</span><span class="v">1.0.0</span></div>
             <div class="stat-row"><span class="k">Skills</span><span class="v" id="st-skills">--</span></div>
             <div class="stat-row"><span class="k">Server</span><span class="v">localhost:5000</span></div>
@@ -969,7 +979,7 @@ function addMsg(role, text, typing=false, ts=null) {
 
 function renderWelcomeState() {
   clearChatMessages();
-  addMsg('assistant', 'Online and ready. I keep runtime context, saved chat history, and execution state across sessions. What do you need?');
+  addMsg('assistant', 'Online and ready. I keep model, shell, connector, memory, and execution state in one runtime. What goal should I route next?');
 }
 
 async function loadChatTranscript(sessionId) {
@@ -1019,7 +1029,7 @@ async function startNewChatSession() {
     const session = data.session || {};
     persistChatSessionId(session.session_id || '');
     renderWelcomeState();
-    toast('New chat session started');
+    toast('New runtime session started');
     loadStats();
   } catch (e) {
     toast('Failed to create chat session: ' + e.message, 'error');

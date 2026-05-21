@@ -8,11 +8,16 @@ import sys
 import time
 import webbrowser
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 
 import click
 import httpx
+from connectai.ops import AuditLogger
+from imos.capsule import build_capsule, default_capsule_path, read_capsule, write_capsule, write_handoff
 from imos.config import list_configured_adapters, remove_adapter_config, save_adapter_config
+from imos.context import IMOSContextManager
+from imos.hub import list_connection_catalog, list_connections, upsert_connection
 from imos.mcp_server import install_mcp_configs
 from imos.models import IMOSTask
 from imos.orchestrator import IMOSOrchestrator
@@ -143,8 +148,89 @@ async def _build_orchestrator() -> IMOSOrchestrator:
     await registry.auto_discover()
     return IMOSOrchestrator(registry)
 
+
 async def _build_runtime() -> IMOSSessionRuntime:
     return IMOSSessionRuntime(await _build_orchestrator())
+
+
+def _runtime_audit_logger() -> AuditLogger:
+    for root in (Path.home() / ".imos" / "logs", Path.cwd() / ".imos" / "logs"):
+        try:
+            return AuditLogger(root)
+        except Exception:
+            continue
+    return AuditLogger(Path.cwd() / ".imos" / "logs")
+
+
+def _session_runtime_for_cli() -> IMOSSessionRuntime:
+    return asyncio.run(_build_runtime())
+
+
+def _workspace_from_connections() -> str:
+    for row in list_configured_adapters():
+        if row.get("adapter_type") == "ide" and row.get("workspace"):
+            return str(row["workspace"])
+    return str(Path.cwd())
+
+
+def _export_capsule(session_name: str, out_path: str | None = None) -> dict[str, object]:
+    runtime = _session_runtime_for_cli()
+    session_id = runtime.ensure_session(session_name)
+    session = runtime.status(session_id)
+    history = runtime.history(session_id, limit=200)
+    context_manager = IMOSContextManager()
+    capsule = build_capsule(
+        session,
+        history,
+        workspace=_workspace_from_connections(),
+        context_history=context_manager.recent_history(50),
+    )
+    path = write_capsule(capsule, out_path or default_capsule_path(session_name))
+    return {"path": str(path), "session_id": session_id, "session_name": session_name, "message_count": len(history)}
+
+
+def _import_source_payload(source: str, project: str | None = None, repo: str | None = None, file_name: str | None = None) -> dict[str, object]:
+    source_name = str(source or "generic").strip().lower()
+    workspace = Path.cwd()
+    if source_name == "cursor":
+        for row in list_configured_adapters():
+            if str(row.get("provider", "")).strip().lower() == "cursor" and row.get("workspace"):
+                workspace = Path(str(row["workspace"])).resolve()
+                break
+    name = project or file_name or repo or workspace.name
+    payload = {
+        "version": "1.0",
+        "created": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "source": source_name,
+        "project": {"name": name, "rootPath": str(workspace)},
+        "session": {"id": "", "name": f"{source_name}-import", "status": "imported", "profile": source_name},
+        "goal": f"Imported context from {source_name}",
+        "latest_response": "",
+        "decisions": [],
+        "models_used": [],
+        "messages": [],
+        "context_history": [],
+        "tests": {},
+        "connectors": {source_name: {"synced": True, "project": name}},
+        "audit": [],
+    }
+    path = write_capsule(payload)
+    return {"path": str(path), "source": source_name, "project": name}
+
+
+def _print_connect_catalog() -> None:
+    rows = []
+    for item in list_connection_catalog():
+        rows.append(
+            {
+                "provider": item["provider"],
+                "name": item["name"],
+                "category": item["category"],
+                "fields": [field["key"] for field in item.get("fields", [])],
+            }
+        )
+    click.echo(json.dumps(rows, indent=2))
+
 
 def _launch_legacy_shell() -> None:
     try:
@@ -177,6 +263,55 @@ def _interactive_shell(session_name: str, beast_mode: bool = False) -> None:
 def cli(ctx: click.Context) -> None:
     if ctx.invoked_subcommand is None:
         _launch_legacy_shell()
+
+
+@cli.command()
+@click.option("--workspace", default=None, help="Workspace path for first-run setup")
+def init(workspace: str | None) -> None:
+    from setup.wizard import force_run_setup_wizard
+
+    force_run_setup_wizard(_project_root(), workspace or str(Path.cwd()))
+
+
+@cli.command()
+@click.option("--add", "add_provider", default=None, help="Add a connector by provider id")
+@click.option("--name", default=None, help="Optional connection name override")
+def connect(add_provider: str | None, name: str | None) -> None:
+    if not add_provider:
+        _print_connect_catalog()
+        return
+    provider = str(add_provider).strip().lower()
+    entry = next((item for item in list_connection_catalog() if item["provider"] == provider), None)
+    if entry is None:
+        raise click.ClickException(f"Unknown connector provider: {provider}")
+    values: dict[str, str] = {}
+    for field in entry.get("fields", []):
+        default = str(field.get("default", "") or "")
+        label = str(field.get("label", field["key"]))
+        if field.get("secret"):
+            value = click.prompt(label, default=default, hide_input=True, show_default=bool(default))
+        else:
+            value = click.prompt(label, default=default, show_default=bool(default))
+        values[field["key"]] = value
+    saved = upsert_connection({"provider": provider, "name": name or entry["name"], "values": values})
+    click.echo(json.dumps(saved, indent=2))
+
+
+@cli.command()
+@click.option("--session", "session_name", default="default", help="Session name")
+@click.option("--beast", "beast_mode", is_flag=True, help="Fan the prompt out to all configured model and IDE adapters")
+def chat(session_name: str, beast_mode: bool) -> None:
+    _interactive_shell(session_name, beast_mode=beast_mode)
+
+
+@cli.command()
+@click.option("--no-browser", is_flag=True, help="Start the IMOS dashboard server without opening a browser")
+def start(no_browser: bool) -> None:
+    if no_browser:
+        subprocess.Popen([sys.executable, str(_project_root() / "imos_server.py"), "--no-browser"])
+        click.echo("Started IMOS runtime")
+        return
+    dashboard.callback()
 
 
 @cli.command()
@@ -346,6 +481,38 @@ def status() -> None:
     asyncio.run(_status())
 
 
+@cli.command()
+def models() -> None:
+    rows = [item for item in list_connections() if str(item.get("category", "")).startswith("model")]
+    builtin = []
+    for entry in list_configured_adapters():
+        if entry.get("adapter_type") == "model":
+            builtin.append({"name": entry.get("name"), "provider": entry.get("provider"), "model": entry.get("model", "")})
+    click.echo(json.dumps({"connections": rows, "adapters": builtin}, indent=2))
+
+
+@cli.command()
+def tools() -> None:
+    async def _tools():
+        orchestrator = await _build_orchestrator()
+        loaded = [{"name": item.name, "type": item.adapter_type, "status": item.status} for item in orchestrator.registry.get_all()]
+        click.echo(json.dumps({"loaded": loaded, "catalog": orchestrator.registry.available_catalog()}, indent=2))
+
+    asyncio.run(_tools())
+
+
+@cli.command()
+@click.option("--limit", default=40, type=int, help="Audit rows to show")
+def audit(limit: int) -> None:
+    click.echo(json.dumps(_runtime_audit_logger().tail(limit), indent=2))
+
+
+@cli.command()
+@click.option("--limit", default=20, type=int, help="Memory items to show")
+def memory(limit: int) -> None:
+    click.echo(json.dumps(IMOSContextManager().recent_history(limit), indent=2))
+
+
 @cli.command("self-test")
 def self_test() -> None:
     async def _self_test():
@@ -478,6 +645,79 @@ def self_test() -> None:
         click.echo(json.dumps(report, indent=2))
 
     asyncio.run(_self_test())
+
+
+@cli.group(invoke_without_command=True)
+@click.pass_context
+def context(ctx: click.Context) -> None:
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+
+
+@context.command("export")
+@click.option("--session", "session_name", default="default", help="Session name to export")
+@click.option("--out", "out_path", default=None, help="Output .imos file path")
+def context_export(session_name: str, out_path: str | None) -> None:
+    click.echo(json.dumps(_export_capsule(session_name, out_path), indent=2))
+
+
+@context.command("load")
+@click.argument("path")
+def context_load(path: str) -> None:
+    payload = read_capsule(path)
+    manager = IMOSContextManager()
+    manager.set_project_context(**payload.get("project", {}))
+    manager.add_entry(
+        f"Loaded capsule {Path(path).name}",
+        [{"source": payload.get("source", "imos"), "session": payload.get("session", {})}],
+        {"capsule_path": str(Path(path).resolve())},
+    )
+    click.echo(json.dumps({"loaded": str(Path(path).resolve()), "project": payload.get("project", {})}, indent=2))
+
+
+@context.command("import")
+@click.argument("path", required=False)
+@click.option("--from", "source_name", default=None, help="Import from a named source like cursor or github")
+@click.option("--project", default=None, help="Source project name")
+@click.option("--repo", default=None, help="Repository name for github imports")
+@click.option("--type", "import_type", default=None, help="Optional import type")
+@click.option("--file", "file_name", default=None, help="Source file or app name")
+def context_import(path: str | None, source_name: str | None, project: str | None, repo: str | None, import_type: str | None, file_name: str | None) -> None:
+    if path:
+        source_path = Path(path)
+        payload = read_capsule(source_path) if source_path.suffix == ".imos" else {
+            "version": "1.0",
+            "created": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            "source": import_type or "file",
+            "project": {"name": source_path.stem, "rootPath": str(Path.cwd())},
+            "session": {"id": "", "name": source_path.stem, "status": "imported", "profile": str(import_type or "file")},
+            "goal": f"Imported context from {source_path.name}",
+            "latest_response": "",
+            "decisions": [],
+            "models_used": [],
+            "messages": [{"role": "system", "content": source_path.read_text(encoding='utf-8', errors='replace')[:12000]}],
+            "context_history": [],
+            "tests": {},
+            "connectors": {},
+            "audit": [],
+        }
+        target = write_capsule(payload)
+        click.echo(json.dumps({"path": str(target), "source": payload.get("source", "file")}, indent=2))
+        return
+    if not source_name:
+        raise click.ClickException("Provide a path or use --from <source>.")
+    click.echo(json.dumps(_import_source_payload(source_name, project=project, repo=repo, file_name=file_name), indent=2))
+
+
+@context.command("handoff")
+@click.option("--to", "target", required=True, help="Target tool name")
+@click.option("--session", "session_name", default="default", help="Session name to hand off")
+@click.option("--context", "context_path", default=None, help="Existing capsule path")
+def context_handoff(target: str, session_name: str, context_path: str | None) -> None:
+    capsule_path = Path(context_path) if context_path else Path(str(_export_capsule(session_name)["path"]))
+    capsule = read_capsule(capsule_path)
+    handoff_path = write_handoff(capsule, target, workspace=_workspace_from_connections())
+    click.echo(json.dumps({"target": target, "capsule": str(capsule_path), "handoff_path": str(handoff_path)}, indent=2))
 
 
 @cli.group(invoke_without_command=True)
