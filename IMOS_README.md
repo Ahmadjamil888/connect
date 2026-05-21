@@ -1,8 +1,10 @@
 # IMOS
 
-IMOS has evolved into a controlled operator system for teams that need AI sessions, routing, dashboard visibility, and real execution to stay aligned from prompt to delivery across models, IDEs, apps, browsers, and the local machine.
+IMOS is an **intelligent machine operating system** that unifies AI models, IDEs, terminals, browser automation, apps, and local machine execution into one persistent runtime.
 
-That stack breaks the moment work spans multiple tools, people, long-running tasks, and machine-level actions. IMOS is the coordination layer that keeps context persistent, execution visible, permissions explicit, and handoffs operational instead of manual.
+Today, developers and teams constantly lose context switching between tools like ChatGPT, Claude, Cursor, browsers, and automation workflows, creating fragmented execution and invisible operational state. IMOS solves this by providing a **visible coordination layer** with shared memory, routing, permissions, auditability, and execution control across the entire workflow stack.
+
+The future of AI work requires a unified operational system rather than isolated assistants and tabs. IMOS is that layer: one runtime state from prompt to delivery across models, IDEs, messaging, Git, browser automation, payments, meetings, OS tooling, and REST services.
 
 One prompt can be decomposed into multiple subtasks, routed across models, IDEs, messaging apps, Git providers, browser automation, payments, meeting platforms, OS tooling, and generic REST services, then synthesized back into one response under one shared runtime state.
 
@@ -16,6 +18,21 @@ One launch, multiple models, IDEs, apps, browser actions, and local machine cont
 4. Local machine controls open apps, manage files, run commands, or capture screenshots with explicit permission boundaries.
 5. Long-running tasks remain visible in the dashboard with audit history, handoff state, and resumable context.
 6. Final output lands back in one operational thread instead of being split across disconnected tools.
+
+## Coordination layer (CLI + dashboard :7070)
+
+The operator runtime exposes five visible pillars on **both** the CLI and dashboard:
+
+| Pillar | What it does | CLI | Dashboard |
+|--------|----------------|-----|-----------|
+| **Shared memory** | Persistent log + session JSON under `~/.imos/` | `/memory`, `/session` | Memory panel + `/api/runtime` |
+| **Routing** | Task-type → provider rules (`~/.imos/routing.json`) | `/routing`, `/route code groq` | Routing panel + `POST /api/routing` |
+| **Permissions** | Per-tool allow / ask / deny | `/policy`, `/policy-set` | Permissions panel + `POST /api/policy` |
+| **Audit trail** | Structured JSONL at `~/.imos/logs/audit.jsonl` | `/audit` | Audit panel + `/api/audit` |
+| **Execution control** | Plans, steps, tools, tasks | live `⏺` tools, `/tasks` | Execution panel + Socket.IO `step`/`plan` |
+| **Context transfer** | Full session → Cursor, Claude, Lovable, … | `/transfer cursor` | Transfer buttons + `POST /api/transfer` |
+
+Run `imos`, sign in, open http://127.0.0.1:7070 — the bottom **coordination** row updates live with every tool, policy check, and route decision.
 
 ## How IMOS works
 

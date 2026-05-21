@@ -10,7 +10,8 @@ import webbrowser
 from pathlib import Path
 from typing import Any, Callable
 
-THINK_SYSTEM_PROMPT = """You are the IMOS operator reasoning layer.
+THINK_SYSTEM_PROMPT = """You are the IMOS operator reasoning layer — the coordination brain of an intelligent machine operating system.
+IMOS unifies models, IDEs, terminals, browser automation, apps, and local execution in one persistent runtime with shared memory, routing, permissions, and auditability.
 Analyze the user message and decide how one runtime should handle it across browser, desktop, files, apps, and AI agents (Cursor, Codex, Claude Code, configured cloud models).
 
 Output only valid JSON:

@@ -3,8 +3,13 @@ import threading
 from collections import deque
 from datetime import datetime
 
+from pathlib import Path
+
 from flask import Flask, jsonify, request
 from flask_socketio import SocketIO
+
+from core.coordination import build_runtime_snapshot
+from imos.brand import SOLUTION, TAGLINE
 
 
 DASHBOARD_HTML = r"""<!doctype html>
@@ -279,8 +284,44 @@ DASHBOARD_HTML = r"""<!doctype html>
     .policy-grid .row span:last-child.allow { color: var(--green); }
     .policy-grid .row span:last-child.ask { color: var(--yellow); }
     .policy-grid .row span:last-child.deny { color: var(--red); }
+    .coordination {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      padding: 0 14px 14px;
+    }
+    .coord-panel {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      padding: 10px;
+      min-height: 200px;
+      max-height: 240px;
+      display: flex;
+      flex-direction: column;
+    }
+    .coord-panel h3 {
+      margin: 0 0 8px;
+      font-size: 11px;
+      color: var(--accent);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .coord-feed {
+      flex: 1;
+      overflow-y: auto;
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+    .coord-line { padding: 4px 0; border-bottom: 1px solid #171717; }
+    .coord-line strong { color: var(--text); }
+    .routing-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 4px; margin-top: 6px; }
+    .transfer-btns { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+    .transfer-btns .btn { font-size: 10px; padding: 4px 6px; }
     @media (max-width: 1200px) {
       .layout { grid-template-columns: 1fr 1fr; }
+      .coordination { grid-template-columns: 1fr 1fr; }
       .chat-messages { min-height: 280px; max-height: 40vh; }
     }
     @media (max-width: 980px) {
@@ -294,7 +335,7 @@ DASHBOARD_HTML = r"""<!doctype html>
 </head>
 <body>
   <div class="topbar">
-    <div class="runtime-title">IMOS    Operator Runtime</div>
+    <div class="runtime-title">IMOS    Intelligent Machine Operating System</div>
     <div class="center" id="topCenter">session --  uptime --  provider --  <span id="authBadge">auth --</span></div>
     <div class="right">
       <span class="status-wrap">
@@ -307,8 +348,9 @@ DASHBOARD_HTML = r"""<!doctype html>
   <div class="layout">
     <section class="panel">
       <h2>Project Storyboard</h2>
-      <div class="subtext">Runtime flows  Session state</div>
+      <div class="subtext">Shared memory · routing · permissions · audit trail</div>
       <div class="goal" id="goalText">Awaiting operator goal.</div>
+      <p class="subtext" style="margin-top:12px;line-height:1.5">__IMOS_TAGLINE__</p>
       <div class="progress-shell"><div class="progress-bar" id="progressBar"></div></div>
       <div class="progress-text" id="progressText">[] 0/0</div>
       <div class="badge-row"><div class="badge" id="providerBadge">provider / model</div></div>
@@ -381,9 +423,38 @@ DASHBOARD_HTML = r"""<!doctype html>
     </section>
   </div>
 
+  <div class="coordination">
+    <section class="coord-panel">
+      <h3>Shared memory</h3>
+      <div class="coord-feed" id="memoryFeed"></div>
+    </section>
+    <section class="coord-panel">
+      <h3>Routing</h3>
+      <div class="coord-feed" id="routingFeed"></div>
+      <form id="routingForm" class="routing-form">
+        <select id="routeTask" class="btn"></select>
+        <select id="routeProvider" class="btn"></select>
+        <button type="submit" class="btn">Set</button>
+      </form>
+    </section>
+    <section class="coord-panel">
+      <h3>Permissions</h3>
+      <div class="coord-feed" id="policyFeed"></div>
+    </section>
+    <section class="coord-panel">
+      <h3>Audit trail</h3>
+      <div class="coord-feed" id="auditFeed"></div>
+    </section>
+    <section class="coord-panel">
+      <h3>Context transfer</h3>
+      <div class="transfer-btns" id="transferBtns"></div>
+      <div class="coord-feed" id="executionFeed"></div>
+    </section>
+  </div>
+
   <div class="bottombar">
-    <div>Sessions  Memory  Execution  All under one surface.</div>
-    <div></div>
+    <div>__IMOS_SOLUTION__</div>
+    <div>Models · IDEs · Terminals · Browser · Apps · Local execution</div>
     <div></div>
   </div>
 
@@ -710,6 +781,141 @@ DASHBOARD_HTML = r"""<!doctype html>
       renderServices(data.items || data);
     });
 
+    const memoryFeed = document.getElementById('memoryFeed');
+    const routingFeed = document.getElementById('routingFeed');
+    const policyFeed = document.getElementById('policyFeed');
+    const auditFeed = document.getElementById('auditFeed');
+    const executionFeed = document.getElementById('executionFeed');
+    const transferBtns = document.getElementById('transferBtns');
+    const routeTask = document.getElementById('routeTask');
+    const routeProvider = document.getElementById('routeProvider');
+    const routingForm = document.getElementById('routingForm');
+
+    const TRANSFER_TARGETS = ['cursor', 'claude', 'lovable', 'codex', 'chatgpt', 'generic'];
+
+    function renderMemoryBlock(mem) {
+      if (!memoryFeed) return;
+      const lines = (mem.recent || []).map((line) => '<div class="coord-line">' + escapeHtml(line) + '</div>').join('');
+      memoryFeed.innerHTML = lines || '<div class="coord-line">No memory entries yet.</div>';
+    }
+
+    function renderRoutingBlock(rt) {
+      if (!routingFeed) return;
+      const rules = rt.rules || {};
+      routingFeed.innerHTML = Object.entries(rules).map(([k, v]) =>
+        '<div class="coord-line"><strong>' + k + '</strong> → ' + (v || '(active model)') + '</div>'
+      ).join('');
+      if (routeTask && !routeTask.options.length) {
+        Object.keys(rules).forEach((k) => {
+          const o = document.createElement('option');
+          o.value = k; o.textContent = k;
+          routeTask.appendChild(o);
+        });
+      }
+    }
+
+    function renderPolicyBlock(policy) {
+      if (!policyFeed) return;
+      policyFeed.innerHTML = Object.entries(policy || {}).map(([tool, value]) =>
+        '<div class="coord-line"><strong>' + tool + '</strong> <span class="' + value + '">' + value + '</span></div>'
+      ).join('');
+      if (policyGrid) renderPolicy(policy);
+    }
+
+    function renderAuditBlock(rows) {
+      if (!auditFeed) return;
+      auditFeed.innerHTML = (rows || []).slice().reverse().map((row) =>
+        '<div class="coord-line"><strong>' + (row.kind || '') + '</strong> ' + escapeHtml(row.message || '') +
+        '<br><span class="log-time">' + (row.ts || '') + '</span></div>'
+      ).join('') || '<div class="coord-line">No audit events yet.</div>';
+      auditFeed.scrollTop = auditFeed.scrollHeight;
+    }
+
+    function renderExecutionBlock(ex) {
+      if (!executionFeed) return;
+      const tasks = (ex.recent || []).map((t) =>
+        '<div class="coord-line"><strong>' + (t.status || '') + '</strong> ' + escapeHtml((t.goal || '').slice(0, 60)) +
+        ' (' + (t.steps_done || 0) + '/' + (t.steps_total || 0) + ')</div>'
+      ).join('');
+      executionFeed.innerHTML = tasks || '<div class="coord-line">No tasks yet.</div>';
+    }
+
+    function renderRuntime(data) {
+      if (!data) return;
+      renderMemoryBlock(data.memory || {});
+      renderRoutingBlock(data.routing || {});
+      renderPolicyBlock(data.policy || {});
+      renderAuditBlock((data.audit || {}).recent || []);
+      renderExecutionBlock(data.execution || {});
+      if (data.provider && providerBadge) {
+        providerBadge.textContent = data.provider + ' / ' + (data.model || '');
+      }
+    }
+
+    async function fetchRuntime() {
+      try {
+        const res = await fetch('/api/runtime');
+        const data = await res.json();
+        renderRuntime(data);
+      } catch (e) {
+        appendLog('runtime snapshot failed: ' + e, 'status-failed', 'runtime');
+      }
+    }
+
+    if (transferBtns) {
+      TRANSFER_TARGETS.forEach((target) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn';
+        b.textContent = target;
+        b.addEventListener('click', async () => {
+          const res = await fetch('/api/transfer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target })
+          });
+          const data = await res.json();
+          if (data.ok) appendLog('transfer → ' + target + ': ' + (data.path || 'ok'), 'status-ok', 'transfer');
+          else appendLog('transfer failed: ' + (data.error || 'unknown'), 'status-failed', 'transfer');
+        });
+        transferBtns.appendChild(b);
+      });
+    }
+
+    if (routingForm) {
+      routingForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const body = { task_type: routeTask.value, provider: routeProvider.value };
+        const res = await fetch('/api/routing', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (data.ok) {
+          renderRoutingBlock(data.routing || {});
+          appendLog('routing: ' + body.task_type + ' → ' + body.provider, 'status-ok', 'routing');
+        }
+      });
+    }
+
+    socket.on('audit', (data) => {
+      lastEventAt = Date.now();
+      updateDotState();
+      fetchRuntime();
+    });
+
+    socket.on('routing', (data) => {
+      lastEventAt = Date.now();
+      renderRoutingBlock(data);
+    });
+
+    socket.on('runtime', (data) => {
+      lastEventAt = Date.now();
+      renderRuntime(data);
+    });
+
+    socket.on('policy', (data) => {
+      lastEventAt = Date.now();
+      renderPolicyBlock(data.policy || data);
+    });
+
     document.getElementById('clearLogBtn').addEventListener('click', () => {
       logFeed.innerHTML = '';
       thinkFeed.innerHTML = '';
@@ -757,15 +963,23 @@ DASHBOARD_HTML = r"""<!doctype html>
 
     window.addEventListener('load', async () => {
       await fetchStatus();
+      await fetchRuntime();
       await fetchChatHistory();
       await fetchTasks();
       await fetchMemory();
       await fetchProviders();
       await fetchServices();
       await fetchModels();
+      if (routeProvider) {
+        const provRes = await fetch('/api/providers');
+        const provs = await provRes.json();
+        routeProvider.innerHTML = '<option value="">(use active model)</option>' +
+          provs.map((p) => '<option value="' + p + '">' + p + '</option>').join('');
+      }
       setInterval(tickUptime, 1000);
       setInterval(async () => {
         await fetchStatus();
+        await fetchRuntime();
       }, 5000);
       setInterval(updateDotState, 1000);
     });
@@ -774,15 +988,36 @@ DASHBOARD_HTML = r"""<!doctype html>
 </html>
 """
 
+DASHBOARD_HTML = (
+    DASHBOARD_HTML.replace("__IMOS_TAGLINE__", TAGLINE).replace("__IMOS_SOLUTION__", SOLUTION)
+)
+
 
 class Dashboard:
-    def __init__(self, memory, policy, tracker, ctx_getter, provider_getter, start_time) -> None:
+    def __init__(
+        self,
+        memory,
+        policy,
+        tracker,
+        ctx_getter,
+        provider_getter,
+        start_time,
+        *,
+        audit=None,
+        routing=None,
+    ) -> None:
         self.memory = memory
         self.policy = policy
         self.tracker = tracker
         self.ctx_getter = ctx_getter
         self.provider_getter = provider_getter
         self.start_time = start_time
+        imos_home = Path.home() / ".imos"
+        from core.audit import AuditLogger
+        from core.router import RoutingRules
+
+        self.audit = audit or AuditLogger(imos_home / "logs")
+        self.routing = routing or RoutingRules(imos_home / "routing.json")
         self.app = Flask(__name__)
         self.socketio = SocketIO(self.app, cors_allowed_origins="*", async_mode="threading")
         self._thread = None
@@ -948,7 +1183,92 @@ class Dashboard:
             with self._chat_lock:
                 self._chat_inbox.append(text)
             self.emit_log(f"dashboard chat queued: {text[:120]}")
+            self.audit.append("chat", f"dashboard queued: {text[:80]}", {"source": "dashboard"})
+            self.emit_audit(self.audit.tail(1)[-1] if self.audit.tail(1) else {})
             return jsonify({"ok": True, "queued": True})
+
+        @self.app.get("/api/runtime")
+        def api_runtime():
+            return jsonify(self.runtime_snapshot())
+
+        @self.app.get("/api/audit")
+        def api_audit():
+            limit = int(request.args.get("limit", 50))
+            return jsonify(self.audit.tail(limit))
+
+        @self.app.get("/api/routing")
+        def api_routing_get():
+            return jsonify(self.routing.status())
+
+        @self.app.post("/api/routing")
+        def api_routing_set():
+            payload = request.get_json(silent=True) or {}
+            task_type = str(payload.get("task_type", "")).strip().lower()
+            provider = str(payload.get("provider", "")).strip().lower()
+            if not task_type:
+                return jsonify({"ok": False, "error": "task_type required"}), 400
+            rules = self.routing.set_rule(task_type, provider)
+            self.audit.append("routing", f"rule set {task_type} → {provider or '(active)'}", {"rules": rules})
+            self.emit_routing({"rules": rules, "path": str(self.routing.path)})
+            return jsonify({"ok": True, "routing": {"rules": rules}})
+
+        @self.app.post("/api/policy")
+        def api_policy_set():
+            payload = request.get_json(silent=True) or {}
+            tool = str(payload.get("tool", "")).strip()
+            value = str(payload.get("value", "")).strip().lower()
+            if not tool or value not in {"allow", "ask", "deny"}:
+                return jsonify({"ok": False, "error": "tool and value (allow|ask|deny) required"}), 400
+            try:
+                self.policy.set(tool, value)
+            except ValueError as exc:
+                return jsonify({"ok": False, "error": str(exc)}), 400
+            self.audit.append("policy", f"{tool} → {value}", {})
+            self.emit_policy(self.policy.all())
+            return jsonify({"ok": True, "policy": self.policy.all()})
+
+        @self.app.post("/api/transfer")
+        def api_transfer():
+            from tools.context_transfer import TRANSFER_TARGETS, build_transfer_from_imos_context, copy_to_clipboard
+
+            payload = request.get_json(silent=True) or {}
+            target = str(payload.get("target", "generic")).strip().lower() or "generic"
+            if target not in TRANSFER_TARGETS:
+                target = "generic"
+            exports = Path.home() / ".imos" / "exports"
+            ctx = self.ctx_getter()
+            package = build_transfer_from_imos_context(ctx, target=target, exports_dir=exports)
+            copy_to_clipboard(package.get("transfer_text", ""))
+            self.audit.append("transfer", f"context → {target}", {"path": package.get("transfer_path")})
+            self.emit_audit(self.audit.tail(1)[-1])
+            return jsonify({"ok": True, "path": package.get("transfer_path"), "target": target})
+
+    def runtime_snapshot(self) -> dict:
+        provider, model = self.provider_getter()
+        delta = datetime.now() - self.start_time
+        total_seconds = int(delta.total_seconds())
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        uptime = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        auth_info: dict = {"signed_in": False, "email": ""}
+        try:
+            from imos.auth import current_user
+
+            auth_info = current_user()
+        except Exception:
+            pass
+        return build_runtime_snapshot(
+            memory=self.memory,
+            policy=self.policy,
+            tracker=self.tracker,
+            ctx=self.ctx_getter(),
+            audit=self.audit,
+            routing=self.routing,
+            provider=provider,
+            model=model,
+            uptime=uptime,
+            auth=auth_info,
+        )
 
     def pop_chat_inbox(self) -> str | None:
         with self._chat_lock:
@@ -1020,5 +1340,30 @@ class Dashboard:
     def emit_auth(self, auth_info: dict) -> None:
         try:
             self.socketio.emit("auth", auth_info)
+        except Exception:
+            return
+
+    def emit_audit(self, entry: dict) -> None:
+        try:
+            self.socketio.emit("audit", {"entry": entry})
+            self.emit_runtime()
+        except Exception:
+            return
+
+    def emit_routing(self, routing_data: dict) -> None:
+        try:
+            self.socketio.emit("routing", routing_data)
+        except Exception:
+            return
+
+    def emit_policy(self, policy: dict) -> None:
+        try:
+            self.socketio.emit("policy", {"policy": policy})
+        except Exception:
+            return
+
+    def emit_runtime(self) -> None:
+        try:
+            self.socketio.emit("runtime", self.runtime_snapshot())
         except Exception:
             return

@@ -1,1 +1,111 @@
-<!DOCTYPE html><html><head><title>My Website</title></head><body></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IMOS — Intelligent Machine Operating System</title>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --panel: #111;
+      --text: #e8e8e8;
+      --muted: #8e8e8e;
+      --accent: #c8a96e;
+      --border: #1e1e1e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Inter, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 48px 24px 80px; }
+    .brand { font-size: 14px; font-weight: 700; letter-spacing: 0.12em; color: var(--accent); }
+    h1 { font-size: clamp(2rem, 5vw, 2.75rem); margin: 16px 0 20px; line-height: 1.2; }
+    .lede { font-size: 1.125rem; color: var(--muted); margin-bottom: 28px; }
+    .block {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      padding: 24px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+    }
+    .block p { color: var(--muted); margin-top: 12px; }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 24px 0; }
+    .pill {
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      font-size: 12px;
+      color: var(--text);
+    }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+    a.btn {
+      display: inline-block;
+      padding: 12px 20px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      border-radius: 6px;
+    }
+    a.primary { background: var(--accent); color: #0a0a0a; }
+    a.secondary { border: 1px solid var(--border); color: var(--text); }
+    h2 { font-size: 1rem; color: var(--accent); margin-bottom: 8px; }
+    ul { margin: 12px 0 0 20px; color: var(--muted); }
+    li { margin: 6px 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">IMOS</div>
+    <h1>Intelligent Machine Operating System</h1>
+    <p class="lede">
+      Unifies AI models, IDEs, terminals, browser automation, apps, and local machine
+      execution into one persistent runtime.
+    </p>
+
+    <div class="block">
+      <h2>The problem</h2>
+      <p>
+        Developers and teams constantly lose context switching between ChatGPT, Claude,
+        Cursor, browsers, and automation workflows — creating fragmented execution and
+        invisible operational state.
+      </p>
+    </div>
+
+    <div class="block">
+      <h2>The solution</h2>
+      <p>
+        IMOS provides a visible coordination layer with shared memory, routing,
+        permissions, auditability, and execution control across the entire workflow stack.
+        One operational system instead of isolated assistants and tabs.
+      </p>
+    </div>
+
+    <div class="pill-row">
+      <span class="pill">AI models</span>
+      <span class="pill">IDEs</span>
+      <span class="pill">Terminals</span>
+      <span class="pill">Browser automation</span>
+      <span class="pill">Apps</span>
+      <span class="pill">Local execution</span>
+      <span class="pill">Shared memory</span>
+      <span class="pill">Audit trail</span>
+    </div>
+
+    <div class="actions">
+      <a class="btn primary" href="http://127.0.0.1:7070">Open dashboard</a>
+      <a class="btn secondary" href="IMOS_README.md">Read IMOS_README</a>
+    </div>
+
+    <div class="block" style="margin-top: 32px">
+      <h2>Get started</h2>
+      <ul>
+        <li><code>pip install -e .</code> then <code>imos</code> for the CLI operator</li>
+        <li>Sign in when prompted — sessions sync across CLI and dashboard</li>
+        <li>Dashboard live at <code>http://127.0.0.1:7070</code> during a session</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

@@ -33,7 +33,10 @@ def clear() -> None:
 
 
 def banner(*, email: str = "", model: str = "", session_id: str = "", dashboard: str = "http://127.0.0.1:7070") -> None:
+    from imos.brand import SOLUTION, TAGLINE
+
     print(_c("IMOS", O + B) + _c("  Intelligent Machine Operating System", D))
+    print(_c("  " + TAGLINE, D))
     parts = []
     if email:
         parts.append(email)
@@ -44,7 +47,8 @@ def banner(*, email: str = "", model: str = "", session_id: str = "", dashboard:
     parts.append(f"dashboard {dashboard}")
     if parts:
         print(_c("  " + " · ".join(parts), D))
-    print(_c("  Type a goal. Real tools run on your PC (with consent). /help for commands.", D))
+    print(_c("  " + SOLUTION, D))
+    print(_c("  Type a goal — models, IDEs, browser, apps, and local execution in one runtime. /help", D))
     print()
 
 

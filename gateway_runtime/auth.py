@@ -212,7 +212,7 @@ class ClerkAuthManager:
 <body>
   <div class="wrap">
     <div class="logo">IMOS</div>
-    <div class="sub">Intelligent Machine Operating System — Sign in to continue</div>
+    <div class="sub">Unifies models, IDEs, terminals, browsers, apps, and local execution — sign in to continue</div>
     <div id="app"><div class="loading">Loading sign-in...</div></div>
   </div>
   <script type="module">

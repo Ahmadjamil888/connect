@@ -55,6 +55,12 @@ def initialize_imos_runtime(project_root: Path | None = None) -> dict[str, Any]:
 
 
 def print_bootstrap_summary(summary: dict[str, Any]) -> None:
+    try:
+        from imos.brand import TAGLINE
+
+        print(f"  IMOS:          {TAGLINE}")
+    except Exception:
+        pass
     print(f"  IMOS home:     {summary.get('imos_home', '')}")
     print(f"  Providers:     {summary.get('providers', 0)} saved")
     print(f"  Services:      {summary.get('services_available', 0)}/{summary.get('services_total', 0)} available")

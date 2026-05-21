@@ -12,10 +12,12 @@ from uuid import uuid4
 import requests
 from dotenv import load_dotenv
 
+from core.audit import AuditLogger
 from core.browser import Browser
 from core.context import ContextManager
 from core.dashboard import Dashboard
 from core.memory import Memory
+from core.router import RoutingRules
 from core import model_manager
 from core.operator_runtime import PLANNER_TOOLS_DOC, list_connected_services, run_operator_tool, think
 from core.policy import Policy
@@ -35,6 +37,8 @@ mem = Memory()
 pol = Policy()
 tracker = TaskTracker()
 browser = Browser()
+audit = AuditLogger(IMOS_HOME / "logs")
+routing = RoutingRules(IMOS_HOME / "routing.json")
 
 PROVIDER_MODEL_DEFAULTS = {
     "anthropic": "claude-opus-4-5",
@@ -110,12 +114,14 @@ dashboard = Dashboard(
     ctx_getter=lambda: ctx,
     provider_getter=lambda: (current_provider, current_model),
     start_time=start_time,
+    audit=audit,
+    routing=routing,
 )
 dashboard.start(port=7070)
 
 PLANNER_SYSTEM_PROMPT = """You are IMOS Planner. Take a SHORT vague user request and expand it into a complete JSON execution plan. Never ask the user for more info. Make smart decisions yourself.
 
-IMOS exists to solve AI fragmentation. It connects inputs to visible execution and keeps work, memory, preferences, and execution attached across models, browsers, terminals, code editors, apps, and machine actions.
+IMOS is an intelligent machine operating system: one persistent runtime unifying models, IDEs, terminals, browser automation, apps, and local execution. Solve fragmented context across ChatGPT, Claude, Cursor, and browsers with visible coordination, shared memory, routing, permissions, and auditability.
 Plan like an operator system:
 - Preserve continuity across the session.
 - Prefer real execution when the user wants something built, launched, opened, scaffolded, written, or automated.
@@ -183,9 +189,8 @@ UNIFIED_OPERATOR_TOOLS = frozenset(
     {"browser", "desktop", "ai_agent", "rewrite_file", "delete_file", "open_service"}
 )
 
-CHAT_SYSTEM_PROMPT = """You are IMOS, a terminal AI assistant.
-Reply directly and briefly. Continue naturally from the existing session context.
-Do not output JSON unless the user asks for JSON.
+CHAT_SYSTEM_PROMPT = """You are IMOS, the intelligent machine operating system — one persistent runtime for models, IDEs, terminals, browsers, apps, and local execution.
+Reply directly and briefly. Continue naturally from shared session context. Do not output JSON unless the user asks for JSON.
 """
 
 INTENT_SYSTEM_PROMPT = """You are the IMOS runtime intent router.
@@ -207,7 +212,12 @@ VERBOSE_THINK = False
 HELP_TEXT = """Commands:
   /help                         show this help
   /dashboard                    open runtime dashboard in browser
-  /status                       show runtime status
+  /status                       show runtime status (coordination layer)
+  /runtime                      full snapshot: memory, routing, policy, audit, execution
+  /memory                       shared memory log
+  /audit [n]                    audit trail (default last 15)
+  /routing                      model routing rules by task type
+  /route <task> <provider>      set routing rule (e.g. /route code groq)
   /policy                       print current tool policy
   /policy-set <tool> <value>    set allow|ask|deny
   /tasks                        show recent tasks
@@ -245,6 +255,43 @@ def _imos_line(message: str) -> None:
         dashboard.emit_log(message)
     except Exception:
         pass
+
+
+def _audit(kind: str, message: str, metadata: dict | None = None) -> None:
+    entry = audit.append(kind, message, metadata or {})
+    mem.append_log(f"{kind}: {message[:120]}")
+    try:
+        dashboard.emit_audit(entry)
+        dashboard.emit_runtime()
+    except Exception:
+        pass
+
+
+def _apply_task_routing(prompt: str) -> dict:
+    global current_provider, current_model
+    task_type, routed = routing.resolve_provider(prompt, current_provider)
+    switched = False
+    if routed:
+        for row in model_manager.load_providers():
+            if str(row.get("type", "")).lower() == routed or str(row.get("id", "")).lower() == routed:
+                _activate_provider_row(row)
+                ctx.switch_provider(current_provider, current_model)
+                switched = True
+                break
+    info = {
+        "task_type": task_type,
+        "routed_provider": routed,
+        "active_provider": current_provider,
+        "active_model": current_model,
+        "switched": switched,
+    }
+    mem.save("last_routing", info)
+    _audit("routing", f"{task_type} → {routed or current_provider}", info)
+    try:
+        dashboard.emit_routing({"rules": routing.list_rules(), "last": info})
+    except Exception:
+        pass
+    return info
 
 
 def _dashboard_chat(role: str, content: str) -> None:
@@ -319,6 +366,7 @@ def _transfer_context_command(parts: list[str]) -> None:
             package = build_transfer_from_imos_context(ctx, target=target, exports_dir=EXPORTS_DIR)
             path = package["transfer_path"]
             copied = copy_to_clipboard(package["transfer_text"])
+            _audit("transfer", f"context → {target}", {"path": path})
             if UI:
                 UI.tool_start(f"transfer → {target}", path)
                 UI.tool_result(f"Saved {path}" + (" · copied to clipboard" if copied else ""), ok=True)
@@ -463,6 +511,7 @@ def _short_tool_description(tool: str, params: dict) -> str:
 
 def _policy_gate(tool: str, params: dict) -> str | None:
     decision = pol.check(tool)
+    _audit("policy_check", f"{tool} → {decision}", {"tool": tool, "decision": decision})
     if decision == "deny":
         _imos_line(f"{tool} is blocked by policy")
         return "denied"
@@ -474,7 +523,9 @@ def _policy_gate(tool: str, params: dict) -> str | None:
         else:
             answer = input(f"  Allow {tool}: {desc}? [y/N] ").strip().lower()
         if answer != "y":
+            _audit("policy_denied", f"user declined {tool}", {"tool": tool})
             return "skipped by user"
+        _audit("policy_allowed", f"user approved {tool}", {"tool": tool})
     return None
 
 
@@ -772,11 +823,14 @@ def _execute_legacy_tool(step: dict) -> dict:
 def execute_tool(step: dict) -> dict:
     tool = step.get("tool")
     params = step.get("params") or {}
+    _audit("tool_start", str(tool), {"params": params, "step": step.get("step")})
     blocked = _policy_gate(tool, params)
     if blocked:
-        return {"status": blocked, "tool": tool, "step": step.get("step"), "result": blocked}
+        result = {"status": blocked, "tool": tool, "step": step.get("step"), "result": blocked}
+        _audit("tool_end", f"{tool} {blocked}", {"status": blocked})
+        return result
     if tool in UNIFIED_OPERATOR_TOOLS:
-        return run_operator_tool(
+        outcome = run_operator_tool(
             tool,
             params,
             project_root=PROJECT_ROOT,
@@ -785,7 +839,10 @@ def execute_tool(step: dict) -> dict:
             current_model=current_model,
             execute_legacy=_execute_legacy_tool,
         )
-    return _execute_legacy_tool(step)
+    else:
+        outcome = _execute_legacy_tool(step)
+    _audit("tool_end", f"{tool} → {outcome.get('status', 'ok')}", {"status": outcome.get("status")})
+    return outcome
 
 
 def _suggest_shell_fix(command: str, stderr_text: str) -> dict | None:
@@ -798,23 +855,48 @@ def _suggest_shell_fix(command: str, stderr_text: str) -> dict | None:
 
 
 def _show_status() -> None:
-    tasks = tracker.all()
-    done_count = sum(1 for task in tasks if task.get("status") == "done")
-    running_count = sum(1 for task in tasks if task.get("status") == "running")
-    failed_count = sum(1 for task in tasks if task.get("status") == "failed")
-    policy_line = ", ".join(f"{key}={value}" for key, value in list(pol.all().items())[:4]) + ".."
-    stats = ctx.get_stats()
-    provider_history = "  ".join(stats["providers_used"]) or current_provider
+    snap = dashboard.runtime_snapshot()
+    tasks = snap["execution"]
+    stats = snap["session"]
     rows = [
-        f"Provider  : {_provider_name()}",
-        f"Memory    : {len(mem.all().get('log', []))} entries",
-        f"Tasks     : {done_count} done, {running_count} running, {failed_count} failed",
-        f"Policy    : {policy_line}",
-        f"Session   : {stats['session_id'][:8]}    {stats['message_count']} msgs    ~{stats['token_estimate']} tokens",
-        f"Providers : {provider_history}",
-        f"Uptime    : {_format_uptime()}",
+        "Coordination layer (visible on dashboard :7070)",
+        f"Provider  : {snap['provider']} / {snap['model']}",
+        f"Memory    : {snap['memory']['log_count']} log entries",
+        f"Routing   : {len(snap['routing']['rules'])} rules  (last: {mem.get('last_routing', {}).get('task_type', '-')})",
+        f"Policy    : {len(snap['policy'])} tools gated",
+        f"Audit     : {snap['audit']['count']} events",
+        f"Execution : {tasks['done']} done, {tasks['running']} running, {tasks['failed']} failed",
+        f"Session   : {stats['session_id'][:8]}  {stats['message_count']} msgs  ~{stats['token_estimate']} tokens",
+        f"Uptime    : {snap['uptime']}",
     ]
     _show_box("IMOS Runtime Status", rows)
+
+
+def _show_runtime() -> None:
+    snap = dashboard.runtime_snapshot()
+    _show_box("IMOS Runtime Snapshot", json.dumps(snap, indent=2, default=str).splitlines()[:28])
+
+
+def _show_memory() -> None:
+    rows = mem.get_log(20) or ["(empty)"]
+    _show_box("Shared Memory", rows)
+
+
+def _show_audit(limit: int = 15) -> None:
+    rows = []
+    for entry in audit.tail(limit):
+        rows.append(f"{entry.get('ts', '')[:19]}  [{entry.get('kind', '')}]  {entry.get('message', '')[:70]}")
+    _show_box("Audit Trail", rows or ["(empty)"])
+
+
+def _show_routing() -> None:
+    rules = routing.list_rules()
+    rows = [f"{task:<18} → {prov or '(active model)'}" for task, prov in rules.items()]
+    last = mem.get("last_routing") or {}
+    if last:
+        rows.append("")
+        rows.append(f"Last inference: {last.get('task_type')} → {last.get('routed_provider')} (active: {last.get('active_provider')})")
+    _show_box("Routing Rules", rows)
 
 
 def _show_tasks() -> None:
@@ -1090,8 +1172,11 @@ def _boot_sequence() -> None:
         from imos.auth import current_user
 
         dashboard.emit_auth(current_user())
+        dashboard.emit_runtime()
+        dashboard.emit_routing({"rules": routing.list_rules(), "path": str(routing.path)})
     except Exception:
         pass
+    _audit("session_start", "IMOS operator runtime ready", {"session_id": ctx.session_id[:8]})
 
 
 def execute_plan(user_input: str, plan_data: dict) -> None:
@@ -1100,6 +1185,8 @@ def execute_plan(user_input: str, plan_data: dict) -> None:
     goal_summary = f"Goal: {goal}. Reasoning: {plan_data.get('reasoning', '')}"
     ctx.add_message("assistant", goal_summary, current_provider, current_model)
     task_id = tracker.start(goal, len(steps))
+    mem.save("last_goal", goal)
+    _audit("plan_start", goal, {"steps": len(steps), "task_id": task_id[:8]})
     _show_session_card(goal, len(steps), _provider_name(), task_id)
     try:
         dashboard.emit_plan(
@@ -1267,6 +1354,30 @@ def run_operator_cli(ui_module=None) -> None:
             if user_input == "/status":
                 _show_status()
                 continue
+            if user_input == "/runtime":
+                _show_runtime()
+                continue
+            if user_input == "/memory":
+                _show_memory()
+                continue
+            if user_input.startswith("/audit"):
+                parts = user_input.split()
+                limit = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 15
+                _show_audit(limit)
+                continue
+            if user_input == "/routing":
+                _show_routing()
+                continue
+            if user_input.startswith("/route "):
+                parts = user_input.split()
+                if len(parts) != 3:
+                    _imos_line("usage: /route <task_type> <provider>  e.g. /route code groq")
+                else:
+                    routing.set_rule(parts[1], parts[2])
+                    _audit("routing", f"rule set {parts[1]} → {parts[2]}", {"rules": routing.list_rules()})
+                    dashboard.emit_routing({"rules": routing.list_rules()})
+                    _imos_line(f"routing: {parts[1]} → {parts[2]}")
+                continue
             if user_input == "/policy":
                 pol.show()
                 continue
@@ -1276,6 +1387,8 @@ def run_operator_cli(ui_module=None) -> None:
                     _imos_line("error: usage: /policy-set <tool> <allow|ask|deny>")
                 else:
                     pol.set(parts[1], parts[2])
+                    _audit("policy", f"{parts[1]} → {parts[2]}", {})
+                    dashboard.emit_policy(pol.all())
                     _imos_line(f"policy updated: {parts[1]}={parts[2]}")
                 continue
             if user_input == "/tasks":
@@ -1333,6 +1446,7 @@ def run_operator_cli(ui_module=None) -> None:
             conversation_history.append({"role": "user", "content": user_input})
             ctx.add_message("user", user_input, current_provider, current_model)
             _dashboard_chat("user", user_input)
+            _apply_task_routing(user_input)
 
             if UI:
                 UI.status("Running operator loop…")
