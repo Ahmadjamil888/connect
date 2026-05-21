@@ -1,8 +1,9 @@
 import os
 import threading
+from collections import deque
 from datetime import datetime
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_socketio import SocketIO
 
 
@@ -64,10 +65,81 @@ DASHBOARD_HTML = r"""<!doctype html>
     .status-red { background: var(--red); }
     .layout {
       display: grid;
-      grid-template-columns: 30% 40% 30%;
+      grid-template-columns: 22% 28% 28% 22%;
       gap: 14px;
       padding: 14px;
       min-height: calc(100vh - 104px);
+    }
+    .panel-chat {
+      display: flex;
+      flex-direction: column;
+      min-height: 520px;
+    }
+    .chat-messages {
+      flex: 1;
+      min-height: 380px;
+      max-height: calc(100vh - 220px);
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      padding: 12px;
+      background: #080808;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .chat-bubble {
+      max-width: 92%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .chat-bubble.user {
+      align-self: flex-end;
+      background: #1a1814;
+      border: 1px solid #3d3528;
+      color: var(--text);
+    }
+    .chat-bubble.assistant {
+      align-self: flex-start;
+      background: #0f0f0f;
+      border: 1px solid var(--border);
+      color: #d8d8d8;
+    }
+    .chat-bubble .chat-meta {
+      display: block;
+      font-size: 10px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .chat-compose {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .chat-compose input {
+      flex: 1;
+      border: 1px solid var(--border);
+      background: #0d0d0d;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 12px;
+      font-family: inherit;
+    }
+    .chat-compose input:focus {
+      outline: none;
+      border-color: #4a4030;
+    }
+    .chat-empty {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+      margin: auto;
+      padding: 24px 12px;
     }
     .panel {
       border: 1px solid var(--border);
@@ -152,13 +224,25 @@ DASHBOARD_HTML = r"""<!doctype html>
       cursor: pointer;
     }
     .btn:hover { color: var(--accent); }
-    .log-feed {
-      height: 76vh;
+    .log-feed, .think-feed {
+      height: 34vh;
       overflow-y: auto;
       border: 1px solid var(--border);
       padding: 10px;
       background: #0b0b0b;
     }
+    .think-feed { height: 28vh; margin-bottom: 10px; border-color: #2a2418; }
+    .think-entry { color: #b8a078; font-size: 12px; padding: 6px 0; border-bottom: 1px solid #1a1814; }
+    .services-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .service-pill {
+      border: 1px solid var(--border);
+      padding: 4px 8px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .service-pill.on { border-color: #3d4a32; color: #9cb87a; }
+    .service-pill.off { color: var(--muted); opacity: 0.55; }
     .log-entry {
       border-bottom: 1px solid #171717;
       padding: 8px 0;
@@ -195,9 +279,14 @@ DASHBOARD_HTML = r"""<!doctype html>
     .policy-grid .row span:last-child.allow { color: var(--green); }
     .policy-grid .row span:last-child.ask { color: var(--yellow); }
     .policy-grid .row span:last-child.deny { color: var(--red); }
+    @media (max-width: 1200px) {
+      .layout { grid-template-columns: 1fr 1fr; }
+      .chat-messages { min-height: 280px; max-height: 40vh; }
+    }
     @media (max-width: 980px) {
       .layout { grid-template-columns: 1fr; }
       .log-feed { height: 40vh; }
+      .chat-messages { min-height: 240px; max-height: 50vh; }
       .topbar, .bottombar { grid-template-columns: 1fr; gap: 8px; }
       .center, .right { text-align: left; }
     }
@@ -206,7 +295,7 @@ DASHBOARD_HTML = r"""<!doctype html>
 <body>
   <div class="topbar">
     <div class="runtime-title">IMOS    Operator Runtime</div>
-    <div class="center" id="topCenter">session --  uptime --  provider --</div>
+    <div class="center" id="topCenter">session --  uptime --  provider --  <span id="authBadge">auth --</span></div>
     <div class="right">
       <span class="status-wrap">
         <span id="statusDot" class="status-dot status-red"></span>
@@ -234,14 +323,34 @@ DASHBOARD_HTML = r"""<!doctype html>
       </div>
     </section>
 
+    <section class="panel panel-chat">
+      <div class="log-panel-header">
+        <div>
+          <h2>Session Chat</h2>
+          <div class="subtext">CLI and dashboard — live transcript</div>
+        </div>
+        <button class="btn" id="clearChatBtn">Clear</button>
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-empty" id="chatEmpty">Messages from the operator CLI and this panel appear here.</div>
+      </div>
+      <form class="chat-compose" id="chatForm">
+        <input id="chatInput" type="text" placeholder="Message IMOS…" autocomplete="off" />
+        <button type="submit" class="btn">Send</button>
+      </form>
+    </section>
+
     <section class="panel">
       <div class="log-panel-header">
         <div>
-          <h2>Smart Critiques</h2>
-          <div class="subtext">Execution log  Tool results</div>
+          <h2>Operator Runtime</h2>
+          <div class="subtext">Thinking  Execution</div>
         </div>
         <button class="btn" id="clearLogBtn">Clear</button>
       </div>
+      <div class="subtext" style="margin-bottom:6px">Dynamic reasoning</div>
+      <div class="think-feed" id="thinkFeed"></div>
+      <div class="subtext" style="margin-bottom:6px">Tool execution</div>
       <div class="log-feed" id="logFeed"></div>
     </section>
 
@@ -253,6 +362,17 @@ DASHBOARD_HTML = r"""<!doctype html>
         <div class="row"><span class="label">Memory entries</span><span id="memoryCount">0</span></div>
         <div class="row"><span class="label">Token estimate</span><span id="tokenEstimate">~0 tokens in session</span></div>
       </div>
+      <div class="subtext" style="margin-top:12px">Models — add any provider</div>
+      <div id="modelsList" style="font-size:11px;margin-bottom:8px;color:var(--muted)"></div>
+      <form id="addModelForm" style="display:grid;gap:6px;margin-bottom:10px">
+        <select id="modelType" class="btn" style="width:100%"></select>
+        <input id="modelName" class="btn" placeholder="Model ID (any name)" />
+        <input id="modelKey" class="btn" placeholder="API key (optional)" type="password" />
+        <input id="modelBase" class="btn" placeholder="Base URL (optional)" />
+        <button type="submit" class="btn">Add model</button>
+      </form>
+      <div class="subtext">Connected services</div>
+      <div class="services-grid" id="servicesGrid"></div>
       <div class="policy-grid" id="policyGrid"></div>
       <div class="provider-badges" id="providerBadges"></div>
       <div style="margin-top:14px;">
@@ -270,6 +390,15 @@ DASHBOARD_HTML = r"""<!doctype html>
   <script>
     const socket = io();
     const logFeed = document.getElementById('logFeed');
+    const thinkFeed = document.getElementById('thinkFeed');
+    const chatMessages = document.getElementById('chatMessages');
+    const chatEmpty = document.getElementById('chatEmpty');
+    const chatForm = document.getElementById('chatForm');
+    const chatInput = document.getElementById('chatInput');
+    const servicesGrid = document.getElementById('servicesGrid');
+    const modelsList = document.getElementById('modelsList');
+    const modelType = document.getElementById('modelType');
+    const addModelForm = document.getElementById('addModelForm');
     const progressBar = document.getElementById('progressBar');
     const progressText = document.getElementById('progressText');
     const goalText = document.getElementById('goalText');
@@ -283,6 +412,70 @@ DASHBOARD_HTML = r"""<!doctype html>
     let lastEventAt = 0;
     let uptimeSeconds = 0;
     let currentTotal = 0;
+
+    function appendThink(message) {
+      const entry = document.createElement('div');
+      entry.className = 'think-entry';
+      entry.textContent = message;
+      thinkFeed.appendChild(entry);
+      while (thinkFeed.children.length > 40) thinkFeed.removeChild(thinkFeed.firstChild);
+      thinkFeed.scrollTop = thinkFeed.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function appendChat(role, content, timestamp) {
+      if (!content) return;
+      if (chatEmpty) chatEmpty.style.display = 'none';
+      const normalized = (role || 'assistant').toLowerCase();
+      const bubbleRole = normalized === 'user' ? 'user' : 'assistant';
+      const label = bubbleRole === 'user' ? 'You' : 'IMOS';
+      const entry = document.createElement('div');
+      entry.className = 'chat-bubble ' + bubbleRole;
+      const meta = document.createElement('span');
+      meta.className = 'chat-meta';
+      meta.textContent = label + (timestamp ? ' · ' + timestamp : '');
+      const body = document.createElement('div');
+      body.innerHTML = escapeHtml(content);
+      entry.appendChild(meta);
+      entry.appendChild(body);
+      chatMessages.appendChild(entry);
+      const bubbles = chatMessages.querySelectorAll('.chat-bubble');
+      while (bubbles.length > 80) {
+        bubbles[0].remove();
+      }
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    async function fetchChatHistory() {
+      try {
+        const response = await fetch('/api/chat/messages');
+        const data = await response.json();
+        if (!Array.isArray(data) || !data.length) return;
+        if (chatEmpty) chatEmpty.style.display = 'none';
+        chatMessages.querySelectorAll('.chat-bubble').forEach((el) => el.remove());
+        data.forEach((row) => {
+          appendChat(row.role, row.content, row.timestamp);
+        });
+      } catch (err) {
+        appendLog('chat history failed: ' + err, 'status-failed', 'chat');
+      }
+    }
+
+    function renderServices(items) {
+      servicesGrid.innerHTML = '';
+      (items || []).forEach((svc) => {
+        const pill = document.createElement('span');
+        pill.className = 'service-pill ' + (svc.available ? 'on' : 'off');
+        pill.title = svc.detail || '';
+        pill.textContent = svc.label;
+        servicesGrid.appendChild(pill);
+      });
+    }
 
     function appendLog(message, cls='', tag='', timestamp='') {
       const entry = document.createElement('div');
@@ -348,9 +541,23 @@ DASHBOARD_HTML = r"""<!doctype html>
       document.getElementById('memoryCount').textContent = data.memory_count;
       document.getElementById('tokenEstimate').textContent = '~' + data.token_estimate + ' tokens in session';
       document.getElementById('uptimeValue').textContent = data.uptime;
+      const auth = data.auth || {};
+      const authBadge = document.getElementById('authBadge');
+      if (authBadge) {
+        authBadge.textContent = auth.signed_in ? ('signed in ' + (auth.email || '')) : 'not signed in';
+        authBadge.style.color = auth.signed_in ? '#6f8f5a' : '#9a5b5b';
+      }
       topCenter.textContent = 'session ' + data.session_id + '  uptime ' + data.uptime + '  ' + data.provider + ' / ' + data.model;
       renderPolicy(data.policy);
     }
+
+    socket.on('auth', (data) => {
+      const authBadge = document.getElementById('authBadge');
+      if (authBadge) {
+        authBadge.textContent = data.signed_in ? ('signed in ' + (data.email || '')) : 'not signed in';
+        authBadge.style.color = data.signed_in ? '#6f8f5a' : '#9a5b5b';
+      }
+    });
 
     async function fetchStatus() {
       const response = await fetch('/api/status');
@@ -377,6 +584,54 @@ DASHBOARD_HTML = r"""<!doctype html>
       const response = await fetch('/api/providers');
       const data = await response.json();
       renderProviders(data);
+    }
+
+    async function fetchServices() {
+      const response = await fetch('/api/services');
+      const data = await response.json();
+      renderServices(data);
+    }
+
+    function renderModels(payload) {
+      const providers = payload.providers || payload || [];
+      const def = payload.default || {};
+      modelsList.innerHTML = providers.map(p =>
+        '<div>' + (p.is_default ? '* ' : '  ') + p.id + ' — ' + p.type + ' / ' + (p.model || '') + '</div>'
+      ).join('') || '<div>No models. Add one below.</div>';
+      if (def.model) providerBadge.textContent = (def.type || '') + ' / ' + def.model;
+    }
+
+    async function fetchModels() {
+      const response = await fetch('/api/models');
+      const data = await response.json();
+      renderModels(data);
+      if (modelType && data.types) {
+        modelType.innerHTML = data.types.map(t =>
+          '<option value="' + t.type + '">' + t.name + '</option>'
+        ).join('');
+      }
+    }
+
+    if (addModelForm) {
+      addModelForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const body = {
+          type: modelType.value,
+          model: document.getElementById('modelName').value,
+          api_key: document.getElementById('modelKey').value,
+          base_url: document.getElementById('modelBase').value,
+          is_default: true
+        };
+        const res = await fetch('/api/models', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (data.ok) {
+          appendLog('model added: ' + data.provider.id + ' / ' + data.provider.model, 'status-ok', 'model');
+          await fetchModels();
+          await fetchServices();
+        } else {
+          appendLog('model add failed: ' + (data.error || 'unknown'), 'status-failed', 'model');
+        }
+      });
     }
 
     function tickUptime() {
@@ -437,9 +692,62 @@ DASHBOARD_HTML = r"""<!doctype html>
       appendLog(data.message, '', '', data.timestamp);
     });
 
+    socket.on('chat', (data) => {
+      lastEventAt = Date.now();
+      updateDotState();
+      appendChat(data.role || 'assistant', data.content || '', data.timestamp);
+    });
+
+    socket.on('think', (data) => {
+      lastEventAt = Date.now();
+      updateDotState();
+      if (data.analysis) appendThink('Analysis: ' + data.analysis);
+      (data.reasoning_steps || []).forEach((step, idx) => appendThink((idx + 1) + '. ' + step));
+      if (data.agents && data.agents.length) appendThink('Agents: ' + data.agents.join(', '));
+    });
+
+    socket.on('services', (data) => {
+      renderServices(data.items || data);
+    });
+
     document.getElementById('clearLogBtn').addEventListener('click', () => {
       logFeed.innerHTML = '';
+      thinkFeed.innerHTML = '';
     });
+
+    document.getElementById('clearChatBtn').addEventListener('click', () => {
+      chatMessages.querySelectorAll('.chat-bubble').forEach((el) => el.remove());
+      if (chatEmpty) {
+        chatEmpty.style.display = '';
+        if (!chatMessages.contains(chatEmpty)) chatMessages.appendChild(chatEmpty);
+      }
+    });
+
+    if (chatForm) {
+      chatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const text = (chatInput.value || '').trim();
+        if (!text) return;
+        chatInput.value = '';
+        chatInput.disabled = true;
+        try {
+          const res = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: text })
+          });
+          const data = await res.json();
+          if (!data.ok) {
+            appendChat('assistant', 'Send failed: ' + (data.error || 'unknown'));
+          }
+        } catch (err) {
+          appendChat('assistant', 'Send failed: ' + err);
+        } finally {
+          chatInput.disabled = false;
+          chatInput.focus();
+        }
+      });
+    }
 
     document.getElementById('refreshBtn').addEventListener('click', async () => {
       await fetchStatus();
@@ -449,9 +757,12 @@ DASHBOARD_HTML = r"""<!doctype html>
 
     window.addEventListener('load', async () => {
       await fetchStatus();
+      await fetchChatHistory();
       await fetchTasks();
       await fetchMemory();
       await fetchProviders();
+      await fetchServices();
+      await fetchModels();
       setInterval(tickUptime, 1000);
       setInterval(async () => {
         await fetchStatus();
@@ -476,6 +787,8 @@ class Dashboard:
         self.socketio = SocketIO(self.app, cors_allowed_origins="*", async_mode="threading")
         self._thread = None
         self._port = None
+        self._chat_lock = threading.Lock()
+        self._chat_inbox: deque[str] = deque()
         self._configure_routes()
 
     def _configure_routes(self) -> None:
@@ -496,6 +809,13 @@ class Dashboard:
             total_seconds = int(delta.total_seconds())
             hours, remainder = divmod(total_seconds, 3600)
             minutes, seconds = divmod(remainder, 60)
+            auth_info = {"signed_in": False, "email": ""}
+            try:
+                from imos.auth import current_user
+
+                auth_info = current_user()
+            except Exception:
+                pass
             return jsonify(
                 {
                     "provider": provider,
@@ -508,6 +828,7 @@ class Dashboard:
                     "message_count": stats["message_count"],
                     "token_estimate": stats["token_estimate"],
                     "providers_used": stats["providers_used"],
+                    "auth": auth_info,
                 }
             )
 
@@ -540,6 +861,101 @@ class Dashboard:
                     available.append(provider)
             return jsonify(available)
 
+        @self.app.get("/api/services")
+        def api_services():
+            from core.services_catalog import list_all_services
+
+            return jsonify(list_all_services())
+
+        @self.app.get("/api/models")
+        def api_models():
+            from core import model_manager
+            from core.services_catalog import list_provider_types
+
+            return jsonify(
+                {
+                    "providers": model_manager.load_providers(),
+                    "default": model_manager.get_default(),
+                    "types": list_provider_types(),
+                }
+            )
+
+        @self.app.post("/api/models")
+        def api_models_add():
+            from core import model_manager
+
+            payload = request.get_json(silent=True) or {}
+            provider_type = str(payload.get("type") or payload.get("provider", "")).strip().lower()
+            model_name = str(payload.get("model", "")).strip()
+            if not provider_type or not model_name:
+                return jsonify({"ok": False, "error": "type and model are required"}), 400
+            if provider_type not in model_manager.PROVIDER_TYPES:
+                return jsonify({"ok": False, "error": f"unknown provider type: {provider_type}"}), 400
+            row = model_manager.add_provider(
+                {
+                    "id": str(payload.get("id") or f"{provider_type}-{model_name.replace('/', '-')[:28]}"),
+                    "name": str(payload.get("name") or f"{model_manager.PROVIDER_TYPES[provider_type]['name']} ({model_name})"),
+                    "type": provider_type,
+                    "model": model_name,
+                    "api_key": str(payload.get("api_key", "")).strip(),
+                    "base_url": str(payload.get("base_url") or model_manager.PROVIDER_TYPES[provider_type].get("base_url", "")).strip(),
+                    "enabled": True,
+                    "is_default": bool(payload.get("is_default", True)),
+                }
+            )
+            return jsonify({"ok": True, "provider": row, "default": model_manager.get_default()})
+
+        @self.app.post("/api/models/<provider_id>/default")
+        def api_models_default(provider_id: str):
+            from core import model_manager
+
+            try:
+                row = model_manager.set_default(provider_id)
+            except KeyError:
+                return jsonify({"ok": False, "error": "not found"}), 404
+            return jsonify({"ok": True, "provider": row})
+
+        @self.app.get("/api/chat/messages")
+        def api_chat_messages():
+            ctx = self.ctx_getter()
+            items = []
+            for row in ctx.data.get("messages", [])[-100:]:
+                role = str(row.get("role", "")).strip().lower()
+                if role not in {"user", "assistant"}:
+                    continue
+                content = str(row.get("content", "")).strip()
+                if not content:
+                    continue
+                items.append(
+                    {
+                        "role": role,
+                        "content": content,
+                        "timestamp": row.get("timestamp", ""),
+                    }
+                )
+            return jsonify(items)
+
+        @self.app.post("/api/chat")
+        def api_chat_send():
+            payload = request.get_json(silent=True) or {}
+            text = str(payload.get("message") or payload.get("text") or "").strip()
+            if not text:
+                return jsonify({"ok": False, "error": "message is required"}), 400
+            provider, model = self.provider_getter()
+            ctx = self.ctx_getter()
+            ctx.add_message("user", text, provider, model)
+            self.emit_chat("user", text)
+            with self._chat_lock:
+                self._chat_inbox.append(text)
+            self.emit_log(f"dashboard chat queued: {text[:120]}")
+            return jsonify({"ok": True, "queued": True})
+
+    def pop_chat_inbox(self) -> str | None:
+        with self._chat_lock:
+            if not self._chat_inbox:
+                return None
+            return self._chat_inbox.popleft()
+
     def start(self, port=7070) -> None:
         if self._thread and self._thread.is_alive():
             return
@@ -567,5 +983,42 @@ class Dashboard:
     def emit_log(self, message: str) -> None:
         try:
             self.socketio.emit("log", {"message": message, "timestamp": datetime.now().isoformat()})
+        except Exception:
+            return
+
+    def emit_chat(self, role: str, content: str) -> None:
+        try:
+            self.socketio.emit(
+                "chat",
+                {
+                    "role": role,
+                    "content": content,
+                    "timestamp": datetime.now().isoformat(),
+                },
+            )
+        except Exception:
+            return
+
+    def emit_think(self, think_data: dict) -> None:
+        try:
+            self.socketio.emit("think", think_data)
+        except Exception:
+            return
+
+    def emit_services(self, services: list) -> None:
+        try:
+            self.socketio.emit("services", {"items": services})
+        except Exception:
+            return
+
+    def emit_models(self, providers: list, default: dict | None = None) -> None:
+        try:
+            self.socketio.emit("models", {"providers": providers, "default": default or {}})
+        except Exception:
+            return
+
+    def emit_auth(self, auth_info: dict) -> None:
+        try:
+            self.socketio.emit("auth", auth_info)
         except Exception:
             return

@@ -1,10 +1,10 @@
 @echo off
+setlocal EnableExtensions
 echo ========================================
-echo  AI ASSISTANT - Setup
+echo  IMOS - Intelligent Machine OS Setup
 echo ========================================
 echo.
 
-REM Check Python
 python --version >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Python not found. Install from https://python.org
@@ -12,69 +12,65 @@ if errorlevel 1 (
     exit /b 1
 )
 
+cd /d "%~dp0"
 echo [*] Python found
 echo.
 
-REM Install dependencies
 echo [*] Installing dependencies...
+python -m pip install --upgrade pip
 pip install -r requirements.txt
+pip install -e .
 if errorlevel 1 (
     echo [ERROR] Failed to install dependencies
     pause
     exit /b 1
 )
 
-echo [*] Installing voice and service dependencies...
-pip install faster-whisper sounddevice numpy scipy
-pip install pystray pillow
-pip install elevenlabs
-pip install pyttsx3
-pip install pipwin
-pipwin install pyaudio
+echo [*] Installing operator extras...
+pip install faster-whisper sounddevice numpy scipy pystray pillow elevenlabs pyttsx3 pyautogui pygetwindow 2>nul
 
 echo [*] Installing Playwright Chromium...
-playwright install chromium
+python -m playwright install chromium
 if errorlevel 1 (
     echo [ERROR] Failed to install Playwright Chromium
     pause
     exit /b 1
 )
 
-echo [*] Creating IMOS home...
-if not exist "%USERPROFILE%\.imos" mkdir "%USERPROFILE%\.imos"
-
-echo [*] Generating default IMOS config...
-python -c "from imos.config import ensure_default_files; ensure_default_files()"
-
-set /p IMOS_MCP=Configure Cursor and Windsurf MCP now? [y/N]: 
-if /I "%IMOS_MCP%"=="Y" (
-    python -m imos.cli mcp install
+echo [*] Bootstrapping IMOS runtime...
+python -c "from pathlib import Path; from setup.bootstrap import initialize_imos_runtime, print_bootstrap_summary; s=initialize_imos_runtime(Path('.')); print_bootstrap_summary(s)"
+if errorlevel 1 (
+    echo [WARN] Bootstrap had issues - continue manually with: python -m setup.bootstrap
 )
 
-echo [*] Installing global CONNECT command...
-call install_connect_command.bat
-if errorlevel 1 (
-    echo [ERROR] Failed to install CONNECT command
-    pause
-    exit /b 1
+if not exist ".env" if exist ".env.example" copy ".env.example" ".env" >nul
+
+set /p IMOS_MCP=Configure Cursor / Windsurf MCP now? [y/N]: 
+if /I "%IMOS_MCP%"=="Y" python -m imos.cli mcp install
+
+set /p IMOS_WIZARD=Run IMOS first-time setup wizard (models + services)? [Y/n]: 
+if /I not "%IMOS_WIZARD%"=="N" (
+    python -c "from pathlib import Path; from setup.wizard import run_setup_wizard; run_setup_wizard(Path('.'), Path('.'), forced=True)"
+)
+
+if exist install_connect_command.bat (
+    echo [*] Installing global connect launcher...
+    call install_connect_command.bat
 )
 
 echo [*] Installing IMOS background service...
-python setup\install_service.py
+python setup\install_service.py 2>nul
 
 echo.
 echo ========================================
-echo  Setup Complete!
+echo  IMOS Setup Complete
 echo ========================================
 echo.
-echo Next steps:
-echo.
-echo 1. Verify your .env file contains the provider and adapter credentials you need
-echo.
-echo 2. Open a new terminal and run:
-echo    connect
-echo    imos status
+echo   Start operator CLI:     imos
+echo   Open dashboard:         imos dashboard  (http://127.0.0.1:7070)
+echo   List all services:      imos  then  /services
+echo   Add any model:          /model add ^<type^> ^<model-id^> [api_key] [base_url]
+echo   Model types:            /model types
 echo.
 echo ========================================
-
 pause

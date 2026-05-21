@@ -1,63 +1,84 @@
 #!/bin/bash
+set -euo pipefail
 
 echo "========================================"
-echo " AI ASSISTANT - Setup"
+echo " IMOS — Intelligent Machine OS Setup"
 echo "========================================"
 echo ""
 
-# Check Python
 if ! command -v python3 &> /dev/null; then
     echo "[ERROR] Python3 not found. Install from https://python.org"
     exit 1
 fi
 
-echo "[*] Python found: $(python3 --version)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+echo "[*] Python: $(python3 --version)"
 echo ""
 
-# Create virtual environment (optional but recommended)
-echo "[*] Creating virtual environment..."
-python3 -m venv venv
+if [[ ! -d venv ]]; then
+    echo "[*] Creating virtual environment..."
+    python3 -m venv venv
+fi
+# shellcheck disable=SC1091
 source venv/bin/activate
 
-# Install dependencies
 echo "[*] Installing dependencies..."
+python3 -m pip install --upgrade pip
 pip install -r requirements.txt
-pip install faster-whisper sounddevice numpy scipy
-pip install pystray pillow
-pip install elevenlabs
-pip install pyttsx3
+pip install -e .
+
+echo "[*] Installing operator extras (voice, desktop control)..."
+pip install faster-whisper sounddevice numpy scipy pystray pillow elevenlabs pyttsx3 pyautogui pygetwindow 2>/dev/null || true
 
 echo "[*] Installing Playwright Chromium..."
-playwright install chromium
+python3 -m playwright install chromium
 
-echo "[*] Creating IMOS home..."
-mkdir -p "$HOME/.imos"
+echo "[*] Bootstrapping IMOS runtime (home, providers, services)..."
+python3 -c "
+from pathlib import Path
+from setup.bootstrap import initialize_imos_runtime, print_bootstrap_summary
+summary = initialize_imos_runtime(Path('.'))
+print_bootstrap_summary(summary)
+"
 
-echo "[*] Generating default IMOS config..."
-python3 -c "from imos.config import ensure_default_files; ensure_default_files()"
-
-read -r -p "Configure Cursor and Windsurf MCP now? [y/N]: " IMOS_MCP
-if [[ "$IMOS_MCP" =~ ^[Yy]$ ]]; then
-    python3 -m imos.cli mcp install
+if [[ ! -f .env ]] && [[ -f .env.example ]]; then
+    cp .env.example .env
+    echo "[*] Created .env from .env.example"
 fi
 
-echo "[*] Installing global CONNECT command..."
-bash ./install_connect_command.sh
+read -r -p "Configure Cursor / Windsurf MCP now? [y/N]: " IMOS_MCP
+if [[ "$IMOS_MCP" =~ ^[Yy]$ ]]; then
+    python3 -m imos.cli mcp install || true
+fi
 
-echo "[*] Installing IMOS background service..."
-python3 setup/install_service.py
+read -r -p "Run IMOS first-time setup wizard (models + services)? [Y/n]: " IMOS_WIZARD
+if [[ ! "$IMOS_WIZARD" =~ ^[Nn]$ ]]; then
+    python3 -c "
+from pathlib import Path
+from setup.wizard import run_setup_wizard
+run_setup_wizard(Path('.'), Path('.'), forced=True)
+" || true
+fi
+
+if [[ -f install_connect_command.sh ]]; then
+    echo "[*] Installing global connect launcher..."
+    bash ./install_connect_command.sh || true
+fi
+
+echo "[*] Installing IMOS background service (optional)..."
+python3 setup/install_service.py 2>/dev/null || true
 
 echo ""
 echo "========================================"
-echo " Setup Complete!"
+echo " IMOS Setup Complete"
 echo "========================================"
 echo ""
-echo "Next steps:"
-echo ""
-echo "1. Verify your .env file contains the provider and adapter credentials you need"
-echo ""
-echo "2. Open a new terminal and run:"
-echo "   connect"
-echo "   imos status"
+echo "  Start operator CLI:     imos"
+echo "  Open dashboard:         imos dashboard  (or http://127.0.0.1:7070)"
+echo "  List all services:      imos  →  /services"
+echo "  Add any model:          /model add <type> <model-id> [api_key] [base_url]"
+echo "  Model types:            /model types"
 echo ""
 echo "========================================"

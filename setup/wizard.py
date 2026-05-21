@@ -13,7 +13,9 @@ from config.config import (
     save_config,
 )
 from core import model_manager
+from core.services_catalog import list_all_services, list_provider_types
 from imos.hub import list_connection_catalog, list_model_catalog, upsert_connection
+from setup.bootstrap import initialize_imos_runtime
 from setup.autostart import enable_autostart
 from setup.consent import ConsentManager
 from tools.connection_auth import AUTH_PROVIDERS, open_connection_signin
@@ -124,7 +126,17 @@ def _provider_env_mapping(provider: str) -> tuple[str, str] | tuple[None, None]:
         "cohere": ("COHERE_API_KEY", "COHERE_MODEL"),
         "ollama": ("", "OLLAMA_MODEL"),
         "lmstudio": ("", "LMSTUDIO_MODEL"),
+        "together": ("TOGETHER_API_KEY", "TOGETHER_MODEL"),
+        "mistral": ("MISTRAL_API_KEY", "MISTRAL_MODEL"),
+        "cohere": ("COHERE_API_KEY", "COHERE_MODEL"),
+        "nvidia": ("NVIDIA_API_KEY", "NVIDIA_MODEL"),
+        "deepseek": ("DEEPSEEK_API_KEY", "DEEPSEEK_MODEL"),
+        "custom": ("", ""),
+        "custom-api": ("", ""),
+        "vllm": ("", ""),
     }
+    if provider in {"custom", "custom-api", "vllm"}:
+        return None, None
     return mapping.get(provider, (None, None))
 
 
@@ -165,11 +177,60 @@ def force_run_setup_wizard(project_root: Path, workspace: str | Path | None) -> 
     run_setup_wizard(project_root, workspace, forced=True)
 
 
+def _configure_custom_model(env_file: Path) -> dict[str, Any] | None:
+    types = list_provider_types()
+    print(f"{WHITE}Provider types (any model name works):{RESET}")
+    for index, item in enumerate(types, start=1):
+        print(f"{WHITE}{index:>2}. {item['type']:<14}{DIM}{item['name']}{RESET}")
+    print()
+    choice = _ask("Enter type number or type id (e.g. openrouter): ")
+    provider_type = ""
+    if choice.isdigit() and 1 <= int(choice) <= len(types):
+        provider_type = types[int(choice) - 1]["type"]
+    else:
+        provider_type = choice.strip().lower()
+    if provider_type not in model_manager.PROVIDER_TYPES:
+        print(f"{WHITE}Unknown type. Try: custom, openai, groq, anthropic, ollama, vllm{RESET}")
+        return None
+    model_name = _ask("Model ID (any string, e.g. gpt-4o or meta-llama/...): ")
+    if not model_name.strip():
+        return None
+    defaults = get_provider_defaults(provider_type)
+    api_key = _ask("API key (Enter to skip): ")
+    base_url = _ask("Base URL (Enter for default): ", default=str(defaults.get("base_url", "")))
+    payload = {
+        "id": f"{provider_type}-{model_name.replace('/', '-')[:28]}",
+        "name": f"{model_manager.PROVIDER_TYPES[provider_type]['name']} ({model_name})",
+        "type": provider_type,
+        "model": model_name.strip(),
+        "api_key": api_key.strip(),
+        "base_url": base_url.strip(),
+        "enabled": True,
+        "is_default": False,
+    }
+    row = model_manager.add_provider(payload)
+    result = model_manager.test_provider(row["id"])
+    if result.get("ok"):
+        print(f" Connected  {result['latency']}ms")
+    else:
+        print(f" Saved (test skipped/failed): {result.get('error', '')}")
+    key_env, model_env = _provider_env_mapping(provider_type)
+    updates: dict[str, str] = {}
+    if key_env and api_key:
+        updates[key_env] = api_key
+    if model_env:
+        updates[model_env] = model_name.strip()
+    if updates:
+        _write_env(env_file, updates)
+    return row
+
+
 def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: bool) -> dict[str, Any]:
     cfg = load_config()
     env_file = _env_path(project_root)
     state_root = resolve_runtime_state_root(workspace or cfg.get("workspace") or project_root)
     consent_manager = ConsentManager(state_root)
+    bootstrap = initialize_imos_runtime(project_root)
 
     os.system("cls" if os.name == "nt" else "clear")
 
@@ -177,6 +238,7 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
     _print_logo()
     print()
     print(f"{WHITE}Welcome. This wizard configures IMOS once.{RESET}")
+    print(f"{DIM}Runtime catalog: {bootstrap.get('services_total', 0)} services · add any model anytime{RESET}")
     input(f"{WHITE}Press Enter to continue.{RESET}")
 
     _step_title("Step 2  PC Control Consent")
@@ -259,6 +321,12 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
             break
         print()
 
+    if _yes_no("Add a custom model by name (any provider type + model ID)? (yes/no): "):
+        custom_row = _configure_custom_model(env_file)
+        if custom_row and default_provider_payload is None:
+            default_provider_payload = dict(custom_row)
+            model_manager.set_default(custom_row["id"])
+
     _step_title("Step 4  LLM Behavior")
     existing_system_prompt = str(cfg.get("system_prompt", "")).strip()
     print(f"{WHITE}Optional: add a custom system prompt for your preferred LLM behavior.{RESET}")
@@ -298,7 +366,17 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
     cfg["listen"]["wake_word"] = wake_word
     cfg["listen"].setdefault("enabled", False)
 
-    _step_title("Step 7  Integrations")
+    _step_title("Step 7  Services and integrations")
+    try:
+        services = list_all_services()
+        available = sum(1 for item in services if item.get("available"))
+        print(f"{WHITE}IMOS connects {len(services)} services ({available} available on this machine).{RESET}")
+        print(f"{DIM}Runtime: browser, desktop, filesystem, shell, dashboard, sessions{RESET}")
+        print(f"{DIM}IDE agents: Cursor, Claude Code, Codex, VS Code, and more{RESET}")
+        print(f"{DIM}After setup:  /services   /model list   /model add <type> <model>{RESET}")
+        print()
+    except Exception:
+        pass
     smtp_host = _ask("Email SMTP host     (Enter to skip): ")
     smtp_port = _ask("Email SMTP port     (Enter to skip): ")
     smtp_user = _ask("Email address       (Enter to skip): ")
@@ -386,8 +464,10 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
     print(f"{WHITE}Provider:   {ORANGE}{summary_provider}{RESET}")
     print(f"{WHITE}Voice:      {ORANGE}{voice_label}{RESET}")
     print(f"{WHITE}Wake word:  {ORANGE}{wake_word}{RESET}")
-    print(f"{WHITE}Dashboard:  {ORANGE}http://127.0.0.1:8766{RESET}")
+    print(f"{WHITE}Dashboard:  {ORANGE}http://127.0.0.1:7070{RESET}")
     print(f"{WHITE}Autostart:  {ORANGE}{'yes' if autostart_enabled else 'no'}{RESET}")
+    print(f"{WHITE}Models:     {ORANGE}/model add <type> <model-id>  (any model){RESET}")
+    print(f"{WHITE}Services:   {ORANGE}/services  ·  /service add <name>{RESET}")
     print()
     print(f"{WHITE}Say \"Hey IMOS\" to activate hands-free.{RESET}")
     input(f"{WHITE}Press Enter to launch IMOS.{RESET}")
@@ -398,4 +478,10 @@ def run_setup_wizard(project_root: Path, workspace: str | Path | None, forced: b
         "system_prompt": custom_system_prompt.strip(),
         "autostart": autostart_enabled,
         "forced": forced,
+        "services_total": bootstrap.get("services_total", 0),
     }
+
+
+if __name__ == "__main__":
+    root = Path(__file__).resolve().parents[1]
+    run_setup_wizard(root, root, forced=True)

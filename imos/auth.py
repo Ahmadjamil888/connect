@@ -28,6 +28,7 @@ W = "\033[1;37m"
 G = "\033[32m"
 R = "\033[31m"
 D = "\033[90m"
+B = "\033[1m"
 X = "\033[0m"
 
 
@@ -103,11 +104,6 @@ def cmd_logout():
     from dotenv import load_dotenv
     load_dotenv(PROJECT_ROOT / ".env")
 
-def cmd_logout():
-    """Clear the saved IMOS session."""
-    from dotenv import load_dotenv
-    load_dotenv(PROJECT_ROOT / ".env")
-
     try:
         mgr = _get_manager()
         state = mgr.load_state()
@@ -145,37 +141,49 @@ def cmd_whoami_clerk():
 
 
 def require_auth(skip_if_no_key: bool = False) -> bool:
+    """Soft auth check (legacy). Prefer require_auth_mandatory for CLI."""
+    return require_auth_mandatory(allow_skip=skip_if_no_key)
+
+
+def require_auth_mandatory(*, allow_skip: bool = False) -> bool:
     """
-    Called at IMOS startup. If user is not authenticated, prompt them to log in.
-    Returns True if authenticated.
+    IMOS CLI requires sign-in. Blocks until login succeeds or user exits.
     """
     from dotenv import load_dotenv
     load_dotenv(PROJECT_ROOT / ".env")
 
     pk = os.environ.get("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "").strip() or _AUTH_KEY
-    if not pk:
-        if skip_if_no_key:
-            return True
-        return False
+    if not pk and allow_skip:
+        return True
 
     if is_authenticated():
         state = current_user()
         email = state.get("email", "")
-        print(f"{G}  ✓ Signed in{X}" + (f" as {W}{email}{X}" if email else "") + "\n")
+        print(f"{G}  Signed in{X}" + (f" · {W}{email}{X}" if email else ""))
         return True
 
-    # Not authenticated — must log in
-    print(f"\n{O}  IMOS requires you to sign in first.{X}")
-    print(f"{D}  Your session is saved locally — you only need to do this once.{X}\n")
+    print(f"\n{O}{B}  Sign in required{X}")
+    print(f"{D}  IMOS uses your account to sync sessions, dashboard access, and operator state.{X}\n")
 
-    try:
-        choice = input(f"{O}  › {X}Sign in now? [Y/n]: ").strip().lower()
-    except (KeyboardInterrupt, EOFError):
-        print()
-        return False
+    while True:
+        try:
+            choice = input(f"{O}› {X}Open browser to sign in? [Y/n]: ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            print()
+            return False
 
-    if choice in ("n", "no"):
-        print(f"{D}  Skipped. Some features may be unavailable.{X}\n")
-        return False
+        if choice in ("n", "no"):
+            print(f"{R}  Cannot start IMOS without signing in.{X}")
+            print(f"{D}  Run: imos login{X}\n")
+            return False
 
-    return cmd_login()
+        if cmd_login():
+            return True
+
+        try:
+            retry = input(f"{O}› {X}Try again? [Y/n]: ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            print()
+            return False
+        if retry in ("n", "no"):
+            return False

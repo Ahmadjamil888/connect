@@ -29,7 +29,8 @@ PROVIDER_TYPES: dict[str, dict[str, Any]] = {
     "nvidia": {"name": "NVIDIA NIM", "base_url": "https://integrate.api.nvidia.com/v1", "requires_key": True},
     "bedrock": {"name": "AWS Bedrock", "base_url": "", "requires_key": False},
     "gcp": {"name": "Google Vertex AI", "base_url": "", "requires_key": False},
-    "custom": {"name": "Custom", "base_url": "", "requires_key": False},
+    "custom": {"name": "Custom / Any Model", "base_url": "", "requires_key": False},
+    "vllm": {"name": "vLLM", "base_url": "http://localhost:8000/v1", "requires_key": False},
 }
 
 ENV_PROVIDER_SPECS = [
@@ -191,6 +192,8 @@ def _env_value(*keys: str) -> str:
 def _normalize_provider(provider: dict[str, Any], *, index: int = 0) -> dict[str, Any]:
     model_name = str(provider.get("model", "") or "").strip()
     provider_type = str(provider.get("type") or provider.get("provider") or "").strip().lower()
+    if provider_type in {"custom-api", "custom_api"}:
+        provider_type = "custom"
     if provider_type in {"", "unassigned", "none", "null"}:
         provider_type = infer_provider_type(model_name)
     defaults = PROVIDER_TYPES.get(provider_type, PROVIDER_TYPES["custom"])

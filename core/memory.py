@@ -55,3 +55,7 @@ class Memory:
 
     def clear(self) -> None:
         self._write({"log": []})
+
+
+# Backward compatibility for modules still importing the old class name.
+MemorySystem = Memory

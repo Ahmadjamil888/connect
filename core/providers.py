@@ -231,13 +231,61 @@ PROVIDER_CALLS: dict[str, Callable[[list[dict], str], str]] = {
 }
 
 
+def _call_saved_provider(messages: list[dict], system: str) -> str:
+    from config.config import get_client, get_model_config, is_provider_payload_configured
+
+    cfg = get_model_config()
+    if not is_provider_payload_configured(cfg):
+        raise RuntimeError("saved provider not configured")
+    provider_type = str(cfg.get("type") or cfg.get("provider", "")).strip().lower()
+    model_name = str(cfg.get("model", "")).strip()
+    if provider_type == "anthropic":
+        if anthropic is None:
+            raise RuntimeError("anthropic SDK unavailable")
+        client = anthropic.Anthropic(api_key=str(cfg.get("api_key", "")).strip())
+        response = client.messages.create(
+            model=model_name or DEFAULT_MODELS["anthropic"],
+            system=system,
+            max_tokens=4096,
+            messages=messages,
+        )
+        return "".join(block.text for block in response.content if getattr(block, "type", "") == "text").strip()
+    if provider_type == "gemini":
+        if genai is None:
+            raise RuntimeError("gemini SDK unavailable")
+        genai.configure(api_key=str(cfg.get("api_key", "")).strip())
+        model = genai.GenerativeModel(model_name=model_name or DEFAULT_MODELS["gemini"], system_instruction=system)
+        prompt_parts = [f"{m['role'].upper()}:\n{m['content']}" for m in messages]
+        prompt_parts.append("ASSISTANT:")
+        return str(model.generate_content("\n\n".join(prompt_parts)).text).strip()
+    if provider_type == "ollama":
+        host = str(cfg.get("base_url", "http://localhost:11434")).rstrip("/")
+        if host.endswith("/v1"):
+            host = host[:-3]
+        payload = {"model": model_name or DEFAULT_MODELS["ollama"], "stream": False, "messages": [{"role": "system", "content": system}, *messages]}
+        response = requests.post(f"{host}/api/chat", json=payload, timeout=180)
+        response.raise_for_status()
+        return str(response.json().get("message", {}).get("content", "")).strip()
+    client = get_client(cfg)
+    response = client.chat.completions.create(
+        model=model_name,
+        messages=[{"role": "system", "content": system}, *messages],
+    )
+    return _message_text_from_openai_response(response)
+
+
 def get_response(messages: list[dict], system: str) -> str:
     normalized_messages, normalized_system = _normalize_messages(messages, system)
-    provider_chain = _build_provider_chain()
-    failures = []
+    failures: list[str] = []
 
+    try:
+        return _call_saved_provider(normalized_messages, normalized_system)
+    except Exception as error:
+        failures.append(f"saved: {error}")
+
+    provider_chain = _build_provider_chain()
     if not provider_chain:
-        raise RuntimeError("No AI providers are configured.")
+        raise RuntimeError("No AI providers are configured. Run: /model add")
 
     for provider in provider_chain:
         try:

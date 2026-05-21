@@ -147,19 +147,14 @@ async def _build_runtime() -> IMOSSessionRuntime:
     return IMOSSessionRuntime(await _build_orchestrator())
 
 def _launch_legacy_shell() -> None:
-    import ai_assistant
-
-    original_argv = sys.argv[:]
     try:
-        sys.argv = ["imos"]
-        try:
-            ai_assistant.main()
-        except Exception as exc:
-            if exc.__class__.__name__ != "NoConsoleScreenBufferError":
-                raise
-            _interactive_shell("default")
-    finally:
-        sys.argv = original_argv
+        from imos.operator_shell import run
+
+        run()
+    except Exception as exc:
+        if exc.__class__.__name__ != "NoConsoleScreenBufferError":
+            raise
+        _interactive_shell("default")
 
 def _interactive_shell(session_name: str, beast_mode: bool = False) -> None:
     async def _run() -> None:
@@ -498,13 +493,35 @@ def mcp_install() -> None:
 
 
 @cli.command()
+def login() -> None:
+    from imos import auth
+
+    sys.exit(0 if auth.cmd_login() else 1)
+
+
+@cli.command()
+def logout() -> None:
+    from imos import auth
+
+    auth.cmd_logout()
+
+
+@cli.command()
+def whoami() -> None:
+    from imos import auth
+
+    auth.cmd_whoami_clerk()
+
+
+@cli.command()
 def dashboard() -> None:
+    port = 7070
     try:
         from config.config import load_config
 
-        port = int(load_config().get("dashboard", {}).get("port", 5000) or 5000)
+        port = int(load_config().get("dashboard", {}).get("port", 7070) or 7070)
     except Exception:
-        port = 5000
+        port = 7070
     dashboard_url = f"http://127.0.0.1:{port}/"
     healthy = False
     try:

@@ -36,6 +36,7 @@ class ContextManager:
             except Exception as error:
                 print(f"Warning: failed to read session file: {error}")
         data = self._default_data()
+        self.data = data
         self._save()
         return data
 

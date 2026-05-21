@@ -14,6 +14,15 @@ DEFAULT_POLICY = {
     "read_file": "allow",
     "list_dir": "allow",
     "browser": "ask",
+    "lovable": "ask",
+    "cursor_build": "ask",
+    "transfer_context": "allow",
+    "scaffold_saas": "ask",
+    "desktop": "ask",
+    "ai_agent": "ask",
+    "rewrite_file": "allow",
+    "delete_file": "ask",
+    "open_service": "allow",
 }
 
 

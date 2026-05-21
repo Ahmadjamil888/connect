@@ -16,8 +16,11 @@ from core.browser import Browser
 from core.context import ContextManager
 from core.dashboard import Dashboard
 from core.memory import Memory
+from core import model_manager
+from core.operator_runtime import PLANNER_TOOLS_DOC, list_connected_services, run_operator_tool, think
 from core.policy import Policy
 from core.providers import get_response
+from core.services_catalog import list_all_services, list_provider_types, save_custom_service
 from core.tasks import TaskTracker
 
 load_dotenv()
@@ -53,8 +56,51 @@ PROVIDER_MODEL_ENVS = {
     "huggingface": "HUGGINGFACE_MODEL",
 }
 
-current_provider = os.getenv("AI_PROVIDER", "groq").strip().lower() or "groq"
-current_model = os.getenv(PROVIDER_MODEL_ENVS.get(current_provider, ""), "") or PROVIDER_MODEL_DEFAULTS.get(current_provider, "unknown")
+current_provider = "groq"
+current_model = "unknown"
+
+
+def _activate_provider_row(row: dict) -> tuple[str, str]:
+    global current_provider, current_model
+    provider_type = str(row.get("type") or row.get("provider", "groq")).strip().lower()
+    model_name = str(row.get("model", "") or "").strip() or PROVIDER_MODEL_DEFAULTS.get(provider_type, "unknown")
+    current_provider = provider_type
+    current_model = model_name
+    os.environ["AI_PROVIDER"] = provider_type
+    env_key = PROVIDER_MODEL_ENVS.get(provider_type)
+    if env_key:
+        os.environ[env_key] = model_name
+    if row.get("api_key"):
+        key_env = {
+            "anthropic": "ANTHROPIC_API_KEY",
+            "openai": "OPENAI_API_KEY",
+            "groq": "GROQ_API_KEY",
+            "gemini": "GOOGLE_GEMINI_API_KEY",
+            "openrouter": "OPENROUTER_API_KEY",
+            "huggingface": "HUGGINGFACE_API_KEY",
+            "deepseek": "DEEPSEEK_API_KEY",
+            "alibaba": "ALIBABA_API_KEY",
+            "nvidia": "NVIDIA_API_KEY",
+            "together": "TOGETHER_API_KEY",
+            "mistral": "MISTRAL_API_KEY",
+            "cohere": "COHERE_API_KEY",
+        }.get(provider_type)
+        if key_env:
+            os.environ[key_env] = str(row["api_key"])
+    return current_provider, current_model
+
+
+def _init_active_provider() -> None:
+    row = model_manager.get_default()
+    if row.get("no_provider_configured"):
+        provider = os.getenv("AI_PROVIDER", "groq").strip().lower() or "groq"
+        model = os.getenv(PROVIDER_MODEL_ENVS.get(provider, ""), "") or PROVIDER_MODEL_DEFAULTS.get(provider, "unknown")
+        _activate_provider_row({"type": provider, "model": model})
+        return
+    _activate_provider_row(row)
+
+
+_init_active_provider()
 ctx = ContextManager(str(uuid4()))
 ctx.switch_provider(current_provider, current_model)
 dashboard = Dashboard(
@@ -76,6 +122,23 @@ Plan like an operator system:
 - Make plans explicit, inspectable, and delivery-oriented.
 - Coordinate browser prompts, code prompts, files, terminal commands, workspace inspection, HTTP actions, and browser automation as one system.
 
+For SaaS / web app / startup product requests (e.g. "I want a saas app"):
+1. scaffold_saas with description and project_name (slug, no spaces)
+2. transfer_context to lovable and cursor with targets
+3. open_app cursor
+4. lovable with a detailed UI/product prompt derived from the user request
+5. cursor_build with an implementation prompt for the same product
+
+""" + PLANNER_TOOLS_DOC + """
+- claude_code: {prompt, directory?} (legacy)
+- cursor_build: {prompt, directory?}
+- lovable: {prompt}
+- transfer_context: {target: lovable|cursor|claude|chatgpt|codex|generic}
+- scaffold_saas: {description, project_name}
+
+Prefer ai_agent with agent auto for coding tasks (picks Cursor, Codex, Claude, or configured model).
+Use browser for web UI; desktop for OS-level click, type, drag; rewrite_file and delete_file for file ops.
+
 Output only valid JSON in this exact shape:
 {
   "goal": "one sentence summary",
@@ -84,12 +147,41 @@ Output only valid JSON in this exact shape:
     {
       "step": 1,
       "description": "what this does",
-      "tool": "run_shell | open_url | claude_code | write_file | open_app | read_file | list_dir | append_file | make_dir | http_request | browser",
+      "tool": "<one of the tools above>",
       "params": {}
     }
   ]
 }
 """
+
+BUILD_KEYWORDS = (
+    "saas",
+    "web app",
+    "webapp",
+    "startup",
+    "mvp",
+    "landing page",
+    "build me",
+    "create app",
+    "scaffold",
+    "deploy",
+    "lovable",
+    "cursor",
+    "click",
+    "type",
+    "drag",
+    "open app",
+    "open browser",
+    "delete",
+    "rewrite",
+    "automate",
+    "codex",
+    "claude",
+)
+
+UNIFIED_OPERATOR_TOOLS = frozenset(
+    {"browser", "desktop", "ai_agent", "rewrite_file", "delete_file", "open_service"}
+)
 
 CHAT_SYSTEM_PROMPT = """You are IMOS, a terminal AI assistant.
 Reply directly and briefly. Continue naturally from the existing session context.
@@ -97,9 +189,9 @@ Do not output JSON unless the user asks for JSON.
 """
 
 INTENT_SYSTEM_PROMPT = """You are the IMOS runtime intent router.
-Decide whether the latest user message should be handled as "chat" or "execute".
-Choose "execute" when the user wants something created, launched, opened, scaffolded, written, automated, deployed, or run.
-Choose "chat" for greetings, discussion, questions, ideation, explanation, feedback, or product positioning.
+Default to "execute" whenever the user wants something to happen on their PC, browser, files, or apps.
+Choose "execute" for: build, make, create, open, run, click, type, drag, delete, write, deploy, automate, control, websites, apps, fixes.
+Choose "chat" ONLY for pure greetings, thanks, or conceptual questions with no action implied.
 
 Output only valid JSON in exactly this shape:
 {
@@ -108,6 +200,9 @@ Output only valid JSON in exactly this shape:
   "reply": "direct assistant reply if mode is chat, otherwise empty string"
 }
 """
+
+UI = None
+VERBOSE_THINK = False
 
 HELP_TEXT = """Commands:
   /help                         show this help
@@ -122,6 +217,17 @@ HELP_TEXT = """Commands:
   /sessions                     list all saved sessions
   /resume <id>                  restore and continue a saved session
   /export                       export current session to markdown
+  /transfer <target>            export full context for cursor, claude, lovable, codex, etc.
+  /transfer all                 export context packs for all major targets
+  /services                     list all connected services
+  /service add <name> [detail]  add a custom service to the catalog
+  /model list                   list saved model providers
+  /model types                  list provider types you can add
+  /model add <type> <model> [key] [base_url]
+                                add any model (e.g. /model add openai gpt-4o sk-...)
+  /model use <id>               switch active model by provider id
+  /model default <id>         set default provider
+  /model remove <id>          remove a saved provider
   /exit                         quit IMOS
 """
 
@@ -131,11 +237,105 @@ def _clear_screen() -> None:
 
 
 def _imos_line(message: str) -> None:
-    print(f"imos  {message}")
+    if UI:
+        UI.status(message)
+    else:
+        print(f"imos  {message}")
     try:
         dashboard.emit_log(message)
     except Exception:
         pass
+
+
+def _dashboard_chat(role: str, content: str) -> None:
+    try:
+        dashboard.emit_chat(role, content)
+    except Exception:
+        pass
+
+
+def _dashboard_think(think_data: dict) -> None:
+    try:
+        dashboard.emit_think(think_data)
+    except Exception:
+        pass
+
+
+def _is_build_request(text: str) -> bool:
+    lowered = text.lower()
+    return any(keyword in lowered for keyword in BUILD_KEYWORDS)
+
+
+def _should_execute(text: str, think_data: dict | None = None) -> bool:
+    if _is_build_request(text):
+        return True
+    if think_data and str(think_data.get("mode", "")).lower() == "execute":
+        return True
+    lowered = text.lower()
+    execute_signals = (
+        "make ",
+        "build ",
+        "create ",
+        "open ",
+        "run ",
+        "launch",
+        "click",
+        "type ",
+        "drag",
+        "delete",
+        "remove",
+        "write ",
+        "read ",
+        "deploy",
+        "scaffold",
+        "automate",
+        "control",
+        "website",
+        " web app",
+        "saas",
+        "fix ",
+        "install",
+        "download",
+        "upload",
+        "screenshot",
+        "browser",
+        "cursor",
+        "lovable",
+        "professional",
+    )
+    return any(signal in lowered for signal in execute_signals)
+
+
+def _transfer_context_command(parts: list[str]) -> None:
+    from tools.context_transfer import TRANSFER_TARGETS, build_transfer_from_imos_context, copy_to_clipboard
+
+    if len(parts) < 2:
+        sample = "|".join(TRANSFER_TARGETS[:6])
+        _imos_line(f"usage: /transfer <{sample}...>  or  /transfer all")
+        return
+    targets = list(TRANSFER_TARGETS) if parts[1].lower() == "all" else [parts[1].lower()]
+    for target in targets:
+        try:
+            package = build_transfer_from_imos_context(ctx, target=target, exports_dir=EXPORTS_DIR)
+            path = package["transfer_path"]
+            copied = copy_to_clipboard(package["transfer_text"])
+            if UI:
+                UI.tool_start(f"transfer → {target}", path)
+                UI.tool_result(f"Saved {path}" + (" · copied to clipboard" if copied else ""), ok=True)
+            else:
+                _imos_line(f"context → {target}: {path}" + (" (clipboard)" if copied else ""))
+            if target == "cursor":
+                from tools.ide_tools import open_cursor
+
+                open_cursor(str(PROJECT_ROOT))
+            elif target == "lovable":
+                webbrowser.open("https://lovable.dev")
+            try:
+                dashboard.emit_log(f"context transferred to {target}: {path}")
+            except Exception:
+                pass
+        except Exception as exc:
+            _imos_line(f"transfer {target} failed: {exc}")
 
 
 def _truncate(text: str, limit: int) -> str:
@@ -232,6 +432,22 @@ def _short_tool_description(tool: str, params: dict) -> str:
         return params.get("path", "")
     if tool == "open_url":
         return params.get("url", "")
+    if tool == "lovable":
+        return _truncate(params.get("prompt", ""), 100).replace("\n", " ")
+    if tool == "cursor_build":
+        return _truncate(params.get("prompt", ""), 100).replace("\n", " ")
+    if tool == "transfer_context":
+        return params.get("target", "")
+    if tool == "scaffold_saas":
+        return params.get("project_name", params.get("description", ""))
+    if tool == "desktop":
+        return str(params.get("action", ""))
+    if tool == "ai_agent":
+        return _truncate(params.get("prompt", ""), 100).replace("\n", " ")
+    if tool == "delete_file":
+        return params.get("path", "")
+    if tool == "rewrite_file":
+        return params.get("path", "")
     if tool == "open_app":
         return params.get("app", "")
     if tool == "claude_code":
@@ -251,7 +467,12 @@ def _policy_gate(tool: str, params: dict) -> str | None:
         _imos_line(f"{tool} is blocked by policy")
         return "denied"
     if decision == "ask":
-        answer = input(f"  Allow {tool}: {_short_tool_description(tool, params)}? [y/N] ").strip().lower()
+        desc = _short_tool_description(tool, params)
+        if UI:
+            UI.tool_start("permission", f"{tool}")
+            answer = input(f"  Allow {tool} ({desc})? [y/N] ").strip().lower()
+        else:
+            answer = input(f"  Allow {tool}: {desc}? [y/N] ").strip().lower()
         if answer != "y":
             return "skipped by user"
     return None
@@ -307,8 +528,19 @@ def route_intent(user_message: str) -> dict:
     return decision
 
 
-def plan(user_message: str) -> dict:
-    raw_response = get_response(messages=_provider_messages(), system=_planner_prompt_with_memory())
+def plan(user_message: str, think_data: dict | None = None) -> dict:
+    system = _planner_prompt_with_memory()
+    if think_data:
+        steps = think_data.get("reasoning_steps") or []
+        agents = think_data.get("agents") or ["auto"]
+        services = think_data.get("services") or []
+        system += (
+            f"\n\nPrior operator analysis:\n{think_data.get('analysis', '')}\n"
+            f"Reasoning steps: {json.dumps(steps)}\n"
+            f"Preferred agents: {json.dumps(agents)}\n"
+            f"Connected services: {json.dumps(services)}"
+        )
+    raw_response = get_response(messages=_provider_messages(), system=system)
     plan_data = _parse_json_response(raw_response)
     if not isinstance(plan_data, dict):
         raise ValueError("planner returned non-object JSON")
@@ -336,12 +568,9 @@ def _open_terminal() -> None:
     raise RuntimeError("no supported terminal application was found")
 
 
-def execute_tool(step: dict) -> dict:
+def _execute_legacy_tool(step: dict) -> dict:
     tool = step.get("tool")
     params = step.get("params") or {}
-    blocked = _policy_gate(tool, params)
-    if blocked:
-        return {"status": blocked, "tool": tool, "step": step.get("step"), "result": blocked}
 
     if tool == "run_shell":
         command = params["command"]
@@ -443,17 +672,120 @@ def execute_tool(step: dict) -> dict:
     if tool == "open_app":
         app = str(params["app"]).lower()
         if app == "cursor":
-            subprocess.Popen(["cursor", "."], cwd=str(PROJECT_ROOT))
-            return {"status": "ok", "tool": tool, "result": "Opened Cursor"}
+            from tools.ide_tools import open_cursor
+
+            result = open_cursor(str(PROJECT_ROOT))
+            if result.get("status") != "success":
+                subprocess.Popen(["cursor", "."], cwd=str(PROJECT_ROOT))
+            return {"status": "ok", "tool": tool, "result": "Opened Cursor for IMOS workspace"}
         if app == "vscode":
-            subprocess.Popen(["code", "."], cwd=str(PROJECT_ROOT))
+            from tools.ide_tools import open_vscode
+
+            result = open_vscode(str(PROJECT_ROOT))
+            if result.get("status") != "success":
+                subprocess.Popen(["code", "."], cwd=str(PROJECT_ROOT))
             return {"status": "ok", "tool": tool, "result": "Opened VS Code"}
         if app == "terminal":
             _open_terminal()
             return {"status": "ok", "tool": tool, "result": "Opened terminal"}
         raise ValueError(f"unsupported app: {app}")
 
+    if tool == "lovable":
+        from tools.web_platform_tools import lovable_build_project
+
+        prompt = str(params.get("prompt", "")).strip()
+        if not prompt:
+            raise ValueError("lovable requires a prompt")
+        print(f"   Lovable: {_truncate(prompt, 80)}")
+        outcome = lovable_build_project(prompt)
+        status = "ok" if outcome.get("status") == "success" else "failed"
+        urls = outcome.get("urls") or []
+        summary = f"Lovable session: {outcome.get('status', 'unknown')}"
+        if urls:
+            summary += f" urls={', '.join(urls[:3])}"
+        return {"status": status, "tool": tool, "result": summary, "detail": outcome}
+
+    if tool == "cursor_build":
+        from tools.agent_bridges import chat_with_claude_code
+        from tools.ide_tools import open_cursor
+
+        prompt = str(params.get("prompt", "")).strip()
+        directory = _resolve_directory(params.get("directory", "."))
+        open_cursor(directory)
+        outcome = chat_with_claude_code(prompt, directory)
+        status = "ok" if outcome.get("success") else "failed"
+        output = _truncate(outcome.get("output") or outcome.get("error", ""), 600)
+        return {"status": status, "tool": tool, "result": f"Cursor/Claude build in {directory}: {output}"}
+
+    if tool == "transfer_context":
+        from tools.context_transfer import TRANSFER_TARGETS, build_transfer_from_imos_context, copy_to_clipboard
+
+        target = str(params.get("target", "generic")).strip().lower() or "generic"
+        if target not in TRANSFER_TARGETS:
+            target = "generic"
+        EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+        package = build_transfer_from_imos_context(ctx, target=target, exports_dir=EXPORTS_DIR)
+        transfer_path = Path(package["transfer_path"])
+        copied = copy_to_clipboard(package.get("transfer_text", ""))
+        from tools.context_transfer import _target_instructions
+
+        instruction = _target_instructions(target)
+        if target == "lovable":
+            webbrowser.open("https://lovable.dev")
+        elif target == "cursor":
+            from tools.ide_tools import open_cursor
+
+            open_cursor(str(PROJECT_ROOT))
+        clip_note = " Copied to clipboard." if copied else ""
+        return {
+            "status": "ok",
+            "tool": tool,
+            "result": f"Context transferred to {target}: {transfer_path}.{clip_note} {instruction}",
+        }
+
+    if tool == "scaffold_saas":
+        from skills.scaffold_nextjs.handler import run as scaffold_run
+
+        description = str(params.get("description", "SaaS product")).strip()
+        raw_name = str(params.get("project_name", "imos-saas")).strip().lower()
+        project_name = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in raw_name).strip("-_") or "imos-saas"
+        print(f"   Scaffolding SaaS: {project_name}")
+        outcome = scaffold_run(
+            {
+                "description": description,
+                "project_name": project_name,
+                "db_type": "sqlite",
+                "deploy_target": "vercel",
+                "include_auth": True,
+                "include_payments": False,
+            },
+            workspace=str(PROJECT_ROOT),
+            model_config={"provider": current_provider, "model": current_model},
+        )
+        status = "ok" if outcome.get("ok") else "failed"
+        summary = outcome.get("summary") or outcome.get("error") or str(outcome)
+        return {"status": status, "tool": tool, "result": f"SaaS scaffold {project_name}: {_truncate(summary, 500)}"}
+
     raise ValueError(f"unsupported tool: {tool}")
+
+
+def execute_tool(step: dict) -> dict:
+    tool = step.get("tool")
+    params = step.get("params") or {}
+    blocked = _policy_gate(tool, params)
+    if blocked:
+        return {"status": blocked, "tool": tool, "step": step.get("step"), "result": blocked}
+    if tool in UNIFIED_OPERATOR_TOOLS:
+        return run_operator_tool(
+            tool,
+            params,
+            project_root=PROJECT_ROOT,
+            legacy_browser=browser,
+            current_provider=current_provider,
+            current_model=current_model,
+            execute_legacy=_execute_legacy_tool,
+        )
+    return _execute_legacy_tool(step)
 
 
 def _suggest_shell_fix(command: str, stderr_text: str) -> dict | None:
@@ -576,16 +908,112 @@ def _export_session() -> None:
 
 
 def _set_current_provider(provider: str, model: str | None = None) -> tuple[str, str]:
-    global current_provider, current_model
     provider = provider.strip().lower()
-    if provider not in PROVIDER_MODEL_DEFAULTS:
-        raise ValueError(f"unknown provider: {provider}")
-    model = model or PROVIDER_MODEL_DEFAULTS[provider]
-    current_provider = provider
-    current_model = model
-    os.environ["AI_PROVIDER"] = provider
-    os.environ[PROVIDER_MODEL_ENVS[provider]] = model
-    return current_provider, current_model
+    if provider not in model_manager.PROVIDER_TYPES and provider not in PROVIDER_MODEL_DEFAULTS:
+        raise ValueError(f"unknown provider: {provider}. Run /model types")
+    model = model or PROVIDER_MODEL_DEFAULTS.get(provider, "custom-model")
+    row = model_manager.add_provider(
+        {
+            "id": f"{provider}-runtime",
+            "name": model_manager.PROVIDER_TYPES.get(provider, {}).get("name", provider),
+            "type": provider,
+            "model": model,
+            "api_key": os.getenv(
+                {
+                    "anthropic": "ANTHROPIC_API_KEY",
+                    "openai": "OPENAI_API_KEY",
+                    "groq": "GROQ_API_KEY",
+                }.get(provider, ""),
+                "",
+            ),
+            "is_default": True,
+        }
+    )
+    return _activate_provider_row(row)
+
+
+def _handle_model_command(parts: list[str]) -> None:
+    if len(parts) < 2:
+        _imos_line("usage: /model list|types|add|use|default|remove")
+        return
+    action = parts[1].lower()
+    if action == "list":
+        rows = model_manager.load_providers()
+        if not rows:
+            _imos_line("no models saved. use /model add <type> <model_name> [api_key]")
+            return
+        for row in rows:
+            mark = "*" if row.get("is_default") else " "
+            _imos_line(f"{mark} {row['id']:<16} {row['type']:<12} {row.get('model', '')}")
+        return
+    if action == "types":
+        for item in list_provider_types():
+            _imos_line(f"  {item['type']:<14} {item['name']}")
+        _imos_line("use /model add <type> <any-model-id> [api_key] [base_url]")
+        return
+    if action == "add":
+        if len(parts) < 4:
+            _imos_line("usage: /model add <type> <model> [api_key] [base_url]")
+            return
+        provider_type = parts[2].lower()
+        model_name = parts[3]
+        api_key = parts[4] if len(parts) > 4 else ""
+        base_url = parts[5] if len(parts) > 5 else model_manager.PROVIDER_TYPES.get(provider_type, {}).get("base_url", "")
+        if provider_type not in model_manager.PROVIDER_TYPES:
+            _imos_line(f"unknown type {provider_type}. run /model types")
+            return
+        payload = {
+            "id": f"{provider_type}-{model_name.replace('/', '-')[:24]}",
+            "name": f"{model_manager.PROVIDER_TYPES[provider_type]['name']} ({model_name})",
+            "type": provider_type,
+            "model": model_name,
+            "api_key": api_key,
+            "base_url": base_url,
+            "enabled": True,
+            "is_default": True,
+        }
+        row = model_manager.add_provider(payload)
+        _activate_provider_row(row)
+        ctx.switch_provider(current_provider, current_model)
+        _imos_line(f"model added: {row['id']} -> {row['type']} / {row['model']}")
+        try:
+            dashboard.emit_models(model_manager.load_providers(), model_manager.get_default())
+        except Exception:
+            pass
+        return
+    if action == "use":
+        if len(parts) < 3:
+            _imos_line("usage: /model use <provider_id>")
+            return
+        provider_id = parts[2]
+        row = next((r for r in model_manager.load_providers() if r["id"] == provider_id or r["id"].startswith(provider_id)), None)
+        if not row:
+            _imos_line(f"provider not found: {provider_id}")
+            return
+        _activate_provider_row(row)
+        ctx.switch_provider(current_provider, current_model)
+        _imos_line(f"active model: {_provider_name()}")
+        return
+    if action == "default":
+        if len(parts) < 3:
+            _imos_line("usage: /model default <provider_id>")
+            return
+        row = model_manager.set_default(parts[2])
+        _activate_provider_row(row)
+        _imos_line(f"default model: {row['id']} / {row['model']}")
+        return
+    if action == "remove":
+        if len(parts) < 3:
+            _imos_line("usage: /model remove <provider_id>")
+            return
+        if model_manager.remove_provider(parts[2]):
+            _init_active_provider()
+            ctx.switch_provider(current_provider, current_model)
+            _imos_line(f"removed provider {parts[2]}")
+        else:
+            _imos_line(f"provider not found: {parts[2]}")
+        return
+    _imos_line("unknown /model action. try list, types, add, use, default, remove")
 
 
 def _switch_provider_command(new_provider: str) -> None:
@@ -613,9 +1041,14 @@ def _first_launch_consent_gate() -> None:
     IMOS_HOME.mkdir(parents=True, exist_ok=True)
     if INITIALIZED_PATH.exists():
         return
-    _clear_screen()
-    print(" Before IMOS takes control of this machine, you must grant permissions.")
-    print("  You can change these at any time with /policy-set <tool> <allow|ask|deny>\n")
+    if UI:
+        UI.clear()
+        UI.assistant("Before IMOS controls this PC, grant permissions for real execution.")
+        UI.status("You can change these anytime: /policy-set <tool> allow|ask|deny")
+    else:
+        _clear_screen()
+        print(" Before IMOS takes control of this machine, you must grant permissions.")
+        print("  You can change these at any time with /policy-set <tool> <allow|ask|deny>\n")
     answers = {}
     for tool_name in pol.all().keys():
         answer = input(f"  Grant {tool_name}? [y/N] ").strip().lower()
@@ -632,20 +1065,33 @@ def _first_launch_consent_gate() -> None:
 
 
 def _boot_sequence() -> None:
-    _clear_screen()
-    print("  IMOS    Operator Runtime\n")
-    for line in [
-        "[0.0s]  Initializing memory layer...",
-        "[0.1s]  Loading policy gates...",
-        "[0.2s]  Starting task tracker...",
-        f"[0.3s]  Connecting AI provider: {current_provider}",
-        "[0.4s]  Runtime ready.",
-        "[0.5s]  Dashboard starting on :7070...",
-    ]:
-        print(f"  {line}")
-        time.sleep(0.15)
-    print("\n  Sessions  Memory  Execution  All under one surface.\n")
-    print("  Type a goal or command. /help for reference.\n")
+    if UI:
+        UI.clear()
+        try:
+            from imos.auth import current_user
+
+            user = current_user()
+            email = str(user.get("email", "") or "")
+        except Exception:
+            email = ""
+        stats = ctx.get_stats()
+        UI.banner(
+            email=email,
+            model=_provider_name(),
+            session_id=stats["session_id"],
+        )
+    else:
+        _clear_screen()
+        print("  IMOS    Operator Runtime\n")
+        print(f"  Provider: {_provider_name()}  ·  dashboard http://localhost:7070\n")
+    try:
+        dashboard.emit_services(list_all_services())
+        dashboard.emit_models(model_manager.load_providers(), model_manager.get_default())
+        from imos.auth import current_user
+
+        dashboard.emit_auth(current_user())
+    except Exception:
+        pass
 
 
 def execute_plan(user_input: str, plan_data: dict) -> None:
@@ -671,9 +1117,12 @@ def execute_plan(user_input: str, plan_data: dict) -> None:
     for index, step in enumerate(steps, start=1):
         tool = step.get("tool", "unknown")
         description = _truncate(step.get("description", ""), 60)
-        _imos_line(f"step {index}/{len(steps)}    {tool}")
-        print(f"   Step {index}/{len(steps)}  {tool}")
-        print(f"    {description}")
+        if UI:
+            UI.tool_start(tool, description)
+        else:
+            _imos_line(f"step {index}/{len(steps)}    {tool}")
+            print(f"   Step {index}/{len(steps)}  {tool}")
+            print(f"    {description}")
         try:
             dashboard.emit_step(
                 {
@@ -746,7 +1195,10 @@ def execute_plan(user_input: str, plan_data: dict) -> None:
                 had_failure = True
                 _imos_line(f"step {index}/{len(steps)} failed  {_truncate(result.get('status', 'failed'), 60)}")
             else:
-                _imos_line(f"step {index}/{len(steps)} done")
+                if UI:
+                    UI.tool_end(ok=True)
+                else:
+                    _imos_line(f"step {index}/{len(steps)} done")
         except Exception as error:
             had_failure = True
             short_error = _truncate(str(error), 60)
@@ -768,7 +1220,10 @@ def execute_plan(user_input: str, plan_data: dict) -> None:
 
     tracker.finish(task_id, "failed" if had_failure else "done")
     mem.append_log(f"{user_input}  {goal}")
-    _imos_line(f"goal complete: {_truncate(goal, 55)}")
+    if UI:
+        UI.assistant(f"Done: {goal}")
+    else:
+        _imos_line(f"goal complete: {_truncate(goal, 55)}")
 
 
 def _shutdown_session() -> None:
@@ -781,13 +1236,22 @@ def _shutdown_session() -> None:
     print(f"Session {stats['session_id'][:8]} saved    {stats['message_count']} messages    {providers}")
 
 
-def main() -> None:
+def run_operator_cli(ui_module=None) -> None:
+    global UI, VERBOSE_THINK
+    UI = ui_module
     _first_launch_consent_gate()
     _boot_sequence()
 
     while True:
         try:
-            user_input = input("imos  ").strip()
+            user_input = dashboard.pop_chat_inbox() or ""
+            if not user_input:
+                if UI:
+                    user_input = UI.read_user_input()
+                else:
+                    user_input = input("imos  ").strip()
+            elif UI:
+                UI.user_echo(user_input)
             if not user_input:
                 continue
             if user_input in {"/exit", "exit"}:
@@ -835,30 +1299,105 @@ def main() -> None:
             if user_input == "/session":
                 _show_current_session()
                 continue
-
-            conversation_history.append({"role": "user", "content": user_input})
-            ctx.add_message("user", user_input, current_provider, current_model)
-            _imos_line("planning...")
-            decision = route_intent(user_input)
-
-            if decision["mode"] == "chat":
-                reply = str(decision.get("reply", "")).strip() or chat(user_input)
-                conversation_history.append({"role": "assistant", "content": reply})
-                ctx.add_message("assistant", reply, current_provider, current_model)
-                print(f"imos  {reply}")
+            if user_input == "/services":
+                services = list_all_services()
+                rows = [
+                    f"{s['label'][:22]:<22} {'on' if s.get('available') else 'off':<4} [{s.get('category', '')[:10]}]"
+                    for s in services
+                ]
+                _show_box(f"Services ({len(services)})", rows[:24])
+                try:
+                    dashboard.emit_services(services)
+                except Exception:
+                    pass
+                continue
+            if user_input.startswith("/service add "):
+                label = user_input.split(maxsplit=3)[2] if len(user_input.split()) > 2 else "Custom"
+                detail = user_input.split(maxsplit=3)[3] if len(user_input.split()) > 3 else ""
+                entry = save_custom_service({"label": label, "detail": detail})
+                _imos_line(f"custom service added: {entry['id']}")
+                try:
+                    dashboard.emit_services(list_all_services())
+                except Exception:
+                    pass
+                continue
+            if user_input.startswith("/model"):
+                _handle_model_command(user_input.split())
+                continue
+            if user_input.startswith("/transfer"):
+                _transfer_context_command(user_input.split())
                 continue
 
-            plan_data = plan(user_input)
+            if UI:
+                UI.user_echo(user_input)
+            conversation_history.append({"role": "user", "content": user_input})
+            ctx.add_message("user", user_input, current_provider, current_model)
+            _dashboard_chat("user", user_input)
+
+            if UI:
+                UI.status("Running operator loop…")
+            else:
+                _imos_line("thinking...")
+            think_data = think(user_input, get_response, _provider_messages)
+            _dashboard_think(think_data)
+            if VERBOSE_THINK:
+                for line in think_data.get("reasoning_steps", [])[:4]:
+                    if UI:
+                        UI.thinking(line, verbose=True)
+                    else:
+                        _imos_line(f"think  {line}")
+
+            if _should_execute(user_input, think_data):
+                decision = {"mode": "execute", "reason": "real execution", "reply": ""}
+            else:
+                decision = route_intent(user_input)
+                if decision["mode"] == "chat" and _should_execute(user_input, think_data):
+                    decision = {"mode": "execute", "reason": "action implied", "reply": ""}
+
+            if decision["mode"] == "chat":
+                reply = (
+                    str(think_data.get("reply", "")).strip()
+                    or str(decision.get("reply", "")).strip()
+                    or chat(user_input)
+                )
+                conversation_history.append({"role": "assistant", "content": reply})
+                ctx.add_message("assistant", reply, current_provider, current_model)
+                _dashboard_chat("assistant", reply)
+                mem.append_log(f"chat: {_truncate(user_input, 80)}")
+                if UI:
+                    UI.assistant(reply)
+                else:
+                    print(f"imos  {reply}")
+                continue
+
+            if UI:
+                UI.status("Planning real steps…")
+            else:
+                _imos_line("planning...")
+            plan_data = plan(user_input, think_data)
             conversation_history.append({"role": "assistant", "content": plan_data})
             execute_plan(user_input, plan_data)
+        except KeyboardInterrupt:
+            if UI:
+                UI.status("Interrupted.")
+            break
         except Exception as error:
-            _imos_line(f"error: {str(error)}")
-            _imos_line("the runtime is still active. type your next goal.")
+            if UI:
+                UI.error(str(error))
+            else:
+                _imos_line(f"error: {str(error)}")
+            _imos_line("runtime still active.")
 
     try:
         browser.close()
     except Exception:
         pass
+
+
+def main() -> None:
+    from imos.operator_shell import run
+
+    run()
 
 
 if __name__ == "__main__":

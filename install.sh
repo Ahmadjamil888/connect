@@ -39,7 +39,7 @@ echo -e "${D}    Guided install with loader and staged verification${X}"
 echo -e "${O}  ========================================================${X}"
 echo ""
 
-step "1/8" "Resolving repository source"
+step "1/9" "Resolving repository source"
 if [[ -f "$SCRIPT_DIR/setup.py" && -d "$SCRIPT_DIR/imos" ]]; then
   REPO_DIR="$SCRIPT_DIR"
   ok "Using current repository"
@@ -65,7 +65,7 @@ else
   fi
 fi
 
-step "2/8" "Checking Python runtime"
+step "2/9" "Checking Python runtime"
 if command -v python3 >/dev/null 2>&1; then
   PY="python3"
 elif command -v python >/dev/null 2>&1; then
@@ -75,7 +75,7 @@ else
 fi
 ok "$($PY --version 2>&1)"
 
-step "3/8" "Preparing virtual environment"
+step "3/9" "Preparing virtual environment"
 if [[ ! -d "$REPO_DIR/venv" ]]; then
   progress "Creating virtual environment" "$PY" -m venv "$REPO_DIR/venv"
 else
@@ -84,14 +84,14 @@ fi
 VENV_PY="$REPO_DIR/venv/bin/python"
 [[ -x "$VENV_PY" ]] || fail "Virtual environment is missing"
 
-step "4/8" "Installing IMOS runtime"
+step "4/9" "Installing IMOS runtime"
 progress "Upgrading pip" "$VENV_PY" -m pip install --upgrade pip
 progress "Installing project dependencies" "$VENV_PY" -m pip install -r "$REPO_DIR/requirements.txt"
 progress "Installing IMOS command" "$VENV_PY" -m pip install -e "$REPO_DIR"
-step "5/8" "Installing Playwright browser runtime"
+step "5/9" "Installing Playwright browser runtime"
 progress "Installing Chromium for Playwright" "$VENV_PY" -m playwright install chromium
 
-step "6/8" "Preparing local configuration"
+step "6/9" "Preparing local configuration"
 if [[ ! -f "$REPO_DIR/.env" ]]; then
   if [[ -f "$REPO_DIR/.env.example" ]]; then
     cp "$REPO_DIR/.env.example" "$REPO_DIR/.env"
@@ -103,10 +103,14 @@ if [[ ! -f "$REPO_DIR/.env" ]]; then
 else
   ok "Existing .env preserved"
 fi
-mkdir -p "$HOME/.imos"
-progress "Initializing IMOS home" "$VENV_PY" -c "from imos.config import ensure_default_files; ensure_default_files()"
+progress "Bootstrapping IMOS home, providers, and services" "$VENV_PY" -c "
+from pathlib import Path
+from setup.bootstrap import initialize_imos_runtime, print_bootstrap_summary
+s = initialize_imos_runtime(Path('$REPO_DIR'))
+print_bootstrap_summary(s)
+"
 
-step "7/8" "Installing global launcher"
+step "7/9" "Installing global launcher"
 BIN_DIR="$HOME/.local/bin"
 mkdir -p "$BIN_DIR"
 cat > "$BIN_DIR/imos" <<EOF
@@ -126,17 +130,35 @@ case ":$PATH:" in
     ;;
 esac
 
-step "8/8" "Running guided setup checks"
+step "8/9" "Running guided setup checks"
 progress "Installing editor bridge config" "$VENV_PY" -m imos.cli mcp install
 progress "Installing wake listener" "$VENV_PY" -m imos.cli wake install
 progress "Checking runtime status" "$VENV_PY" -m imos.cli status
+
+step "9/9" "Optional first-time wizard"
+if [[ -t 0 ]]; then
+  read -r -p "Run IMOS setup wizard (models, services, integrations)? [Y/n]: " RUN_WIZARD
+  if [[ ! "$RUN_WIZARD" =~ ^[Nn]$ ]]; then
+    "$VENV_PY" -c "
+from pathlib import Path
+from setup.wizard import run_setup_wizard
+run_setup_wizard(Path('$REPO_DIR'), Path('$REPO_DIR'), forced=True)
+" || true
+  fi
+else
+  ok "Non-interactive install — run: imos  then  /model add  or  python -m setup.wizard"
+fi
 
 echo ""
 echo -e "${O}  ========================================================${X}"
 echo -e "${G}    IMOS is installed${X}"
 echo -e "${O}  ========================================================${X}"
 echo ""
-echo -e "  Start IMOS from any terminal with: ${W}imos${X}"
-echo -e "  Open the dashboard with:          ${W}imos dashboard${X}"
-echo -e "  Repository source:                ${D}$REPO_URL${X}"
+echo -e "  Start IMOS:              ${W}imos${X}"
+echo -e "  Dashboard:               ${W}http://127.0.0.1:7070${X}  or  ${W}imos dashboard${X}"
+echo -e "  All services:            ${W}imos${X}  →  ${W}/services${X}"
+echo -e "  Add any model:           ${W}/model add <type> <model-id> [key] [base_url]${X}"
+echo -e "  Provider types:          ${W}/model types${X}"
+echo -e "  Re-run setup wizard:     ${W}python -m setup.wizard${X}  (from repo)"
+echo -e "  Repository:              ${D}$REPO_URL${X}"
 echo ""

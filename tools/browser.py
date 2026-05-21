@@ -86,6 +86,21 @@ def wait_for_element(selector: str, timeout: int = 10000) -> dict[str, Any]:
     return {"ok": True, "selector": selector, "current_url": page.url, "title": page.title()}
 
 
+def drag(x1: int, y1: int, x2: int, y2: int) -> dict[str, Any]:
+    page = _get_page()
+    page.mouse.move(x1, y1)
+    page.mouse.down()
+    page.mouse.move(x2, y2)
+    page.mouse.up()
+    return {"ok": True, "from": [x1, y1], "to": [x2, y2], "current_url": page.url}
+
+
+def press_key(key: str) -> dict[str, Any]:
+    page = _get_page()
+    page.keyboard.press(key)
+    return {"ok": True, "key": key, "current_url": page.url}
+
+
 def scroll(direction: str = "down", amount: int = 500) -> dict[str, Any]:
     page = _get_page()
     delta = amount if direction == "down" else -amount
