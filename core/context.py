@@ -22,16 +22,30 @@ class ContextManager:
             "token_estimate": 0,
         }
 
+    def _coerce_session_data(self, raw_data) -> dict | None:
+        if isinstance(raw_data, dict):
+            data = dict(raw_data)
+            data.setdefault("session_id", self.session_id)
+            data.setdefault("created_at", datetime.now().isoformat())
+            data.setdefault("provider_history", [])
+            data.setdefault("messages", [])
+            data.setdefault("summary", "")
+            data.setdefault("token_estimate", 0)
+            return data
+        if isinstance(raw_data, list):
+            # Older or malformed files sometimes contain only the message list.
+            data = self._default_data()
+            data["messages"] = raw_data
+            return data
+        return None
+
     def _load_or_create(self) -> dict:
         if self.path.exists():
             try:
                 with open(self.path, "r", encoding="utf-8") as file_handle:
-                    data = json.load(file_handle)
-                if isinstance(data, dict):
-                    data.setdefault("provider_history", [])
-                    data.setdefault("messages", [])
-                    data.setdefault("summary", "")
-                    data.setdefault("token_estimate", 0)
+                    raw_data = json.load(file_handle)
+                data = self._coerce_session_data(raw_data)
+                if data is not None:
                     return data
             except Exception as error:
                 print(f"Warning: failed to read session file: {error}")
@@ -148,7 +162,18 @@ class ContextManager:
         for path in sessions_dir.glob("*.json"):
             try:
                 with open(path, "r", encoding="utf-8") as file_handle:
-                    data = json.load(file_handle)
+                    raw_data = json.load(file_handle)
+                if isinstance(raw_data, dict):
+                    data = raw_data
+                elif isinstance(raw_data, list):
+                    data = {
+                        "session_id": path.stem,
+                        "created_at": "",
+                        "messages": raw_data,
+                        "summary": "",
+                    }
+                else:
+                    raise TypeError(f"unsupported session payload type: {type(raw_data).__name__}")
                 sessions.append(
                     {
                         "session_id": data.get("session_id", path.stem),
